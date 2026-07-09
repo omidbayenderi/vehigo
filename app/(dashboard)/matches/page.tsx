@@ -79,7 +79,8 @@ export default async function MatchesPage({
         {ranked.map(({ vehicle, score, reasoning }) => (
           <div
             key={vehicle.id}
-            className={`flex items-center justify-between ${cardClass} p-4 transition-shadow hover:shadow-md`}
+            className={`flex items-center justify-between ${cardClass} border-l-[3px] p-4 transition-shadow hover:shadow-md`}
+            style={{ borderLeftColor: score >= 70 ? "#15803D" : score >= 40 ? "#B45309" : "#D9D4C9" }}
           >
             <div>
               <p className="font-medium text-ink">

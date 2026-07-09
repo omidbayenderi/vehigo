@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLead } from "@/lib/services/leads";
 import { PageHeader } from "@/components/ui/page-header";
-import { cardClass, pillClasses } from "@/lib/ui";
+import { cardClass, pillClasses, type PillTone } from "@/lib/ui";
 import StatusSelect from "./status-select";
 import NoteForm from "./note-form";
 
@@ -12,6 +12,13 @@ const activityLabel: Record<string, string> = {
   status_change: "Durum Değişikliği",
   manual_contact: "Manuel İletişim",
   offer_sent: "Teklif Gönderildi",
+};
+
+const activityTone: Record<string, PillTone> = {
+  note: "neutral",
+  status_change: "brand",
+  manual_contact: "warning",
+  offer_sent: "success",
 };
 
 export default async function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,7 +80,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <ul className="space-y-2">
           {lead.activity.map((a) => (
             <li key={a.id} className="border-b border-line-soft pb-2 text-sm last:border-0">
-              <span className={`mr-2 ${pillClasses("neutral")}`}>
+              <span className={`mr-2 ${pillClasses(activityTone[a.activity_type ?? ""])}`}>
                 {activityLabel[a.activity_type ?? ""] ?? a.activity_type}
               </span>
               <span className="text-ink-soft">{a.detail}</span>

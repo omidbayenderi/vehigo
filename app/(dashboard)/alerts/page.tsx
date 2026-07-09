@@ -64,7 +64,11 @@ export default async function AlertsPage() {
         </div>
         <div className="divide-y divide-line-soft">
           {watchlists.map((watchlist) => (
-            <div key={watchlist.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-sunken">
+            <div
+              key={watchlist.id}
+              className="flex items-center justify-between gap-4 border-l-[3px] px-5 py-4 transition-colors hover:bg-surface-sunken"
+              style={{ borderLeftColor: watchlist.active ? "#15803D" : "#D9D4C9" }}
+            >
               <div>
                 <p className="font-medium text-ink">{watchlist.name}</p>
                 <p className="mt-1 text-sm text-ink-faint">
