@@ -20,6 +20,10 @@ export type CommissionType = "fixed" | "percentage";
 export type OfferStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 export type MessageChannel = "whatsapp" | "telegram" | "instagram";
 export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
+export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
+export type MarketSourceMethod = "scrape" | "email_alert";
+export type ListingAlertStatus = "pending" | "sent" | "failed" | "skipped";
+export type ScannerRunStatus = "ok" | "failed" | "blocked" | "skipped";
 
 export type Database = {
   public: {
@@ -29,12 +33,18 @@ export type Database = {
           id: string;
           full_name: string | null;
           role: UserRole;
+          telegram_username: string | null;
+          telegram_chat_id: string | null;
+          telegram_verified_at: string | null;
           created_at: string;
         };
         Insert: {
           id: string;
           full_name?: string | null;
           role?: UserRole;
+          telegram_username?: string | null;
+          telegram_chat_id?: string | null;
+          telegram_verified_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["users_profile"]["Insert"]>;
@@ -229,6 +239,131 @@ export type Database = {
           actor_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["audit_log"]["Row"]>;
+        Relationships: [];
+      };
+      market_sources: {
+        Row: {
+          id: string;
+          key: string;
+          name: string;
+          base_url: string | null;
+          enabled: boolean;
+          min_interval_minutes: number;
+          jitter_percent: number;
+          last_run_at: string | null;
+          next_run_at: string | null;
+          last_status: MarketSourceStatus;
+          last_error: string | null;
+          method: MarketSourceMethod;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["market_sources"]["Row"]> & {
+          key: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["market_sources"]["Row"]>;
+        Relationships: [];
+      };
+      watchlists: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          active: boolean;
+          source_keys: string[];
+          country: string | null;
+          city: string | null;
+          brand: string | null;
+          model: string | null;
+          vehicle_type: VehicleType | null;
+          min_year: number | null;
+          max_year: number | null;
+          max_mileage_km: number | null;
+          min_price: number | null;
+          max_price: number | null;
+          currency: string;
+          keywords: string[];
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["watchlists"]["Row"]> & {
+          user_id: string;
+          name: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["watchlists"]["Row"]>;
+        Relationships: [];
+      };
+      market_listings: {
+        Row: {
+          id: string;
+          source_key: string;
+          source_listing_id: string;
+          listing_url: string;
+          title: string | null;
+          seller_name: string | null;
+          seller_country: string | null;
+          seller_city: string | null;
+          brand: string | null;
+          model: string | null;
+          year: number | null;
+          mileage_km: number | null;
+          price: number | null;
+          currency: string;
+          vehicle_type: VehicleType | null;
+          raw: Json | null;
+          first_seen_at: string;
+          last_seen_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["market_listings"]["Row"]> & {
+          source_key: string;
+          source_listing_id: string;
+          listing_url: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["market_listings"]["Row"]>;
+        Relationships: [];
+      };
+      listing_alerts: {
+        Row: {
+          id: string;
+          listing_id: string;
+          watchlist_id: string;
+          user_id: string;
+          status: ListingAlertStatus;
+          channel: "telegram";
+          error: string | null;
+          sent_at: string | null;
+          created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["listing_alerts"]["Row"]> & {
+          listing_id: string;
+          watchlist_id: string;
+          user_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["listing_alerts"]["Row"]>;
+        Relationships: [];
+      };
+      scanner_runs: {
+        Row: {
+          id: string;
+          source_key: string;
+          started_at: string;
+          finished_at: string | null;
+          status: ScannerRunStatus;
+          fetched_count: number;
+          new_count: number;
+          alert_count: number;
+          next_run_at: string | null;
+          error: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["scanner_runs"]["Row"]> & {
+          source_key: string;
+          status: ScannerRunStatus;
+        };
+        Update: Partial<Database["public"]["Tables"]["scanner_runs"]["Row"]>;
         Relationships: [];
       };
     };

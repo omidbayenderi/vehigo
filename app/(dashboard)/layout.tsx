@@ -9,6 +9,7 @@ const navItems = [
   { href: "/matches", label: "Eşleştirme" },
   { href: "/offers", label: "Teklifler" },
   { href: "/messages", label: "Mesajlar" },
+  { href: "/alerts", label: "İlan alarmları" },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {

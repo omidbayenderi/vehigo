@@ -244,6 +244,16 @@ create table audit_log (
 1. Dashboard: aktif lead sayısı, açık teklif sayısı, potansiyel komisyon toplamı, yüksek potansiyelli araçlar
 2. Kanban görünümü: lead durumlarına göre sürükle-bırak
 
+### Akış G — Pazar alarmı ve erken ilan bildirimi
+1. Kullanıcı uygulamada `watchlists` filtresi oluşturur: kaynak, ülke/şehir, marka/model, yıl, km, fiyat ve anahtar kelimeler.
+2. Sistem kullanıcı başına ayrı istek atmaz; her `market_sources` kaynağı merkezi taranır ve random jitter uygulanmış kaynak bazlı aralıklarla çalışır.
+3. Yeni ilanlar `market_listings` tablosuna `source_key + source_listing_id` veya `source_key + listing_url` üzerinden tekilleştirilerek kaydedilir.
+4. Kaydedilen ilanlar aktif kullanıcı watchlist'leriyle eşleştirilir; her eşleşme için `listing_alerts` kaydı oluşturulur.
+5. Tek Telegram botu kullanılır. Kullanıcı Telegram kullanıcı adını kaydeder, botu başlatır, webhook kullanıcının `chat_id` değerini doğrular.
+6. Bildirim sadece kullanıcının kendi Telegram chat'ine dahili alarm olarak gider. Bu akış müşteriyle otomatik iletişim değildir.
+
+**Tarama politikası:** Resmi API/RSS/saved-search feed varsa 1-3 dakika aralığı mümkün olabilir. HTML scraping gereken kaynaklarda 10-20 dakika ve ±%30-40 jitter varsayılandır. Geniş sorgular daha seyrek, dar ve kritik sorgular daha sık çalışır; kullanıcı sayısı arttıkça marketplace'e giden istek sayısı lineer artmaz.
+
 ---
 
 ## 4. API / Servis Yapısı
@@ -270,6 +280,8 @@ lib/
     compliance.ts   -- checklist validasyonu
     pdf.ts          -- PDF üretim (ör. @react-pdf/renderer veya Puppeteer)
     messages.ts      -- taslak üretimi (şablon + opsiyonel AI), ASLA gönderim yapmaz
+    market-alerts.ts -- merkezi ilan havuzu, watchlist eşleştirme, jitter'lı scanner kayıtları
+    notifications.ts -- dahili Telegram alarm gönderimi ve chat_id doğrulama
     audit.ts        -- audit_log yazımı
 
   supabase/

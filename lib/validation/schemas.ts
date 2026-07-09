@@ -89,3 +89,56 @@ export const messageDraftSchema = z.object({
   channel: z.enum(["whatsapp", "telegram", "instagram"]),
   draft_text: z.string().min(1, "Mesaj metni boş olamaz"),
 });
+
+const commaList = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}, z.array(z.string()).default([]));
+
+export const telegramSettingsSchema = z.object({
+  telegram_username: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/^@/, ""))
+    .pipe(z.string().min(3, "Telegram kullanıcı adı en az 3 karakter olmalı"))
+    .optional(),
+});
+
+export const watchlistSchema = z.object({
+  name: z.string().min(1, "Alarm adı zorunlu"),
+  active: z.coerce.boolean().default(true),
+  source_keys: commaList,
+  country: z.string().optional(),
+  city: z.string().optional(),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  vehicle_type: z.enum(["truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
+  min_year: z.coerce.number().int().min(1950).optional(),
+  max_year: z.coerce.number().int().min(1950).optional(),
+  max_mileage_km: z.coerce.number().int().min(0).optional(),
+  min_price: z.coerce.number().min(0).optional(),
+  max_price: z.coerce.number().min(0).optional(),
+  currency: z.string().default("EUR"),
+  keywords: commaList,
+});
+
+export const marketListingInputSchema = z.object({
+  source_key: z.string().min(1),
+  source_listing_id: z.string().min(1).optional(),
+  listing_url: z.string().url(),
+  title: z.string().optional(),
+  seller_name: z.string().optional(),
+  seller_country: z.string().optional(),
+  seller_city: z.string().optional(),
+  brand: z.string().optional(),
+  model: z.string().optional(),
+  year: z.coerce.number().int().min(1950).optional(),
+  mileage_km: z.coerce.number().int().min(0).optional(),
+  price: z.coerce.number().min(0).optional(),
+  currency: z.string().default("EUR"),
+  vehicle_type: z.enum(["truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
+  raw: z.record(z.string(), z.unknown()).optional(),
+});
