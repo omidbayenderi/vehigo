@@ -1,5 +1,9 @@
+import { BellRing } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { listMarketSources, listRecentAlerts, listWatchlists } from "@/lib/services/market-alerts";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { cardClass, pillClasses } from "@/lib/ui";
 import TelegramSettingsForm from "./telegram-settings-form";
 import WatchlistForm from "./watchlist-form";
 import WatchlistToggle from "./watchlist-toggle";
@@ -21,26 +25,24 @@ export default async function AlertsPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-serif font-semibold text-ink">İlan alarmları</h1>
-        <p className="mt-2 text-sm text-ink-faint">
-          Pazar taraması merkezi çalışır: her kaynak bir kez taranır, ilanlar veritabanına alınır, sonra
-          kullanıcı filtreleriyle eşleşen sonuçlar Telegram üzerinden bildirilir.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Pazar izleme"
+        title="İlan alarmları"
+        description="Pazar taraması merkezi çalışır: her kaynak bir kez taranır, ilanlar veritabanına alınır, sonra kullanıcı filtreleriyle eşleşen sonuçlar Telegram üzerinden bildirilir."
+      />
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <TelegramSettingsForm
           username={profile?.telegram_username ?? null}
           verified={Boolean(profile?.telegram_chat_id && profile.telegram_verified_at)}
         />
-        <div className="rounded-lg border border-line-soft bg-white p-5">
+        <div className={`${cardClass} p-5`}>
           <h2 className="mb-3 text-sm font-medium text-ink">Kaynak tarama politikası</h2>
           <div className="space-y-2 text-sm text-ink-soft">
             {sources.map((source) => (
               <div key={source.id} className="flex items-center justify-between">
                 <span>{source.name}</span>
-                <span>
+                <span style={{ fontVariantNumeric: "tabular-nums" }}>
                   {source.min_interval_minutes} dk ± %{source.jitter_percent}
                 </span>
               </div>
@@ -56,13 +58,13 @@ export default async function AlertsPage() {
         <WatchlistForm sources={sources} />
       </div>
 
-      <div className="mb-6 rounded-lg border border-line-soft bg-white">
+      <div className={`mb-6 ${cardClass}`}>
         <div className="border-b border-line-soft px-5 py-4">
           <h2 className="text-sm font-medium text-ink">Aktif filtreler</h2>
         </div>
         <div className="divide-y divide-line-soft">
           {watchlists.map((watchlist) => (
-            <div key={watchlist.id} className="flex items-center justify-between gap-4 px-5 py-4">
+            <div key={watchlist.id} className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-surface-sunken">
               <div>
                 <p className="font-medium text-ink">{watchlist.name}</p>
                 <p className="mt-1 text-sm text-ink-faint">
@@ -75,11 +77,7 @@ export default async function AlertsPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span
-                  className={`rounded-full px-2 py-1 text-xs ${
-                    watchlist.active ? "bg-success-wash text-success" : "bg-surface-sunken text-ink-soft"
-                  }`}
-                >
+                <span className={pillClasses(watchlist.active ? "success" : "neutral")}>
                   {watchlist.active ? "Aktif" : "Pasif"}
                 </span>
                 <WatchlistToggle id={watchlist.id} active={watchlist.active} />
@@ -87,17 +85,17 @@ export default async function AlertsPage() {
             </div>
           ))}
           {watchlists.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-ink-faint">Henüz alarm kuralı yok.</div>
+            <EmptyState icon={BellRing} title="Henüz alarm kuralı yok" description="Yukarıdan bir filtre oluşturarak ilan izlemeye başlayın." />
           ) : null}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
+      <div className={`overflow-hidden ${cardClass}`}>
         <div className="border-b border-line-soft px-5 py-4">
           <h2 className="text-sm font-medium text-ink">Son yakalanan ilanlar</h2>
         </div>
         <table className="w-full text-sm">
-          <thead className="bg-paper text-left text-xs uppercase text-ink-faint">
+          <thead className="bg-paper text-left text-xs uppercase tracking-wide text-ink-faint">
             <tr>
               <th className="px-4 py-3">Tarih</th>
               <th className="px-4 py-3">İlan</th>
@@ -109,7 +107,7 @@ export default async function AlertsPage() {
             {alerts.map((alert) => {
               const listing = alert.market_listings;
               return (
-                <tr key={alert.id} className="hover:bg-paper">
+                <tr key={alert.id} className="transition-colors hover:bg-surface-sunken">
                   <td className="px-4 py-3 text-ink-soft">
                     {new Date(alert.created_at).toLocaleString("tr-TR")}
                   </td>
@@ -127,21 +125,19 @@ export default async function AlertsPage() {
                       "-"
                     )}
                   </td>
-                  <td className="px-4 py-3 text-ink-soft">
+                  <td className="px-4 py-3 text-ink-soft" style={{ fontVariantNumeric: "tabular-nums" }}>
                     {listing?.price?.toLocaleString("tr-TR") ?? "-"} {listing?.currency ?? ""}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-surface-sunken px-2 py-1 text-xs text-ink-soft">
-                      {alert.status}
-                    </span>
+                    <span className={pillClasses("neutral")}>{alert.status}</span>
                   </td>
                 </tr>
               );
             })}
             {alerts.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
-                  Henüz eşleşen ilan yakalanmadı.
+                <td colSpan={4}>
+                  <EmptyState icon={BellRing} title="Henüz eşleşen ilan yakalanmadı" description="Kaynaklar tarandıkça eşleşen ilanlar burada görünecek." />
                 </td>
               </tr>
             ) : null}

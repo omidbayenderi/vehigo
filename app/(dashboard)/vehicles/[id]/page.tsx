@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getVehicle } from "@/lib/services/vehicles";
+import { PageHeader } from "@/components/ui/page-header";
 import EditVehicleForm from "./edit-form";
 import ImageGallery from "./image-gallery";
 
@@ -22,9 +23,7 @@ export default async function VehicleDetailPage({
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">
-        {vehicle.brand} {vehicle.model}
-      </h1>
+      <PageHeader eyebrow="Araç" title={`${vehicle.brand} ${vehicle.model}`} />
       <EditVehicleForm vehicle={vehicle} />
       <ImageGallery vehicleId={vehicle.id} images={vehicle.vehicle_images} />
     </div>

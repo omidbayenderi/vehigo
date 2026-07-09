@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { listOffers } from "@/lib/services/offers";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { cardClass, pillClasses, type PillTone } from "@/lib/ui";
 
 const statusLabel: Record<string, string> = {
   draft: "Taslak",
@@ -10,16 +14,24 @@ const statusLabel: Record<string, string> = {
   expired: "Süresi Doldu",
 };
 
+const statusTone: Record<string, PillTone> = {
+  draft: "neutral",
+  sent: "brand",
+  accepted: "success",
+  rejected: "danger",
+  expired: "neutral",
+};
+
 export default async function OffersPage() {
   const supabase = await createClient();
   const offers = await listOffers(supabase);
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Teklifler</h1>
-      <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
+      <PageHeader eyebrow="Satış" title="Teklifler" description="Oluşturulan tüm teklifler ve durumları." />
+      <div className={`overflow-hidden ${cardClass}`}>
         <table className="w-full text-sm">
-          <thead className="bg-paper text-left text-xs uppercase text-ink-faint">
+          <thead className="bg-paper text-left text-xs uppercase tracking-wide text-ink-faint">
             <tr>
               <th className="px-4 py-3">Tarih</th>
               <th className="px-4 py-3">Toplam</th>
@@ -29,20 +41,20 @@ export default async function OffersPage() {
           </thead>
           <tbody className="divide-y divide-line-soft">
             {offers?.map((offer) => (
-              <tr key={offer.id} className="hover:bg-paper">
+              <tr key={offer.id} className="transition-colors hover:bg-surface-sunken">
                 <td className="px-4 py-3">
                   <Link href={`/offers/${offer.id}`} prefetch={false} className="font-medium text-ink hover:underline">
                     {new Date(offer.created_at).toLocaleDateString("tr-TR")}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-ink-soft">
+                <td className="px-4 py-3 text-ink-soft" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {offer.final_customer_price?.toLocaleString("tr-TR")} {offer.currency}
                 </td>
-                <td className="px-4 py-3 text-ink-soft">
+                <td className="px-4 py-3 text-ink-soft" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {offer.commission_amount_calculated?.toLocaleString("tr-TR")} {offer.currency}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-surface-sunken px-2 py-1 text-xs text-ink-soft">
+                  <span className={pillClasses(statusTone[offer.status])}>
                     {statusLabel[offer.status] ?? offer.status}
                   </span>
                 </td>
@@ -50,8 +62,8 @@ export default async function OffersPage() {
             ))}
             {offers?.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
-                  Henüz teklif oluşturulmadı.
+                <td colSpan={4}>
+                  <EmptyState icon={FileText} title="Henüz teklif oluşturulmadı" description="Bir müşteri için araç eşleştirdikten sonra teklif oluşturabilirsiniz." />
                 </td>
               </tr>
             ) : null}

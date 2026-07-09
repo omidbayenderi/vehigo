@@ -1,7 +1,11 @@
 import Link from "next/link";
+import { ChevronRight, GitCompareArrows } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { rankVehiclesForLead } from "@/lib/services/matching";
 import { selectVehicleForLeadAction } from "./actions";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
+import { cardClass } from "@/lib/ui";
 
 export default async function MatchesPage({
   searchParams,
@@ -21,26 +25,31 @@ export default async function MatchesPage({
 
     return (
       <div>
-        <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Eşleştirme</h1>
-        <p className="mb-4 text-sm text-ink-soft">Eşleştirme yapmak için bir müşteri seçin.</p>
-        <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
+        <PageHeader eyebrow="Eşleştirme" title="Eşleştirme" description="Eşleştirme yapmak için bir müşteri seçin." />
+        <div className={`overflow-hidden ${cardClass}`}>
           <ul className="divide-y divide-line-soft">
             {leads?.map((lead) => (
               <li key={lead.id}>
                 <Link
                   href={`/matches?lead_id=${lead.id}`}
                   prefetch={false}
-                  className="block px-4 py-3 text-sm hover:bg-paper"
+                  className="flex items-center justify-between px-4 py-3 text-sm transition-colors hover:bg-surface-sunken"
                 >
-                  <span className="font-medium text-ink">{lead.company_or_name}</span>
-                  <span className="ml-2 text-ink-faint">
-                    {lead.desired_vehicle_type ?? "belirtilmemiş"} · {lead.budget_min ?? "?"}-
-                    {lead.budget_max ?? "?"} {lead.budget_currency}
+                  <span>
+                    <span className="font-medium text-ink">{lead.company_or_name}</span>
+                    <span className="ml-2 text-ink-faint">
+                      {lead.desired_vehicle_type ?? "belirtilmemiş"} · {lead.budget_min ?? "?"}-
+                      {lead.budget_max ?? "?"} {lead.budget_currency}
+                    </span>
                   </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
                 </Link>
               </li>
             ))}
           </ul>
+          {leads?.length === 0 ? (
+            <EmptyState icon={GitCompareArrows} title="Eşleştirilecek müşteri yok" description="Kapanmamış müşteri talebi bulunduğunda burada listelenir." />
+          ) : null}
         </div>
       </div>
     );
@@ -60,23 +69,23 @@ export default async function MatchesPage({
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-serif font-semibold text-ink">{lead.company_or_name} için uygun araçlar</h1>
-      <p className="mb-6 text-sm text-ink-faint">
-        İstenen: {lead.desired_vehicle_type ?? "belirtilmemiş"} · Bütçe: {lead.budget_min ?? "?"}-
-        {lead.budget_max ?? "?"} {lead.budget_currency}
-      </p>
+      <PageHeader
+        eyebrow="Eşleştirme"
+        title={`${lead.company_or_name} için uygun araçlar`}
+        description={`İstenen: ${lead.desired_vehicle_type ?? "belirtilmemiş"} · Bütçe: ${lead.budget_min ?? "?"}-${lead.budget_max ?? "?"} ${lead.budget_currency}`}
+      />
 
       <div className="space-y-3">
         {ranked.map(({ vehicle, score, reasoning }) => (
           <div
             key={vehicle.id}
-            className="flex items-center justify-between rounded-lg border border-line-soft bg-white p-4"
+            className={`flex items-center justify-between ${cardClass} p-4 transition-shadow hover:shadow-md`}
           >
             <div>
               <p className="font-medium text-ink">
                 {vehicle.brand} {vehicle.model} ({vehicle.year ?? "?"})
               </p>
-              <p className="text-sm text-ink-faint">
+              <p className="text-sm text-ink-faint" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {vehicle.price?.toLocaleString("tr-TR")} {vehicle.currency} · {vehicle.mileage_km?.toLocaleString("tr-TR") ?? "?"} km
               </p>
               <p className="mt-1 text-xs text-ink-faint">
@@ -103,7 +112,7 @@ export default async function MatchesPage({
               >
                 <button
                   type="submit"
-                  className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-ink"
+                  className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-ink"
                 >
                   Bu aracı seç
                 </button>
@@ -112,7 +121,9 @@ export default async function MatchesPage({
           </div>
         ))}
         {ranked.length === 0 ? (
-          <p className="text-sm text-ink-faint">Uygun araç bulunamadı.</p>
+          <div className={cardClass}>
+            <EmptyState icon={GitCompareArrows} title="Uygun araç bulunamadı" description="Filtre kriterlerine uyan bir araç envanterde yok." />
+          </div>
         ) : null}
       </div>
     </div>

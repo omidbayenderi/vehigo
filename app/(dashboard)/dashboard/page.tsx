@@ -1,5 +1,8 @@
+import { Users, FileText, Coins, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardMetrics } from "@/lib/services/dashboard";
+import { PageHeader } from "@/components/ui/page-header";
+import { cardClass } from "@/lib/ui";
 
 const statusLabel: Record<string, string> = {
   new: "Yeni",
@@ -16,44 +19,83 @@ const statusLabel: Record<string, string> = {
 export default async function DashboardPage() {
   const supabase = await createClient();
   const metrics = await getDashboardMetrics(supabase);
+  const maxStatusCount = Math.max(1, ...Object.keys(statusLabel).map((s) => metrics.leadsByStatus[s] ?? 0));
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Panel</h1>
+      <PageHeader eyebrow="Genel bakış" title="Panel" description="Bugünün operasyon özeti." />
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <MetricCard label="Aktif müşteri" value={metrics.activeLeadCount.toString()} />
-        <MetricCard label="Açık teklif" value={metrics.openOfferCount.toString()} />
+        <MetricCard icon={Users} tone="brand" label="Aktif müşteri" value={metrics.activeLeadCount.toString()} />
+        <MetricCard icon={FileText} tone="warning" label="Açık teklif" value={metrics.openOfferCount.toString()} />
         <MetricCard
+          icon={Coins}
+          tone="success"
           label="Beklenen komisyon"
           value={metrics.expectedCommissionTotal.toLocaleString("tr-TR")}
         />
         <MetricCard
+          icon={Truck}
+          tone="brand"
           label="Uygun araç"
           value={`${metrics.availableVehicleCount} / ${metrics.totalVehicleCount}`}
         />
       </div>
 
-      <div className="rounded-lg border border-line-soft bg-white p-6">
+      <div className={`${cardClass} p-6`}>
         <h2 className="mb-4 text-sm font-medium text-ink-soft">Müşteri durumlarına göre dağılım</h2>
-        <div className="space-y-2">
-          {Object.entries(statusLabel).map(([status, label]) => (
-            <div key={status} className="flex items-center justify-between text-sm">
-              <span className="text-ink-soft">{label}</span>
-              <span className="font-medium text-ink">{metrics.leadsByStatus[status] ?? 0}</span>
-            </div>
-          ))}
+        <div className="space-y-3">
+          {Object.entries(statusLabel).map(([status, label]) => {
+            const count = metrics.leadsByStatus[status] ?? 0;
+            return (
+              <div key={status} className="flex items-center gap-3 text-sm">
+                <span className="w-36 shrink-0 text-ink-soft">{label}</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-sunken">
+                  <div
+                    className="h-full rounded-full bg-brand transition-all"
+                    style={{ width: `${(count / maxStatusCount) * 100}%` }}
+                  />
+                </div>
+                <span className="w-6 shrink-0 text-right font-medium text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {count}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+  icon: Icon,
+  tone,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  tone: "brand" | "success" | "warning";
+  label: string;
+  value: string;
+}) {
+  const toneClasses = {
+    brand: "bg-brand-wash text-brand-ink",
+    success: "bg-success-wash text-success",
+    warning: "bg-warning-wash text-warning",
+  }[tone];
+
   return (
-    <div className="rounded-lg border border-line-soft bg-white p-4">
-      <p className="text-xs text-ink-faint">{label}</p>
-      <p className="mt-1 text-2xl font-serif font-semibold text-ink">{value}</p>
+    <div className={`${cardClass} p-4 transition-shadow hover:shadow-md`}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-ink-faint">{label}</p>
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${toneClasses}`}>
+          <Icon className="h-3.5 w-3.5" strokeWidth={2} />
+        </span>
+      </div>
+      <p className="mt-2 font-serif text-2xl font-semibold text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
+        {value}
+      </p>
     </div>
   );
 }

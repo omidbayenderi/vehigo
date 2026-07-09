@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getLead } from "@/lib/services/leads";
+import { PageHeader } from "@/components/ui/page-header";
+import { cardClass, pillClasses } from "@/lib/ui";
 import StatusSelect from "./status-select";
 import NoteForm from "./note-form";
 
@@ -26,21 +28,24 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="max-w-3xl">
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-serif font-semibold text-ink">{lead.company_or_name}</h1>
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/matches?lead_id=${lead.id}`}
-            prefetch={false}
-            className="rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-sunken"
-          >
-            Uygun araçları göster
-          </Link>
-          <StatusSelect leadId={lead.id} status={lead.status} />
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Müşteri"
+        title={lead.company_or_name}
+        actions={
+          <>
+            <Link
+              href={`/matches?lead_id=${lead.id}`}
+              prefetch={false}
+              className="rounded-md border border-line px-3 py-2 text-sm transition-colors hover:bg-surface-sunken"
+            >
+              Uygun araçları göster
+            </Link>
+            <StatusSelect leadId={lead.id} status={lead.status} />
+          </>
+        }
+      />
 
-      <div className="mb-6 grid grid-cols-2 gap-4 rounded-lg border border-line-soft bg-white p-6 text-sm">
+      <div className={`mb-6 grid grid-cols-2 gap-4 ${cardClass} p-6 text-sm`}>
         <InfoRow label="Şehir" value={lead.city} />
         <InfoRow label="WhatsApp" value={lead.phone_whatsapp} />
         <InfoRow label="Telegram" value={lead.telegram_handle} />
@@ -60,7 +65,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         ) : null}
       </div>
 
-      <div className="rounded-lg border border-line-soft bg-white p-6">
+      <div className={`${cardClass} p-6`}>
         <h2 className="mb-3 text-sm font-medium text-ink-soft">Aktivite geçmişi</h2>
         <div className="mb-4">
           <NoteForm leadId={lead.id} />
@@ -68,7 +73,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
         <ul className="space-y-2">
           {lead.activity.map((a) => (
             <li key={a.id} className="border-b border-line-soft pb-2 text-sm last:border-0">
-              <span className="mr-2 rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-ink-soft">
+              <span className={`mr-2 ${pillClasses("neutral")}`}>
                 {activityLabel[a.activity_type ?? ""] ?? a.activity_type}
               </span>
               <span className="text-ink-soft">{a.detail}</span>

@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { toggleComplianceFieldAction } from "./actions";
+import { cardClass } from "@/lib/ui";
 import type { Database } from "@/lib/supabase/types";
 
 type Compliance = Database["public"]["Tables"]["compliance_checklist"]["Row"];
@@ -29,7 +30,7 @@ export default function ComplianceChecklist({ offerId, compliance }: { offerId: 
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="rounded-lg border border-line-soft bg-white p-6">
+    <div className={`${cardClass} p-6`}>
       <h2 className="mb-3 text-sm font-medium text-ink-soft">Uyumluluk kontrol listesi</h2>
       <ul className="space-y-2">
         {fields.map((f) => (

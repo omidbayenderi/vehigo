@@ -55,3 +55,4 @@
 | Tarih | Karar | Gerekçe |
 |---|---|---|
 | 2026-07-09 | İlk tasarım sistemi oluşturuldu | `/design-consultation` ile — Linear/Vanta araştırması + kullanıcı onayı sonrası |
+| 2026-07-10 | Uygulama geneline "ölçülü elevasyon" uygulandı: sidebar'da ikon + logo mührü + avatar, stat kartlarında ikon rozeti + hover derinliği, tablo satırlarında hover geçişi, durum çubukları (mini bar chart), arama inputlarında ikon, login'de amblem + ambient wash | Kullanıcı uygulamanın "hala beyaz sade" kaldığını belirtti; restraint ilkesi korunarak (dekoratif animasyon yok, tek marka rengi) derinlik/hiyerarşi eklendi — "Kasıtlı Riskler"e dördüncü madde olarak eklenmedi çünkü ilkeyi bozmuyor, sadece uyguluyor |
