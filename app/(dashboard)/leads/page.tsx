@@ -29,6 +29,7 @@ export default async function LeadsPage({
         <h1 className="text-2xl font-semibold text-zinc-900">Müşteriler</h1>
         <Link
           href="/leads/new"
+          prefetch={false}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
         >
           Yeni müşteri
@@ -66,7 +67,7 @@ export default async function LeadsPage({
             {leads?.map((lead) => (
               <tr key={lead.id} className="hover:bg-zinc-50">
                 <td className="px-4 py-3">
-                  <Link href={`/leads/${lead.id}`} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/leads/${lead.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
                     {lead.company_or_name}
                   </Link>
                 </td>

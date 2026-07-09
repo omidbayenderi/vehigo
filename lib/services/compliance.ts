@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { complianceChecklistSchema } from "@/lib/validation/schemas";
+import { partialUpdateFields } from "@/lib/utils";
 
 type Client = SupabaseClient<Database>;
 
@@ -10,7 +11,7 @@ export async function updateComplianceChecklist(
   input: Record<string, unknown>,
   reviewedBy: string,
 ) {
-  const parsed = complianceChecklistSchema.omit({ offer_id: true }).partial().parse(input);
+  const parsed = partialUpdateFields(complianceChecklistSchema.omit({ offer_id: true }), input);
 
   const { data, error } = await supabase
     .from("compliance_checklist")

@@ -11,6 +11,7 @@ import {
   discardDraft,
 } from "@/lib/services/messages";
 import { logAudit } from "@/lib/services/audit";
+import { formDataToObject } from "@/lib/utils";
 
 export type FormState = { error?: string };
 
@@ -24,7 +25,7 @@ export async function createMessageDraftAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     const draft = await createMessageDraft(supabase, input);

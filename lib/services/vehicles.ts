@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, VehicleType, AvailabilityStatus } from "@/lib/supabase/types";
 import { vehicleSchema } from "@/lib/validation/schemas";
+import { partialUpdateFields } from "@/lib/utils";
 
 type Client = SupabaseClient<Database>;
 type VehicleInsert = Database["public"]["Tables"]["vehicles"]["Insert"];
@@ -53,7 +54,7 @@ export async function createVehicle(
 }
 
 export async function updateVehicle(supabase: Client, id: string, input: Record<string, unknown>) {
-  const parsed = vehicleSchema.partial().parse(input);
+  const parsed = partialUpdateFields(vehicleSchema, input);
   const { data, error } = await supabase.from("vehicles").update(parsed).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data;

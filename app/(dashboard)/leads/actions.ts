@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createLead, updateLead, setLeadStatus, addLeadNote } from "@/lib/services/leads";
 import { logAudit } from "@/lib/services/audit";
+import { formDataToObject } from "@/lib/utils";
 import type { LeadStatus } from "@/lib/supabase/types";
 
 export type FormState = { error?: string };
@@ -19,7 +20,7 @@ export async function createLeadAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     const lead = await createLead(supabase, input, user.id);
@@ -45,7 +46,7 @@ export async function updateLeadAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     await updateLead(supabase, id, input);

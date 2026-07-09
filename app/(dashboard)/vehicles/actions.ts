@@ -11,6 +11,7 @@ import {
   type CsvImportReport,
 } from "@/lib/services/vehicles";
 import { logAudit } from "@/lib/services/audit";
+import { formDataToObject } from "@/lib/utils";
 
 export type FormState = { error?: string };
 
@@ -24,7 +25,7 @@ export async function createVehicleAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     const vehicle = await createVehicle(supabase, input, user.id);
@@ -50,7 +51,7 @@ export async function updateVehicleAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     await updateVehicle(supabase, id, input);

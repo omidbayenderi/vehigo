@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { offerCostSchema } from "@/lib/validation/schemas";
+import { partialUpdateFields } from "@/lib/utils";
 
 type Client = SupabaseClient<Database>;
 type OfferInsert = Database["public"]["Tables"]["offers"]["Insert"];
@@ -74,7 +75,7 @@ export async function createOffer(supabase: Client, input: Record<string, unknow
 }
 
 export async function updateOfferCosts(supabase: Client, id: string, input: Record<string, unknown>) {
-  const parsed = offerCostSchema.partial().parse(input);
+  const parsed = partialUpdateFields(offerCostSchema, input);
 
   const { data: existing, error: fetchError } = await supabase
     .from("offers")

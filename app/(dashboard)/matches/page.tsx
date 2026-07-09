@@ -29,6 +29,7 @@ export default async function MatchesPage({
               <li key={lead.id}>
                 <Link
                   href={`/matches?lead_id=${lead.id}`}
+                  prefetch={false}
                   className="block px-4 py-3 text-sm hover:bg-zinc-50"
                 >
                   <span className="font-medium text-zinc-900">{lead.company_or_name}</span>

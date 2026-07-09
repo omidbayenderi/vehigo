@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, LeadStatus } from "@/lib/supabase/types";
 import { leadSchema } from "@/lib/validation/schemas";
+import { partialUpdateFields } from "@/lib/utils";
 
 type Client = SupabaseClient<Database>;
 type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
@@ -61,7 +62,7 @@ export async function createLead(supabase: Client, input: Record<string, unknown
 }
 
 export async function updateLead(supabase: Client, id: string, input: Record<string, unknown>) {
-  const parsed = leadSchema.partial().parse(input);
+  const parsed = partialUpdateFields(leadSchema, input);
   const { data, error } = await supabase.from("leads").update(parsed).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data;

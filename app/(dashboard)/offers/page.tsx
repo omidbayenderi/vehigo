@@ -31,7 +31,7 @@ export default async function OffersPage() {
             {offers?.map((offer) => (
               <tr key={offer.id} className="hover:bg-zinc-50">
                 <td className="px-4 py-3">
-                  <Link href={`/offers/${offer.id}`} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/offers/${offer.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
                     {new Date(offer.created_at).toLocaleDateString("tr-TR")}
                   </Link>
                 </td>

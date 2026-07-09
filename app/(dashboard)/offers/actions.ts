@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createOffer, updateOfferCosts, confirmOfferSent } from "@/lib/services/offers";
 import { updateComplianceChecklist } from "@/lib/services/compliance";
 import { logAudit } from "@/lib/services/audit";
+import { formDataToObject } from "@/lib/utils";
 import type { ComplianceField } from "./compliance-checklist";
 
 export type FormState = { error?: string };
@@ -20,7 +21,7 @@ export async function createOfferAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     const offer = await createOffer(supabase, input, user.id);
@@ -46,7 +47,7 @@ export async function updateOfferCostsAction(
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const input = Object.fromEntries(formData.entries());
+  const input = formDataToObject(formData);
 
   try {
     await updateOfferCosts(supabase, id, input);

@@ -33,6 +33,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
             <Link
               href={`/offers/${offer.id}/pdf`}
               target="_blank"
+              prefetch={false}
               className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
             >
               PDF üret
@@ -60,6 +61,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
         {offer.compliance.all_clear ? (
           <Link
             href={`/messages/new?lead_id=${offer.lead_id}&offer_id=${offer.id}`}
+            prefetch={false}
             className="block rounded-lg border border-zinc-200 bg-white p-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
             Mesaj taslağı oluştur →

@@ -40,7 +40,7 @@ export default async function MessagesPage() {
             {drafts?.map((draft) => (
               <tr key={draft.id} className="hover:bg-zinc-50">
                 <td className="px-4 py-3">
-                  <Link href={`/messages/${draft.id}`} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/messages/${draft.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
                     {new Date(draft.created_at).toLocaleDateString("tr-TR")}
                   </Link>
                 </td>

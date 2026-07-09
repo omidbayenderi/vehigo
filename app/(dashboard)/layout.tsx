@@ -28,6 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className="rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
             >
               {item.label}

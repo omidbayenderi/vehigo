@@ -27,6 +27,7 @@ export default async function VehiclesPage({
           <ImportCsvForm />
           <Link
             href="/vehicles/new"
+            prefetch={false}
             className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
           >
             Yeni araç
@@ -66,7 +67,7 @@ export default async function VehiclesPage({
             {vehicles?.map((v) => (
               <tr key={v.id} className="hover:bg-zinc-50">
                 <td className="px-4 py-3">
-                  <Link href={`/vehicles/${v.id}`} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/vehicles/${v.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
                     {v.brand} {v.model}
                   </Link>
                 </td>

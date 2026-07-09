@@ -5,7 +5,6 @@ Font.register({
   family: "Vazirmatn",
   fonts: [
     { src: path.join(process.cwd(), "lib/pdf-templates/fonts/Vazirmatn-Regular.ttf"), fontWeight: "normal" },
-    { src: path.join(process.cwd(), "lib/pdf-templates/fonts/Vazirmatn-Bold.ttf"), fontWeight: "bold" },
   ],
 });
 
@@ -19,7 +18,6 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "bold",
     textAlign: "right",
     marginBottom: 4,
   },
@@ -31,7 +29,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: "bold",
     textAlign: "right",
     marginTop: 16,
     marginBottom: 8,
@@ -50,7 +47,6 @@ const styles = StyleSheet.create({
   },
   rowValue: {
     textAlign: "left",
-    fontWeight: "bold",
   },
   totalRow: {
     flexDirection: "row-reverse",
@@ -62,12 +58,10 @@ const styles = StyleSheet.create({
   totalLabel: {
     textAlign: "right",
     fontSize: 13,
-    fontWeight: "bold",
   },
   totalValue: {
     textAlign: "left",
     fontSize: 13,
-    fontWeight: "bold",
   },
   paragraph: {
     textAlign: "right",
