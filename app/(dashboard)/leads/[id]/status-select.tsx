@@ -28,7 +28,7 @@ export default function StatusSelect({ leadId, status }: { leadId: string; statu
           changeLeadStatusAction(leadId, e.target.value as LeadStatus);
         })
       }
-      className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
+      className="rounded-md border border-line bg-white px-3 py-2 text-sm disabled:opacity-50"
     >
       {statusOptions.map((o) => (
         <option key={o.value} value={o.value}>

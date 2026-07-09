@@ -24,3 +24,5 @@ npm-debug.log*
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+.env*
+.gstack/

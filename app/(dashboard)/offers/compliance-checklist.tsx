@@ -29,8 +29,8 @@ export default function ComplianceChecklist({ offerId, compliance }: { offerId: 
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-6">
-      <h2 className="mb-3 text-sm font-medium text-zinc-700">Uyumluluk kontrol listesi</h2>
+    <div className="rounded-lg border border-line-soft bg-white p-6">
+      <h2 className="mb-3 text-sm font-medium text-ink-soft">Uyumluluk kontrol listesi</h2>
       <ul className="space-y-2">
         {fields.map((f) => (
           <li key={f.key} className="flex items-center gap-2">
@@ -44,19 +44,26 @@ export default function ComplianceChecklist({ offerId, compliance }: { offerId: 
                   toggleComplianceFieldAction(offerId, f.key, e.target.checked);
                 })
               }
-              className="h-4 w-4 rounded border-zinc-300"
+              className="h-4 w-4 rounded border-line"
             />
-            <label htmlFor={f.key} className="text-sm text-zinc-700">
+            <label htmlFor={f.key} className="text-sm text-ink-soft">
               {f.label}
             </label>
           </li>
         ))}
       </ul>
-      <p className={`mt-4 text-sm font-medium ${compliance.all_clear ? "text-green-700" : "text-amber-700"}`}>
-        {compliance.all_clear
-          ? "Tüm kontroller tamam — PDF üretilebilir."
-          : "PDF üretmeden önce tüm kutular işaretlenmeli."}
-      </p>
+      {compliance.all_clear ? (
+        <div className="mt-4 flex items-center gap-3 rounded-md border border-success bg-success-wash px-4 py-3">
+          <span className="flex items-center gap-1.5 rounded-full bg-success px-2.5 py-1 text-xs font-semibold text-white">
+            ✓ Onaylandı
+          </span>
+          <p className="text-sm font-medium text-success">Tüm kontroller tamam — PDF üretilebilir.</p>
+        </div>
+      ) : (
+        <p className="mt-4 text-sm font-medium text-warning">
+          PDF üretmeden önce tüm kutular işaretlenmeli.
+        </p>
+      )}
     </div>
   );
 }

@@ -22,10 +22,10 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
     <div className="max-w-2xl">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">
+          <h1 className="text-2xl font-serif font-semibold text-ink">
             Teklif — {offer.lead?.company_or_name ?? "?"}
           </h1>
-          <p className="mt-1 text-xs text-zinc-500">Durum: {offer.status}</p>
+          <p className="mt-1 text-xs text-ink-faint">Durum: {offer.status}</p>
         </div>
         <div className="flex items-center gap-2">
           <ConfirmSentButton offerId={offer.id} disabled={!offer.pdf_storage_path || offer.status !== "draft"} />
@@ -34,7 +34,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
               href={`/offers/${offer.id}/pdf`}
               target="_blank"
               prefetch={false}
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-ink"
             >
               PDF üret
             </Link>
@@ -43,7 +43,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
               type="button"
               disabled
               title="Tüm uyumluluk kutuları işaretlenmeden PDF üretilemez"
-              className="cursor-not-allowed rounded-md bg-zinc-300 px-4 py-2 text-sm font-medium text-white"
+              className="cursor-not-allowed rounded-md bg-line px-4 py-2 text-sm font-medium text-white"
             >
               PDF üret
             </button>
@@ -51,7 +51,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <p className="mb-4 text-sm text-zinc-500">
+      <p className="mb-4 text-sm text-ink-faint">
         Araç: {offer.vehicle?.brand} {offer.vehicle?.model} ({offer.vehicle?.year ?? "?"})
       </p>
 
@@ -62,7 +62,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
           <Link
             href={`/messages/new?lead_id=${offer.lead_id}&offer_id=${offer.id}`}
             prefetch={false}
-            className="block rounded-lg border border-zinc-200 bg-white p-4 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            className="block rounded-lg border border-line-soft bg-white p-4 text-sm font-medium text-ink-soft hover:bg-paper"
           >
             Mesaj taslağı oluştur →
           </Link>

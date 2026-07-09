@@ -11,7 +11,7 @@ export default async function NewOfferPage({
 
   if (!lead_id || !vehicle_id) {
     return (
-      <p className="text-sm text-zinc-600">
+      <p className="text-sm text-ink-soft">
         Teklif oluşturmak için önce{" "}
         <a href="/matches" className="underline">
           eşleştirme
@@ -25,12 +25,12 @@ export default async function NewOfferPage({
   const { data: vehicle } = await supabase.from("vehicles").select("*").eq("id", vehicle_id).single();
 
   if (!lead || !vehicle) {
-    return <p className="text-sm text-red-600">Müşteri veya araç bulunamadı.</p>;
+    return <p className="text-sm text-danger">Müşteri veya araç bulunamadı.</p>;
   }
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Yeni teklif</h1>
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Yeni teklif</h1>
       <OfferForm
         leadId={lead.id}
         vehicleId={vehicle.id}

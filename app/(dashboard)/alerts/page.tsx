@@ -22,8 +22,8 @@ export default async function AlertsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-zinc-900">İlan alarmları</h1>
-        <p className="mt-2 text-sm text-zinc-500">
+        <h1 className="text-2xl font-serif font-semibold text-ink">İlan alarmları</h1>
+        <p className="mt-2 text-sm text-ink-faint">
           Pazar taraması merkezi çalışır: her kaynak bir kez taranır, ilanlar veritabanına alınır, sonra
           kullanıcı filtreleriyle eşleşen sonuçlar Telegram üzerinden bildirilir.
         </p>
@@ -34,9 +34,9 @@ export default async function AlertsPage() {
           username={profile?.telegram_username ?? null}
           verified={Boolean(profile?.telegram_chat_id && profile.telegram_verified_at)}
         />
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="mb-3 text-sm font-medium text-zinc-900">Kaynak tarama politikası</h2>
-          <div className="space-y-2 text-sm text-zinc-600">
+        <div className="rounded-lg border border-line-soft bg-white p-5">
+          <h2 className="mb-3 text-sm font-medium text-ink">Kaynak tarama politikası</h2>
+          <div className="space-y-2 text-sm text-ink-soft">
             {sources.map((source) => (
               <div key={source.id} className="flex items-center justify-between">
                 <span>{source.name}</span>
@@ -46,7 +46,7 @@ export default async function AlertsPage() {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-zinc-500">
+          <p className="mt-3 text-xs text-ink-faint">
             Bu aralıklar site bazlıdır; kullanıcı sayısı arttıkça aynı kaynak için istek sayısı artmaz.
           </p>
         </div>
@@ -56,28 +56,28 @@ export default async function AlertsPage() {
         <WatchlistForm sources={sources} />
       </div>
 
-      <div className="mb-6 rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 px-5 py-4">
-          <h2 className="text-sm font-medium text-zinc-900">Aktif filtreler</h2>
+      <div className="mb-6 rounded-lg border border-line-soft bg-white">
+        <div className="border-b border-line-soft px-5 py-4">
+          <h2 className="text-sm font-medium text-ink">Aktif filtreler</h2>
         </div>
-        <div className="divide-y divide-zinc-100">
+        <div className="divide-y divide-line-soft">
           {watchlists.map((watchlist) => (
             <div key={watchlist.id} className="flex items-center justify-between gap-4 px-5 py-4">
               <div>
-                <p className="font-medium text-zinc-900">{watchlist.name}</p>
-                <p className="mt-1 text-sm text-zinc-500">
+                <p className="font-medium text-ink">{watchlist.name}</p>
+                <p className="mt-1 text-sm text-ink-faint">
                   {[watchlist.brand, watchlist.model, watchlist.country, watchlist.city]
                     .filter(Boolean)
                     .join(" / ") || "Geniş filtre"}
                 </p>
-                <p className="mt-1 text-xs text-zinc-400">
+                <p className="mt-1 text-xs text-ink-faint">
                   Kaynaklar: {watchlist.source_keys.length > 0 ? watchlist.source_keys.join(", ") : "tümü"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-1 text-xs ${
-                    watchlist.active ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-600"
+                    watchlist.active ? "bg-success-wash text-success" : "bg-surface-sunken text-ink-soft"
                   }`}
                 >
                   {watchlist.active ? "Aktif" : "Pasif"}
@@ -87,17 +87,17 @@ export default async function AlertsPage() {
             </div>
           ))}
           {watchlists.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-zinc-500">Henüz alarm kuralı yok.</div>
+            <div className="px-5 py-8 text-center text-sm text-ink-faint">Henüz alarm kuralı yok.</div>
           ) : null}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-        <div className="border-b border-zinc-200 px-5 py-4">
-          <h2 className="text-sm font-medium text-zinc-900">Son yakalanan ilanlar</h2>
+      <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
+        <div className="border-b border-line-soft px-5 py-4">
+          <h2 className="text-sm font-medium text-ink">Son yakalanan ilanlar</h2>
         </div>
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
+          <thead className="bg-paper text-left text-xs uppercase text-ink-faint">
             <tr>
               <th className="px-4 py-3">Tarih</th>
               <th className="px-4 py-3">İlan</th>
@@ -105,12 +105,12 @@ export default async function AlertsPage() {
               <th className="px-4 py-3">Durum</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-soft">
             {alerts.map((alert) => {
               const listing = alert.market_listings;
               return (
-                <tr key={alert.id} className="hover:bg-zinc-50">
-                  <td className="px-4 py-3 text-zinc-600">
+                <tr key={alert.id} className="hover:bg-paper">
+                  <td className="px-4 py-3 text-ink-soft">
                     {new Date(alert.created_at).toLocaleString("tr-TR")}
                   </td>
                   <td className="px-4 py-3">
@@ -119,7 +119,7 @@ export default async function AlertsPage() {
                         href={listing.listing_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-medium text-zinc-900 hover:underline"
+                        className="font-medium text-ink hover:underline"
                       >
                         {listing.title || `${listing.brand ?? ""} ${listing.model ?? ""}`.trim() || "İlan"}
                       </a>
@@ -127,11 +127,11 @@ export default async function AlertsPage() {
                       "-"
                     )}
                   </td>
-                  <td className="px-4 py-3 text-zinc-600">
+                  <td className="px-4 py-3 text-ink-soft">
                     {listing?.price?.toLocaleString("tr-TR") ?? "-"} {listing?.currency ?? ""}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
+                    <span className="rounded-full bg-surface-sunken px-2 py-1 text-xs text-ink-soft">
                       {alert.status}
                     </span>
                   </td>
@@ -140,7 +140,7 @@ export default async function AlertsPage() {
             })}
             {alerts.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
                   Henüz eşleşen ilan yakalanmadı.
                 </td>
               </tr>

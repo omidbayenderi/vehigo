@@ -13,7 +13,7 @@ export default async function MessageDraftDetailPage({ params }: { params: Promi
 
   return (
     <div className="max-w-xl">
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Mesaj taslağı — {lead?.company_or_name}</h1>
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Mesaj taslağı — {lead?.company_or_name}</h1>
       <DraftDetail draft={draft} />
     </div>
   );

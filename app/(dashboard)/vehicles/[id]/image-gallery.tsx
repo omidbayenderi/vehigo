@@ -76,12 +76,12 @@ export default function ImageGallery({
   };
 
   return (
-    <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
-      <h2 className="mb-3 text-sm font-medium text-zinc-700">Görseller</h2>
+    <div className="mt-6 rounded-lg border border-line-soft bg-white p-6">
+      <h2 className="mb-3 text-sm font-medium text-ink-soft">Görseller</h2>
       {images.length > 0 ? (
         <div className="mb-4 grid grid-cols-4 gap-2">
           {images.map((img) => (
-            <div key={img.id} className="aspect-square overflow-hidden rounded-md bg-zinc-100">
+            <div key={img.id} className="aspect-square overflow-hidden rounded-md bg-surface-sunken">
               {urls[img.id] ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={urls[img.id]} alt="" className="h-full w-full object-cover" />
@@ -90,18 +90,18 @@ export default function ImageGallery({
           ))}
         </div>
       ) : (
-        <p className="mb-4 text-sm text-zinc-500">Henüz görsel yüklenmedi.</p>
+        <p className="mb-4 text-sm text-ink-faint">Henüz görsel yüklenmedi.</p>
       )}
       <input ref={inputRef} type="file" accept="image/*" multiple className="mb-2 text-sm" />
       <button
         type="button"
         onClick={handleUpload}
         disabled={uploading}
-        className="block rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100 disabled:opacity-50"
+        className="block rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-sunken disabled:opacity-50"
       >
         {uploading ? "Yükleniyor..." : "Görsel yükle"}
       </button>
-      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
     </div>
   );
 }

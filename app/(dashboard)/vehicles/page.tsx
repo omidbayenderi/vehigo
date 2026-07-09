@@ -22,13 +22,13 @@ export default async function VehiclesPage({
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900">Araçlar</h1>
+        <h1 className="text-2xl font-serif font-semibold text-ink">Araçlar</h1>
         <div className="flex gap-2">
           <ImportCsvForm />
           <Link
             href="/vehicles/new"
             prefetch={false}
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-ink"
           >
             Yeni araç
           </Link>
@@ -41,19 +41,19 @@ export default async function VehiclesPage({
           name="search"
           placeholder="Marka veya model ara..."
           defaultValue={params.search ?? ""}
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          className="rounded-md border border-line px-3 py-2 text-sm"
         />
         <button
           type="submit"
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-100"
+          className="rounded-md border border-line px-3 py-2 text-sm hover:bg-surface-sunken"
         >
           Filtrele
         </button>
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
+          <thead className="bg-paper text-left text-xs uppercase text-ink-faint">
             <tr>
               <th className="px-4 py-3">Marka / Model</th>
               <th className="px-4 py-3">Yıl</th>
@@ -63,22 +63,22 @@ export default async function VehiclesPage({
               <th className="px-4 py-3">Durum</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-soft">
             {vehicles?.map((v) => (
-              <tr key={v.id} className="hover:bg-zinc-50">
+              <tr key={v.id} className="hover:bg-paper">
                 <td className="px-4 py-3">
-                  <Link href={`/vehicles/${v.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/vehicles/${v.id}`} prefetch={false} className="font-medium text-ink hover:underline">
                     {v.brand} {v.model}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-zinc-600">{v.year ?? "-"}</td>
-                <td className="px-4 py-3 text-zinc-600">{v.mileage_km?.toLocaleString("tr-TR") ?? "-"}</td>
-                <td className="px-4 py-3 text-zinc-600">
+                <td className="px-4 py-3 text-ink-soft">{v.year ?? "-"}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.mileage_km?.toLocaleString("tr-TR") ?? "-"}</td>
+                <td className="px-4 py-3 text-ink-soft">
                   {v.price?.toLocaleString("tr-TR")} {v.currency}
                 </td>
-                <td className="px-4 py-3 text-zinc-600">{v.vehicle_type ?? "-"}</td>
+                <td className="px-4 py-3 text-ink-soft">{v.vehicle_type ?? "-"}</td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
+                  <span className="rounded-full bg-surface-sunken px-2 py-1 text-xs text-ink-soft">
                     {statusLabel[v.availability_status] ?? v.availability_status}
                   </span>
                 </td>
@@ -86,7 +86,7 @@ export default async function VehiclesPage({
             ))}
             {vehicles?.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-ink-faint">
                   Henüz araç eklenmedi.
                 </td>
               </tr>

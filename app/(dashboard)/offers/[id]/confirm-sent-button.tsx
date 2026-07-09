@@ -16,7 +16,7 @@ export default function ConfirmSentButton({ offerId, disabled }: { offerId: stri
           confirmOfferSentAction(offerId);
         });
       }}
-      className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+      className="rounded-md border border-line px-4 py-2 text-sm font-medium text-ink-soft hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
     >
       {pending ? "İşaretleniyor..." : "Gönderildi olarak işaretle"}
     </button>

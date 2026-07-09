@@ -12,8 +12,8 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
   const [state, formAction, pending] = useActionState(createWatchlistAction, initialState);
 
   return (
-    <form action={formAction} className="rounded-lg border border-zinc-200 bg-white p-5">
-      <h2 className="mb-4 text-sm font-medium text-zinc-900">Yeni alarm kuralı</h2>
+    <form action={formAction} className="rounded-lg border border-line-soft bg-white p-5">
+      <h2 className="mb-4 text-sm font-medium text-ink">Yeni alarm kuralı</h2>
 
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Alarm adı" name="name" required placeholder="Actros Almanya" />
@@ -22,8 +22,8 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <Field label="Marka" name="brand" placeholder="Mercedes-Benz" />
         <Field label="Model" name="model" placeholder="Actros" />
         <label className="text-sm">
-          <span className="mb-1 block text-zinc-600">Araç tipi</span>
-          <select name="vehicle_type" className="w-full rounded-md border border-zinc-300 px-3 py-2">
+          <span className="mb-1 block text-ink-soft">Araç tipi</span>
+          <select name="vehicle_type" className="w-full rounded-md border border-line px-3 py-2">
             <option value="">Farketmez</option>
             <option value="truck">Kamyon</option>
             <option value="trailer">Dorse</option>
@@ -43,37 +43,37 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <label className="text-sm">
-          <span className="mb-1 block text-zinc-600">Kaynaklar</span>
+          <span className="mb-1 block text-ink-soft">Kaynaklar</span>
           <input
             name="source_keys"
             defaultValue={sources.map((source) => source.key).join(",")}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2"
+            className="w-full rounded-md border border-line px-3 py-2"
           />
-          <span className="mt-1 block text-xs text-zinc-500">
+          <span className="mt-1 block text-xs text-ink-faint">
             Virgülle ayırın: {sources.map((source) => source.key).join(", ")}
           </span>
         </label>
         <label className="text-sm">
-          <span className="mb-1 block text-zinc-600">Anahtar kelimeler</span>
+          <span className="mb-1 block text-ink-soft">Anahtar kelimeler</span>
           <input
             name="keywords"
             placeholder="retarder, euro 6"
-            className="w-full rounded-md border border-zinc-300 px-3 py-2"
+            className="w-full rounded-md border border-line px-3 py-2"
           />
-          <span className="mt-1 block text-xs text-zinc-500">Tüm kelimeler ilanda geçerse alarm üretilir.</span>
+          <span className="mt-1 block text-xs text-ink-faint">Tüm kelimeler ilanda geçerse alarm üretilir.</span>
         </label>
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="mt-4 rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+        className="mt-4 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-ink disabled:opacity-50"
       >
         {pending ? "Oluşturuluyor..." : "Alarm oluştur"}
       </button>
 
-      {state.error ? <p className="mt-2 text-sm text-red-600">{state.error}</p> : null}
-      {state.ok ? <p className="mt-2 text-sm text-green-700">{state.ok}</p> : null}
+      {state.error ? <p className="mt-2 text-sm text-danger">{state.error}</p> : null}
+      {state.ok ? <p className="mt-2 text-sm text-success">{state.ok}</p> : null}
     </form>
   );
 }
@@ -95,14 +95,14 @@ function Field({
 }) {
   return (
     <label className="text-sm">
-      <span className="mb-1 block text-zinc-600">{label}</span>
+      <span className="mb-1 block text-ink-soft">{label}</span>
       <input
         type={type}
         name={name}
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
-        className="w-full rounded-md border border-zinc-300 px-3 py-2"
+        className="w-full rounded-md border border-line px-3 py-2"
       />
     </label>
   );

@@ -20,8 +20,8 @@ export default function NewLeadPage() {
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Yeni müşteri</h1>
-      <form action={formAction} className="space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Yeni müşteri</h1>
+      <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-white p-6">
         <div className="grid grid-cols-2 gap-4">
           <Field label="İsim / Şirket" name="company_or_name" required />
           <Field label="Şehir" name="city" />
@@ -36,20 +36,20 @@ export default function NewLeadPage() {
           <Field label="Bütçe para birimi" name="budget_currency" defaultValue="EUR" />
         </div>
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Notlar</label>
+          <label className="mb-1 block text-sm font-medium text-ink-soft">Notlar</label>
           <textarea
             name="notes"
             rows={3}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded-md border border-line px-3 py-2 text-sm focus:border-brand focus:outline-none"
           />
         </div>
 
-        {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+        {state.error ? <p className="text-sm text-danger">{state.error}</p> : null}
 
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+          className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-ink disabled:opacity-50"
         >
           {pending ? "Kaydediliyor..." : "Kaydet"}
         </button>
@@ -73,7 +73,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor={name}>
+      <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor={name}>
         {label}
       </label>
       <input
@@ -82,7 +82,7 @@ function Field({
         type={type}
         required={required}
         defaultValue={defaultValue}
-        className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+        className="w-full rounded-md border border-line px-3 py-2 text-sm focus:border-brand focus:outline-none"
       />
     </div>
   );
@@ -99,14 +99,14 @@ function SelectField({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor={name}>
+      <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor={name}>
         {label}
       </label>
       <select
         id={name}
         name={name}
         defaultValue=""
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+        className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
       >
         <option value="">Seçin</option>
         {options.map((o) => (

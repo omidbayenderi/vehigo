@@ -21,14 +21,14 @@ export default async function MessagesPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Mesaj taslakları</h1>
-      <p className="mb-4 text-sm text-zinc-500">
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Mesaj taslakları</h1>
+      <p className="mb-4 text-sm text-ink-faint">
         Bu sistem hiçbir mesajı otomatik göndermez — her mesaj onaylandıktan sonra elle kopyalanıp
         gönderilir.
       </p>
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
+          <thead className="bg-paper text-left text-xs uppercase text-ink-faint">
             <tr>
               <th className="px-4 py-3">Tarih</th>
               <th className="px-4 py-3">Kanal</th>
@@ -36,18 +36,18 @@ export default async function MessagesPage() {
               <th className="px-4 py-3">Durum</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-soft">
             {drafts?.map((draft) => (
-              <tr key={draft.id} className="hover:bg-zinc-50">
+              <tr key={draft.id} className="hover:bg-paper">
                 <td className="px-4 py-3">
-                  <Link href={`/messages/${draft.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/messages/${draft.id}`} prefetch={false} className="font-medium text-ink hover:underline">
                     {new Date(draft.created_at).toLocaleDateString("tr-TR")}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-zinc-600">{channelLabel[draft.channel ?? ""] ?? draft.channel}</td>
-                <td className="max-w-xs truncate px-4 py-3 text-zinc-600">{draft.draft_text}</td>
+                <td className="px-4 py-3 text-ink-soft">{channelLabel[draft.channel ?? ""] ?? draft.channel}</td>
+                <td className="max-w-xs truncate px-4 py-3 text-ink-soft">{draft.draft_text}</td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
+                  <span className="rounded-full bg-surface-sunken px-2 py-1 text-xs text-ink-soft">
                     {statusLabel[draft.status] ?? draft.status}
                   </span>
                 </td>
@@ -55,7 +55,7 @@ export default async function MessagesPage() {
             ))}
             {drafts?.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
                   Henüz mesaj taslağı yok.
                 </td>
               </tr>

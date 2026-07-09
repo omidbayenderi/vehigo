@@ -22,7 +22,7 @@ export default async function VehicleDetailPage({
 
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">
         {vehicle.brand} {vehicle.model}
       </h1>
       <EditVehicleForm vehicle={vehicle} />

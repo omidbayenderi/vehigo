@@ -19,7 +19,7 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Panel</h1>
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Panel</h1>
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard label="Aktif müşteri" value={metrics.activeLeadCount.toString()} />
@@ -34,13 +34,13 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-6">
-        <h2 className="mb-4 text-sm font-medium text-zinc-700">Müşteri durumlarına göre dağılım</h2>
+      <div className="rounded-lg border border-line-soft bg-white p-6">
+        <h2 className="mb-4 text-sm font-medium text-ink-soft">Müşteri durumlarına göre dağılım</h2>
         <div className="space-y-2">
           {Object.entries(statusLabel).map(([status, label]) => (
             <div key={status} className="flex items-center justify-between text-sm">
-              <span className="text-zinc-600">{label}</span>
-              <span className="font-medium text-zinc-900">{metrics.leadsByStatus[status] ?? 0}</span>
+              <span className="text-ink-soft">{label}</span>
+              <span className="font-medium text-ink">{metrics.leadsByStatus[status] ?? 0}</span>
             </div>
           ))}
         </div>
@@ -51,9 +51,9 @@ export default async function DashboardPage() {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-zinc-900">{value}</p>
+    <div className="rounded-lg border border-line-soft bg-white p-4">
+      <p className="text-xs text-ink-faint">{label}</p>
+      <p className="mt-1 text-2xl font-serif font-semibold text-ink">{value}</p>
     </div>
   );
 }

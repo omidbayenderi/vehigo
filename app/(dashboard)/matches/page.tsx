@@ -21,19 +21,19 @@ export default async function MatchesPage({
 
     return (
       <div>
-        <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Eşleştirme</h1>
-        <p className="mb-4 text-sm text-zinc-600">Eşleştirme yapmak için bir müşteri seçin.</p>
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-          <ul className="divide-y divide-zinc-100">
+        <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Eşleştirme</h1>
+        <p className="mb-4 text-sm text-ink-soft">Eşleştirme yapmak için bir müşteri seçin.</p>
+        <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
+          <ul className="divide-y divide-line-soft">
             {leads?.map((lead) => (
               <li key={lead.id}>
                 <Link
                   href={`/matches?lead_id=${lead.id}`}
                   prefetch={false}
-                  className="block px-4 py-3 text-sm hover:bg-zinc-50"
+                  className="block px-4 py-3 text-sm hover:bg-paper"
                 >
-                  <span className="font-medium text-zinc-900">{lead.company_or_name}</span>
-                  <span className="ml-2 text-zinc-500">
+                  <span className="font-medium text-ink">{lead.company_or_name}</span>
+                  <span className="ml-2 text-ink-faint">
                     {lead.desired_vehicle_type ?? "belirtilmemiş"} · {lead.budget_min ?? "?"}-
                     {lead.budget_max ?? "?"} {lead.budget_currency}
                   </span>
@@ -52,7 +52,7 @@ export default async function MatchesPage({
     .eq("id", lead_id)
     .single();
   if (leadError || !lead) {
-    return <p className="text-sm text-red-600">Müşteri bulunamadı.</p>;
+    return <p className="text-sm text-danger">Müşteri bulunamadı.</p>;
   }
 
   const { data: vehicles } = await supabase.from("vehicles").select("*");
@@ -60,8 +60,8 @@ export default async function MatchesPage({
 
   return (
     <div>
-      <h1 className="mb-1 text-2xl font-semibold text-zinc-900">{lead.company_or_name} için uygun araçlar</h1>
-      <p className="mb-6 text-sm text-zinc-500">
+      <h1 className="mb-1 text-2xl font-serif font-semibold text-ink">{lead.company_or_name} için uygun araçlar</h1>
+      <p className="mb-6 text-sm text-ink-faint">
         İstenen: {lead.desired_vehicle_type ?? "belirtilmemiş"} · Bütçe: {lead.budget_min ?? "?"}-
         {lead.budget_max ?? "?"} {lead.budget_currency}
       </p>
@@ -70,16 +70,16 @@ export default async function MatchesPage({
         {ranked.map(({ vehicle, score, reasoning }) => (
           <div
             key={vehicle.id}
-            className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white p-4"
+            className="flex items-center justify-between rounded-lg border border-line-soft bg-white p-4"
           >
             <div>
-              <p className="font-medium text-zinc-900">
+              <p className="font-medium text-ink">
                 {vehicle.brand} {vehicle.model} ({vehicle.year ?? "?"})
               </p>
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-ink-faint">
                 {vehicle.price?.toLocaleString("tr-TR")} {vehicle.currency} · {vehicle.mileage_km?.toLocaleString("tr-TR") ?? "?"} km
               </p>
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-ink-faint">
                 {reasoning.map((r) => `${r.matched ? "✓" : "✗"} ${r.criterion}`).join("  ")}
               </p>
             </div>
@@ -87,10 +87,10 @@ export default async function MatchesPage({
               <span
                 className={`rounded-full px-3 py-1 text-sm font-medium ${
                   score >= 70
-                    ? "bg-green-100 text-green-700"
+                    ? "bg-success-wash text-success"
                     : score >= 40
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-zinc-100 text-zinc-600"
+                      ? "bg-warning-wash text-warning"
+                      : "bg-surface-sunken text-ink-soft"
                 }`}
               >
                 %{score}
@@ -103,7 +103,7 @@ export default async function MatchesPage({
               >
                 <button
                   type="submit"
-                  className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+                  className="rounded-md bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-ink"
                 >
                   Bu aracı seç
                 </button>
@@ -112,7 +112,7 @@ export default async function MatchesPage({
           </div>
         ))}
         {ranked.length === 0 ? (
-          <p className="text-sm text-zinc-500">Uygun araç bulunamadı.</p>
+          <p className="text-sm text-ink-faint">Uygun araç bulunamadı.</p>
         ) : null}
       </div>
     </div>

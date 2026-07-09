@@ -11,12 +11,12 @@ export default async function NewMessageDraftPage({
   const supabase = await createClient();
 
   if (!lead_id) {
-    return <p className="text-sm text-zinc-600">Mesaj taslağı oluşturmak için bir müşteri bağlamı gerekli.</p>;
+    return <p className="text-sm text-ink-soft">Mesaj taslağı oluşturmak için bir müşteri bağlamı gerekli.</p>;
   }
 
   const { data: lead } = await supabase.from("leads").select("*").eq("id", lead_id).single();
   if (!lead) {
-    return <p className="text-sm text-red-600">Müşteri bulunamadı.</p>;
+    return <p className="text-sm text-danger">Müşteri bulunamadı.</p>;
   }
 
   let defaultText = "";
@@ -41,7 +41,7 @@ export default async function NewMessageDraftPage({
 
   return (
     <div className="max-w-xl">
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Mesaj taslağı — {lead.company_or_name}</h1>
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Mesaj taslağı — {lead.company_or_name}</h1>
       <NewDraftForm leadId={lead.id} offerId={offer_id} defaultText={defaultText} />
     </div>
   );

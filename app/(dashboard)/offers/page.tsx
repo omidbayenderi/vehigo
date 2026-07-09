@@ -16,10 +16,10 @@ export default async function OffersPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-zinc-900">Teklifler</h1>
-      <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+      <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Teklifler</h1>
+      <div className="overflow-hidden rounded-lg border border-line-soft bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 text-left text-xs uppercase text-zinc-500">
+          <thead className="bg-paper text-left text-xs uppercase text-ink-faint">
             <tr>
               <th className="px-4 py-3">Tarih</th>
               <th className="px-4 py-3">Toplam</th>
@@ -27,22 +27,22 @@ export default async function OffersPage() {
               <th className="px-4 py-3">Durum</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-soft">
             {offers?.map((offer) => (
-              <tr key={offer.id} className="hover:bg-zinc-50">
+              <tr key={offer.id} className="hover:bg-paper">
                 <td className="px-4 py-3">
-                  <Link href={`/offers/${offer.id}`} prefetch={false} className="font-medium text-zinc-900 hover:underline">
+                  <Link href={`/offers/${offer.id}`} prefetch={false} className="font-medium text-ink hover:underline">
                     {new Date(offer.created_at).toLocaleDateString("tr-TR")}
                   </Link>
                 </td>
-                <td className="px-4 py-3 text-zinc-600">
+                <td className="px-4 py-3 text-ink-soft">
                   {offer.final_customer_price?.toLocaleString("tr-TR")} {offer.currency}
                 </td>
-                <td className="px-4 py-3 text-zinc-600">
+                <td className="px-4 py-3 text-ink-soft">
                   {offer.commission_amount_calculated?.toLocaleString("tr-TR")} {offer.currency}
                 </td>
                 <td className="px-4 py-3">
-                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">
+                  <span className="rounded-full bg-surface-sunken px-2 py-1 text-xs text-ink-soft">
                     {statusLabel[offer.status] ?? offer.status}
                   </span>
                 </td>
@@ -50,7 +50,7 @@ export default async function OffersPage() {
             ))}
             {offers?.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
                   Henüz teklif oluşturulmadı.
                 </td>
               </tr>

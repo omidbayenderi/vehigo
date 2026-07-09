@@ -50,16 +50,16 @@ export default function OfferForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-zinc-200 bg-white p-6">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-white p-6">
       <input type="hidden" name="lead_id" value={leadId} />
       <input type="hidden" name="vehicle_id" value={vehicleId} />
 
-      <div className="mb-2 rounded-md bg-zinc-50 p-3 text-sm text-zinc-600">
+      <div className="mb-2 rounded-md bg-paper p-3 text-sm text-ink-soft">
         <p>
-          <span className="font-medium text-zinc-900">Müşteri:</span> {leadName}
+          <span className="font-medium text-ink">Müşteri:</span> {leadName}
         </p>
         <p>
-          <span className="font-medium text-zinc-900">Araç:</span> {vehicleLabel}
+          <span className="font-medium text-ink">Araç:</span> {vehicleLabel}
         </p>
       </div>
 
@@ -92,12 +92,12 @@ export default function OfferForm({
           onChange={setServiceFee}
         />
         <div>
-          <label className="mb-1 block text-sm font-medium text-zinc-700">Komisyon tipi</label>
+          <label className="mb-1 block text-sm font-medium text-ink-soft">Komisyon tipi</label>
           <select
             name="commission_type"
             value={commissionType}
             onChange={(e) => setCommissionType(e.target.value as "fixed" | "percentage")}
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
           >
             <option value="fixed">Sabit tutar</option>
             <option value="percentage">Yüzde</option>
@@ -113,49 +113,49 @@ export default function OfferForm({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Teslimat koşulları</label>
+        <label className="mb-1 block text-sm font-medium text-ink-soft">Teslimat koşulları</label>
         <textarea
           name="delivery_terms"
           rows={2}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-line px-3 py-2 text-sm"
         />
       </div>
       <div>
-        <label className="mb-1 block text-sm font-medium text-zinc-700">Ödeme adımları</label>
+        <label className="mb-1 block text-sm font-medium text-ink-soft">Ödeme adımları</label>
         <textarea
           name="payment_steps"
           rows={2}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          className="w-full rounded-md border border-line px-3 py-2 text-sm"
         />
       </div>
 
-      <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm">
+      <div className="rounded-md border border-line-soft bg-paper p-4 text-sm">
         <div className="flex justify-between">
-          <span className="text-zinc-600">Ara toplam</span>
-          <span className="font-medium text-zinc-900">
+          <span className="text-ink-soft">Ara toplam</span>
+          <span className="font-medium text-ink">
             {result.subtotal.toLocaleString("tr-TR")} {defaultCurrency}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-zinc-600">Komisyon</span>
-          <span className="font-medium text-zinc-900">
+          <span className="text-ink-soft">Komisyon</span>
+          <span className="font-medium text-ink">
             {result.commissionAmount.toLocaleString("tr-TR")} {defaultCurrency}
           </span>
         </div>
-        <div className="mt-2 flex justify-between border-t border-zinc-200 pt-2 text-base">
-          <span className="font-semibold text-zinc-900">Müşteriye toplam</span>
-          <span className="font-semibold text-zinc-900">
+        <div className="mt-2 flex justify-between border-t border-line-soft pt-2 text-base">
+          <span className="font-semibold text-ink">Müşteriye toplam</span>
+          <span className="font-semibold text-ink">
             {result.finalCustomerPrice.toLocaleString("tr-TR")} {defaultCurrency}
           </span>
         </div>
       </div>
 
-      {state.error ? <p className="text-sm text-red-600">{state.error}</p> : null}
+      {state.error ? <p className="text-sm text-danger">{state.error}</p> : null}
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+        className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-ink disabled:opacity-50"
       >
         {pending ? "Oluşturuluyor..." : "Teklif oluştur"}
       </button>
@@ -176,7 +176,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor={name}>
+      <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor={name}>
         {label}
       </label>
       <input
@@ -184,7 +184,7 @@ function Field({
         name={name}
         type={type}
         defaultValue={defaultValue}
-        className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        className="w-full rounded-md border border-line px-3 py-2 text-sm"
       />
     </div>
   );
@@ -203,7 +203,7 @@ function NumberField({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-zinc-700" htmlFor={name}>
+      <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor={name}>
         {label}
       </label>
       <input
@@ -213,7 +213,7 @@ function NumberField({
         step="0.01"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        className="w-full rounded-md border border-line px-3 py-2 text-sm"
       />
     </div>
   );
