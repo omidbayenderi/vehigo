@@ -1,0 +1,48 @@
+name: Scanner Cron
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+    - cron: "17 13 * * *"
+    - cron: "17 21 * * *"
+    - cron: "31 21 * * *"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which endpoint to trigger"
+        required: true
+        default: "run"
+        type: choice
+        options:
+          - run
+          - digest
+
+env:
+  APP_URL: https://vehigo-kappa.vercel.app
+
+jobs:
+  scan:
+    if: |
+      github.event.schedule == '17 5 * * *' ||
+      github.event.schedule == '17 13 * * *' ||
+      github.event.schedule == '17 21 * * *' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'run')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scanner run
+        run: |
+          curl -sS -X POST "$APP_URL/api/scanner/run" \
+            -H "x-scanner-secret: ${{ secrets.SCANNER_INGEST_SECRET }}" \
+            --fail-with-body
+
+  digest:
+    if: |
+      github.event.schedule == '31 21 * * *' ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.target == 'digest')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger opportunity digest
+        run: |
+          curl -sS -X POST "$APP_URL/api/scanner/digest" \
+            -H "x-scanner-secret: ${{ secrets.SCANNER_INGEST_SECRET }}" \
+            --fail-with-body
