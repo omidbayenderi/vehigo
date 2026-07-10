@@ -15,7 +15,7 @@ export default function TelegramSettingsForm({
   const [state, formAction, pending] = useActionState(updateTelegramSettingsAction, initialState);
 
   return (
-    <form action={formAction} className="rounded-lg border border-line-soft bg-white p-5">
+    <form action={formAction} className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-medium text-ink">Telegram bağlantısı</h2>
@@ -38,7 +38,7 @@ export default function TelegramSettingsForm({
           name="telegram_username"
           defaultValue={username ? `@${username}` : ""}
           placeholder="@kullaniciadi"
-          className="flex-1 rounded-md border border-line px-3 py-2 text-sm"
+          className="flex-1 rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
         />
         <button
           type="submit"

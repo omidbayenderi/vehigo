@@ -21,7 +21,7 @@ export type OfferStatus = "draft" | "sent" | "accepted" | "rejected" | "expired"
 export type MessageChannel = "whatsapp" | "telegram" | "instagram";
 export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
 export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
-export type MarketSourceMethod = "scrape" | "email_alert";
+export type MarketSourceMethod = "scrape" | "email_alert" | "web_search";
 export type ListingAlertStatus = "pending" | "sent" | "failed" | "skipped";
 export type ScannerRunStatus = "ok" | "failed" | "blocked" | "skipped";
 
@@ -285,6 +285,9 @@ export type Database = {
           max_price: number | null;
           currency: string;
           keywords: string[];
+          target_price: number | null;
+          must_have_keywords: string[];
+          excluded_keywords: string[];
           created_at: string;
           updated_at: string;
         };
@@ -335,6 +338,9 @@ export type Database = {
           status: ListingAlertStatus;
           channel: "telegram";
           error: string | null;
+          opportunity_score: number | null;
+          opportunity_label: "hot" | "good" | "watch" | "low" | null;
+          opportunity_reasons: Json | null;
           sent_at: string | null;
           created_at: string;
         };

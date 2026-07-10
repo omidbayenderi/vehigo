@@ -12,7 +12,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
   const [state, formAction, pending] = useActionState(createWatchlistAction, initialState);
 
   return (
-    <form action={formAction} className="rounded-lg border border-line-soft bg-white p-5">
+    <form action={formAction} className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <h2 className="mb-4 text-sm font-medium text-ink">Yeni alarm kuralı</h2>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -23,7 +23,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <Field label="Model" name="model" placeholder="Actros" />
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Araç tipi</span>
-          <select name="vehicle_type" className="w-full rounded-md border border-line px-3 py-2">
+          <select name="vehicle_type" className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15">
             <option value="">Farketmez</option>
             <option value="truck">Kamyon</option>
             <option value="trailer">Dorse</option>
@@ -38,6 +38,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <Field label="Max km" name="max_mileage_km" type="number" />
         <Field label="Min fiyat" name="min_price" type="number" />
         <Field label="Max fiyat" name="max_price" type="number" />
+        <Field label="Hedef fırsat fiyatı" name="target_price" type="number" />
         <Field label="Para birimi" name="currency" defaultValue="EUR" />
       </div>
 
@@ -47,7 +48,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
           <input
             name="source_keys"
             defaultValue={sources.map((source) => source.key).join(",")}
-            className="w-full rounded-md border border-line px-3 py-2"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           />
           <span className="mt-1 block text-xs text-ink-faint">
             Virgülle ayırın: {sources.map((source) => source.key).join(", ")}
@@ -58,9 +59,27 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
           <input
             name="keywords"
             placeholder="retarder, euro 6"
-            className="w-full rounded-md border border-line px-3 py-2"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           />
           <span className="mt-1 block text-xs text-ink-faint">Tüm kelimeler ilanda geçerse alarm üretilir.</span>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-ink-soft">Olmazsa olmaz kelimeler</span>
+          <input
+            name="must_have_keywords"
+            placeholder="retarder, euro 6"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+          />
+          <span className="mt-1 block text-xs text-ink-faint">Eksikse fırsat skoru ciddi düşer.</span>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block text-ink-soft">Hariç tutulacak kelimeler</span>
+          <input
+            name="excluded_keywords"
+            placeholder="damaged, accident, parts only"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+          />
+          <span className="mt-1 block text-xs text-ink-faint">Geçerse fırsat skoru ciddi düşer.</span>
         </label>
       </div>
 
@@ -102,7 +121,7 @@ function Field({
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
-        className="w-full rounded-md border border-line px-3 py-2"
+        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
       />
     </label>
   );

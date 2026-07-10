@@ -3,6 +3,7 @@ import type { Database, Json, VehicleType } from "@/lib/supabase/types";
 import { marketListingInputSchema, watchlistSchema } from "@/lib/validation/schemas";
 import { partialUpdateFields } from "@/lib/utils";
 import { sendTelegramMessage } from "@/lib/services/notifications";
+import { assessOpportunity, opportunityReasonsToJson } from "@/lib/services/opportunity-agents";
 
 type Client = SupabaseClient<Database>;
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
@@ -11,7 +12,7 @@ type Alert = Database["public"]["Tables"]["listing_alerts"]["Row"];
 type UserProfile = Database["public"]["Tables"]["users_profile"]["Row"];
 type MarketListingInsert = Database["public"]["Tables"]["market_listings"]["Insert"];
 type WatchlistInsert = Database["public"]["Tables"]["watchlists"]["Insert"];
-export type AlertWithListing = Alert & { market_listings: Listing | null };
+export type AlertWithListing = Alert & { market_listings: Listing | null; watchlists: Watchlist | null };
 type PendingAlert = Alert & {
   market_listings: Listing | null;
   watchlists: Watchlist | null;
@@ -64,14 +65,31 @@ export async function listMarketSources(supabase: Client) {
   return data ?? [];
 }
 
-export async function listDueScrapeSources(supabase: Client) {
+export async function listDueScannerSources(supabase: Client, options: { force?: boolean } = {}) {
   const nowIso = new Date().toISOString();
-  const { data, error } = await supabase
+  let query = supabase
     .from("market_sources")
     .select("*")
     .eq("enabled", true)
-    .eq("method", "scrape")
-    .or(`next_run_at.is.null,next_run_at.lte.${nowIso}`);
+    .in("method", ["scrape", "web_search"]);
+
+  if (!options.force) {
+    query = query.or(`next_run_at.is.null,next_run_at.lte.${nowIso}`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+export const listDueScrapeSources = listDueScannerSources;
+
+export async function listActiveWatchlistsForScanner(supabase: Client) {
+  const { data, error } = await supabase
+    .from("watchlists")
+    .select("*")
+    .eq("active", true)
+    .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -171,8 +189,9 @@ export async function updateWatchlist(
 export async function listRecentAlerts(supabase: Client, userId: string, limit = 30) {
   const { data, error } = await supabase
     .from("listing_alerts")
-    .select("*, market_listings(*)")
+    .select("*, market_listings(*), watchlists(*)")
     .eq("user_id", userId)
+    .order("opportunity_score", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
@@ -268,30 +287,67 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
 
 function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
   if (watchlist.source_keys.length > 0 && !watchlist.source_keys.includes(listing.source_key)) return false;
-  if (!textMatches(watchlist.country, listing.seller_country)) return false;
-  if (!textMatches(watchlist.city, listing.seller_city)) return false;
-  if (!textMatches(watchlist.brand, listing.brand)) return false;
-  if (!textMatches(watchlist.model, listing.model)) return false;
-  if (watchlist.vehicle_type && listing.vehicle_type !== watchlist.vehicle_type) return false;
+  if (!textMatchesListing(watchlist.country, listing.seller_country, listing)) return false;
+  if (!textMatchesListing(watchlist.city, listing.seller_city, listing)) return false;
+  if (!textMatchesListing(watchlist.brand, listing.brand, listing)) return false;
+  if (!textMatchesListing(watchlist.model, listing.model, listing)) return false;
+  if (watchlist.vehicle_type && !vehicleTypeMatches(watchlist.vehicle_type, listing)) return false;
   if (watchlist.min_year !== null && (listing.year === null || listing.year < watchlist.min_year)) return false;
   if (watchlist.max_year !== null && (listing.year === null || listing.year > watchlist.max_year)) return false;
   if (watchlist.max_mileage_km !== null && (listing.mileage_km === null || listing.mileage_km > watchlist.max_mileage_km)) return false;
   if (watchlist.min_price !== null && (listing.price === null || listing.price < watchlist.min_price)) return false;
   if (watchlist.max_price !== null && (listing.price === null || listing.price > watchlist.max_price)) return false;
   if (watchlist.keywords.length > 0) {
-    const haystack = [listing.title, listing.brand, listing.model, listing.seller_city, listing.seller_country]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+    const haystack = listingSearchText(listing);
     if (!watchlist.keywords.every((keyword) => haystack.includes(keyword.toLowerCase()))) return false;
   }
   return true;
 }
 
-function textMatches(expected: string | null, actual: string | null) {
+function textMatchesListing(expected: string | null, actual: string | null, listing: Listing) {
   if (!expected) return true;
-  if (!actual) return false;
-  return actual.toLowerCase().includes(expected.toLowerCase());
+  if (actual?.toLowerCase().includes(expected.toLowerCase())) return true;
+  return isUnstructuredListing(listing) && listingSearchText(listing).includes(expected.toLowerCase());
+}
+
+function vehicleTypeMatches(expected: VehicleType, listing: Listing) {
+  if (listing.vehicle_type === expected) return true;
+  if (!isUnstructuredListing(listing)) return false;
+  return inferVehicleType(listingSearchText(listing)) === expected;
+}
+
+function isUnstructuredListing(listing: Listing) {
+  return listing.source_key === "brave_web" || Boolean(readRawString(listing.raw, "source") === "email_alert");
+}
+
+function listingSearchText(listing: Listing) {
+  return [
+    listing.title,
+    listing.brand,
+    listing.model,
+    listing.seller_city,
+    listing.seller_country,
+    readRawString(listing.raw, "description"),
+    readRawString(listing.raw, "subject"),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function readRawString(raw: Json | null, key: string) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw[key as keyof typeof raw];
+  return typeof value === "string" ? value : null;
+}
+
+function inferVehicleType(text: string): VehicleType | null {
+  if (["trailer", "semi trailer", "auflieger", "remorque", "dorse"].some((term) => text.includes(term))) return "trailer";
+  if (["excavator", "wheel loader", "construction machine", "baumaschine", "iş makinesi"].some((term) => text.includes(term))) return "construction";
+  if (["spare parts", "truck parts", "ersatzteile", "yedek parça"].some((term) => text.includes(term))) return "spare_part";
+  if (["bus", "coach", "reisebus", "otobüs"].some((term) => text.includes(term))) return "bus";
+  if (["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon"].some((term) => text.includes(term))) return "truck";
+  return null;
 }
 
 async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist: Watchlist) {
@@ -304,11 +360,15 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
     .maybeSingle();
   if (existingError) throw new Error(existingError.message);
   if (existing) return false;
+  const opportunity = assessOpportunity(listing, watchlist);
 
   const { error } = await supabase.from("listing_alerts").insert({
     listing_id: listing.id,
     watchlist_id: watchlist.id,
     user_id: watchlist.user_id,
+    opportunity_score: opportunity.score,
+    opportunity_label: opportunity.label,
+    opportunity_reasons: opportunityReasonsToJson(opportunity.reasons),
   });
   if (error) throw new Error(error.message);
   return true;
@@ -337,7 +397,7 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
       continue;
     }
 
-    const response = await sendTelegramMessage(profile.telegram_chat_id, formatListingAlert(listing, watchlist));
+    const response = await sendTelegramMessage(profile.telegram_chat_id, formatListingAlert(listing, watchlist, alert));
     if (response.ok) {
       await markAlert(supabase, alert.id, "sent", null);
       sent++;
@@ -366,14 +426,16 @@ async function markAlert(
     .eq("id", id);
 }
 
-function formatListingAlert(listing: Listing, watchlist: Watchlist) {
+function formatListingAlert(listing: Listing, watchlist: Watchlist, alert: PendingAlert) {
   const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ");
   const price = listing.price === null ? "-" : `${listing.price.toLocaleString("tr-TR")} ${listing.currency}`;
   const mileage = listing.mileage_km === null ? "-" : `${listing.mileage_km.toLocaleString("tr-TR")} km`;
   const location = [listing.seller_city, listing.seller_country].filter(Boolean).join(", ") || "-";
+  const reasons = Array.isArray(alert.opportunity_reasons) ? alert.opportunity_reasons : [];
 
   return [
-    `Yeni ilan alarmı: ${escapeHtml(watchlist.name)}`,
+    `[${labelText(alert.opportunity_label)}] Yeni fırsat alarmı: ${escapeHtml(watchlist.name)}`,
+    alert.opportunity_score !== null ? `Fırsat skoru: <b>${alert.opportunity_score}/100</b> (${escapeHtml(alert.opportunity_label ?? "watch")})` : null,
     ``,
     `<b>${escapeHtml(title || "Araç ilanı")}</b>`,
     `Kaynak: ${escapeHtml(listing.source_key)}`,
@@ -381,11 +443,20 @@ function formatListingAlert(listing: Listing, watchlist: Watchlist) {
     `Fiyat: ${escapeHtml(price)}`,
     `Km: ${escapeHtml(mileage)}`,
     listing.year ? `Yıl: ${listing.year}` : null,
+    reasons.length > 0 ? `` : null,
+    ...reasons.slice(0, 4).map((reason) => `• ${escapeHtml(String(reason))}`),
     ``,
     `<a href="${escapeHtml(listing.listing_url)}">İlanı aç</a>`,
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function labelText(label: PendingAlert["opportunity_label"]) {
+  if (label === "hot") return "HOT";
+  if (label === "good") return "GOOD";
+  if (label === "watch") return "WATCH";
+  return "INFO";
 }
 
 function escapeHtml(value: string) {

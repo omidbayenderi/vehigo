@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "scan": "tsx scripts/scanner/index.ts",
-    "scan:once": "tsx scripts/scanner/index.ts --once"
+    "scan:once": "tsx scripts/scanner/index.ts --once",
+    "scan:force": "tsx scripts/scanner/index.ts --once --force"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

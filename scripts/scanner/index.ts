@@ -1,62 +1,21 @@
 import path from "node:path";
 import process from "node:process";
 import { createAdminClient } from "../../lib/supabase/admin";
-import {
-  listDueScrapeSources,
-  processIncomingListings,
-  recordScannerRun,
-} from "../../lib/services/market-alerts";
-import { marktplaatsAdapter } from "./adapters/marktplaats";
-import type { ScanAdapter } from "./adapters/types";
+import { runScannerOnce } from "../../lib/scanner/runner";
 
 process.loadEnvFile(path.join(process.cwd(), ".env.local"));
-
-const ADAPTERS: Record<string, ScanAdapter> = {
-  [marktplaatsAdapter.key]: marktplaatsAdapter,
-};
 
 const CHECK_INTERVAL_MS = 2 * 60 * 1000;
 
 async function runDueSources() {
   const supabase = createAdminClient();
-  const dueSources = await listDueScrapeSources(supabase);
+  const force = process.argv.includes("--force");
+  const sourceArg = process.argv.find((arg) => arg.startsWith("--source="));
+  const sourceKey = sourceArg?.slice("--source=".length);
+  const summary = await runScannerOnce(supabase, { force, sourceKey });
 
-  if (dueSources.length === 0) {
+  if (summary.checkedSources === 0) {
     console.log(`[${new Date().toISOString()}] taranacak kaynak yok, bekleniyor...`);
-    return;
-  }
-
-  for (const source of dueSources) {
-    const adapter = ADAPTERS[source.key];
-    const startedAt = new Date();
-
-    if (!adapter) {
-      console.warn(`[${source.key}] adaptör yok, atlanıyor`);
-      await recordScannerRun(supabase, source.key, startedAt, {
-        status: "skipped",
-        error: "Adaptör tanımlı değil",
-      });
-      continue;
-    }
-
-    console.log(`[${source.key}] tarama başladı...`);
-    try {
-      const listings = await adapter.fetchListings();
-      const result = await processIncomingListings(supabase, listings);
-      const { nextRunAt } = await recordScannerRun(supabase, source.key, startedAt, {
-        status: "ok",
-        result,
-      });
-      console.log(
-        `[${source.key}] tamamlandı: ${result.fetched} çekildi, ${result.inserted} yeni, ` +
-          `${result.alertsCreated} alarm oluşturuldu, ${result.alertsSent} Telegram'a gönderildi. ` +
-          `Sonraki tarama: ${nextRunAt}`,
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Bilinmeyen hata";
-      console.error(`[${source.key}] HATA: ${message}`);
-      await recordScannerRun(supabase, source.key, startedAt, { status: "failed", error: message });
-    }
   }
 }
 

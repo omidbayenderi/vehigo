@@ -76,7 +76,7 @@ export default function ImageGallery({
   };
 
   return (
-    <div className="mt-6 rounded-lg border border-line-soft bg-white p-6">
+    <div className="mt-6 rounded-lg border border-line-soft bg-surface p-6 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <h2 className="mb-3 text-sm font-medium text-ink-soft">Görseller</h2>
       {images.length > 0 ? (
         <div className="mb-4 grid grid-cols-4 gap-2">

@@ -18,13 +18,13 @@ export default function NewDraftForm({
   const [text, setText] = useState(defaultText);
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-white p-6">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-surface p-6 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <input type="hidden" name="lead_id" value={leadId} />
       {offerId ? <input type="hidden" name="offer_id" value={offerId} /> : null}
 
       <div>
         <label className="mb-1 block text-sm font-medium text-ink-soft">Kanal</label>
-        <select name="channel" required className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm">
+        <select name="channel" required className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15">
           <option value="whatsapp">WhatsApp</option>
           <option value="telegram">Telegram</option>
           <option value="instagram">Instagram</option>

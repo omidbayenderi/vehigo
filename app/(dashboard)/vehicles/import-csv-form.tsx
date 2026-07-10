@@ -20,7 +20,7 @@ export default function ImportCsvForm() {
         CSV içe aktar
       </button>
       {open ? (
-        <div className="absolute right-0 z-10 mt-2 w-80 rounded-lg border border-line-soft bg-white p-4 shadow-lg">
+        <div className="absolute right-0 z-10 mt-2 w-80 rounded-lg border border-line-soft bg-surface p-4 shadow-lg">
           <p className="mb-2 text-xs text-ink-faint">
             Sütunlar: brand, model, year, mileage_km, price, currency, vehicle_type, condition, notes...
           </p>

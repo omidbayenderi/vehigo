@@ -50,7 +50,7 @@ export default function OfferForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-white p-6">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-surface p-6 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <input type="hidden" name="lead_id" value={leadId} />
       <input type="hidden" name="vehicle_id" value={vehicleId} />
 
@@ -97,7 +97,7 @@ export default function OfferForm({
             name="commission_type"
             value={commissionType}
             onChange={(e) => setCommissionType(e.target.value as "fixed" | "percentage")}
-            className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           >
             <option value="fixed">Sabit tutar</option>
             <option value="percentage">Yüzde</option>
@@ -117,7 +117,7 @@ export default function OfferForm({
         <textarea
           name="delivery_terms"
           rows={2}
-          className="w-full rounded-md border border-line px-3 py-2 text-sm"
+          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
         />
       </div>
       <div>
@@ -125,7 +125,7 @@ export default function OfferForm({
         <textarea
           name="payment_steps"
           rows={2}
-          className="w-full rounded-md border border-line px-3 py-2 text-sm"
+          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
         />
       </div>
 
@@ -184,7 +184,7 @@ function Field({
         name={name}
         type={type}
         defaultValue={defaultValue}
-        className="w-full rounded-md border border-line px-3 py-2 text-sm"
+        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
       />
     </div>
   );
@@ -213,7 +213,7 @@ function NumberField({
         step="0.01"
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full rounded-md border border-line px-3 py-2 text-sm"
+        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
       />
     </div>
   );

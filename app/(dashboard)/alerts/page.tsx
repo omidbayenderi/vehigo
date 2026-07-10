@@ -1,12 +1,15 @@
-import { BellRing } from "lucide-react";
+import { BellRing, ExternalLink, FileText, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { listMarketSources, listRecentAlerts, listWatchlists } from "@/lib/services/market-alerts";
+import { describeOpportunity, recommendLeadsForListing } from "@/lib/services/opportunity-flow";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { cardClass, pillClasses } from "@/lib/ui";
+import { cardClass, pillClasses, type PillTone } from "@/lib/ui";
 import TelegramSettingsForm from "./telegram-settings-form";
 import WatchlistForm from "./watchlist-form";
 import WatchlistToggle from "./watchlist-toggle";
+import ManualTriggerButtons from "./manual-trigger-buttons";
+import { startOfferFromAlertAction } from "./actions";
 
 export default async function AlertsPage() {
   const supabase = await createClient();
@@ -16,12 +19,14 @@ export default async function AlertsPage() {
 
   if (!user) return null;
 
-  const [{ data: profile }, sources, watchlists, alerts] = await Promise.all([
+  const [{ data: profile }, { data: leads }, sources, watchlists, alerts] = await Promise.all([
     supabase.from("users_profile").select("*").eq("id", user.id).single(),
+    supabase.from("leads").select("*").eq("created_by", user.id).order("seriousness_score", { ascending: false }),
     listMarketSources(supabase),
     listWatchlists(supabase, user.id),
     listRecentAlerts(supabase, user.id),
   ]);
+  const activeLeads = (leads ?? []).filter((lead) => lead.status !== "closed_won" && lead.status !== "closed_lost");
 
   return (
     <div>
@@ -30,6 +35,10 @@ export default async function AlertsPage() {
         title="İlan alarmları"
         description="Pazar taraması merkezi çalışır: her kaynak bir kez taranır, ilanlar veritabanına alınır, sonra kullanıcı filtreleriyle eşleşen sonuçlar Telegram üzerinden bildirilir."
       />
+
+      <div className="mb-6">
+        <ManualTriggerButtons />
+      </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <TelegramSettingsForm
@@ -94,60 +103,144 @@ export default async function AlertsPage() {
         </div>
       </div>
 
-      <div className={`overflow-hidden ${cardClass}`}>
+      <div className={cardClass}>
         <div className="border-b border-line-soft px-5 py-4">
-          <h2 className="text-sm font-medium text-ink">Son yakalanan ilanlar</h2>
+          <h2 className="text-sm font-medium text-ink">Fırsat akışı</h2>
+          <p className="mt-1 text-xs text-ink-faint">
+            En yüksek skorlu ilanlardan başlayın; uygun müşteri seçildiğinde teklif formu hazır açılır.
+          </p>
         </div>
-        <table className="w-full text-sm">
-          <thead className="bg-paper text-left text-xs uppercase tracking-wide text-ink-faint">
-            <tr>
-              <th className="px-4 py-3">Tarih</th>
-              <th className="px-4 py-3">İlan</th>
-              <th className="px-4 py-3">Fiyat</th>
-              <th className="px-4 py-3">Durum</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line-soft">
-            {alerts.map((alert) => {
-              const listing = alert.market_listings;
-              return (
-                <tr key={alert.id} className="transition-colors hover:bg-surface-sunken">
-                  <td className="px-4 py-3 text-ink-soft">
-                    {new Date(alert.created_at).toLocaleString("tr-TR")}
-                  </td>
-                  <td className="px-4 py-3">
-                    {listing ? (
-                      <a
-                        href={listing.listing_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-medium text-ink hover:underline"
+        <div className="divide-y divide-line-soft">
+          {alerts.map((alert) => {
+            const listing = alert.market_listings;
+            if (!listing) return null;
+            const decision = describeOpportunity(listing, alert.watchlists);
+            const suggestions = recommendLeadsForListing(listing, activeLeads);
+            const reasons = Array.isArray(alert.opportunity_reasons) ? alert.opportunity_reasons : [];
+            const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ") || "İlan";
+            const scoreTone = scorePillTone(alert.opportunity_score);
+
+            return (
+              <article key={alert.id} className="grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={pillClasses(scoreTone)}>
+                      {labelText(alert.opportunity_label)} · {alert.opportunity_score ?? "-"}
+                    </span>
+                    <span className={pillClasses(statusTone(alert.status))}>{alert.status}</span>
+                    <span className="text-xs text-ink-faint">
+                      {new Date(alert.created_at).toLocaleString("tr-TR")}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-ink">{title}</h3>
+                      <p className="mt-1 text-sm text-ink-soft">
+                        {[
+                          listing.price !== null ? `${listing.price.toLocaleString("tr-TR")} ${listing.currency}` : "Fiyat yok",
+                          listing.mileage_km !== null ? `${listing.mileage_km.toLocaleString("tr-TR")} km` : "Km yok",
+                          listing.year ?? "Yıl yok",
+                          [listing.seller_city, listing.seller_country].filter(Boolean).join(", ") || "Konum yok",
+                          listing.source_key,
+                        ].join(" · ")}
+                      </p>
+                    </div>
+                    <a
+                      href={listing.listing_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line text-ink-soft transition-colors hover:border-brand hover:text-brand"
+                      title="İlanı aç"
+                    >
+                      <ExternalLink className="h-4 w-4" strokeWidth={1.75} />
+                    </a>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-md border border-line-soft bg-paper p-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                        <TrendingUp className="h-4 w-4 text-success" strokeWidth={1.75} />
+                        {decision.marginText}
+                      </div>
+                      <p className="mt-2 text-xs text-ink-faint">
+                        {reasons.slice(0, 3).map(String).join(" · ") || "Skor nedeni henüz yok"}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-line-soft bg-paper p-3">
+                      <span className={pillClasses(decision.riskTone)}>Risk notu</span>
+                      <p className="mt-2 text-xs text-ink-faint">{decision.riskNotes.join(" · ")}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-line-soft bg-paper p-3">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium text-ink">
+                    <FileText className="h-4 w-4 text-brand" strokeWidth={1.75} />
+                    Teklife başla
+                  </div>
+                  <div className="space-y-2">
+                    {suggestions.map((suggestion) => (
+                      <form
+                        key={suggestion.lead.id}
+                        action={async () => {
+                          "use server";
+                          await startOfferFromAlertAction(alert.id, suggestion.lead.id);
+                        }}
                       >
-                        {listing.title || `${listing.brand ?? ""} ${listing.model ?? ""}`.trim() || "İlan"}
-                      </a>
-                    ) : (
-                      "-"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-ink-soft" style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {listing?.price?.toLocaleString("tr-TR") ?? "-"} {listing?.currency ?? ""}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={pillClasses("neutral")}>{alert.status}</span>
-                  </td>
-                </tr>
-              );
-            })}
-            {alerts.length === 0 ? (
-              <tr>
-                <td colSpan={4}>
-                  <EmptyState icon={BellRing} title="Henüz eşleşen ilan yakalanmadı" description="Kaynaklar tarandıkça eşleşen ilanlar burada görünecek." />
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
+                        <button
+                          type="submit"
+                          className="w-full rounded-md border border-line bg-surface px-3 py-2 text-left text-sm transition-colors hover:border-brand hover:bg-white"
+                        >
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="font-medium text-ink">{suggestion.lead.company_or_name}</span>
+                            <span className={pillClasses(scorePillTone(suggestion.score))}>%{suggestion.score}</span>
+                          </span>
+                          <span className="mt-1 block text-xs text-ink-faint">
+                            {suggestion.estimatedMargin !== null
+                              ? `${suggestion.estimatedMargin.toLocaleString("tr-TR")} ${suggestion.lead.budget_currency} tahmini alan`
+                              : suggestion.reasons[0] ?? "Bütçe bilgisi eksik"}
+                          </span>
+                        </button>
+                      </form>
+                    ))}
+                    {suggestions.length === 0 ? (
+                      <p className="rounded-md bg-surface px-3 py-2 text-xs text-ink-faint">
+                        Bu ilan için aktif lead önerisi yok. Lead ekleyince burada hızlı teklif aksiyonu görünür.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {alerts.length === 0 ? (
+            <EmptyState icon={BellRing} title="Henüz eşleşen ilan yakalanmadı" description="Kaynaklar tarandıkça eşleşen ilanlar burada görünecek." />
+          ) : null}
+        </div>
       </div>
     </div>
   );
+}
+
+function labelText(label: "hot" | "good" | "watch" | "low" | null) {
+  if (label === "hot") return "HOT";
+  if (label === "good") return "GOOD";
+  if (label === "watch") return "WATCH";
+  if (label === "low") return "LOW";
+  return "INFO";
+}
+
+function scorePillTone(score: number | null): PillTone {
+  if (score === null) return "neutral";
+  if (score >= 80) return "success";
+  if (score >= 55) return "warning";
+  return "neutral";
+}
+
+function statusTone(status: string): PillTone {
+  if (status === "sent") return "success";
+  if (status === "failed") return "danger";
+  if (status === "skipped") return "warning";
+  return "brand";
 }

@@ -28,7 +28,7 @@ export default function NewVehiclePage() {
   return (
     <div className="max-w-2xl">
       <h1 className="mb-6 text-2xl font-serif font-semibold text-ink">Yeni araç</h1>
-      <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-white p-6">
+      <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-surface p-6 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
         <div className="grid grid-cols-2 gap-4">
           <Field label="Marka" name="brand" required />
           <Field label="Model" name="model" required />
@@ -120,7 +120,7 @@ function SelectField({
         name={name}
         required={required}
         defaultValue=""
-        className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
+        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
       >
         <option value="" disabled>
           Seçin

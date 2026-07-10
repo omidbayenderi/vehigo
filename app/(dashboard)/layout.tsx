@@ -11,13 +11,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initial = user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
-    <div className="flex flex-1">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-line-soft bg-white">
+    <div className="flex flex-1 bg-paper">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-line-soft bg-surface">
         <div className="flex items-center gap-2.5 border-b border-line-soft px-4 py-4">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand font-serif text-sm font-semibold text-white">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand font-serif text-sm font-semibold text-white shadow-[0_8px_18px_rgba(45,63,224,0.18)]">
             V
           </span>
-          <span className="text-lg font-serif font-semibold text-ink">Vehigo</span>
+          <div>
+            <span className="block font-serif text-lg font-semibold leading-none text-ink">Vehigo</span>
+            <span className="mt-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint">
+              Market Ops
+            </span>
+          </div>
         </div>
         <NavLinks />
         <div className="border-t border-line-soft p-3">

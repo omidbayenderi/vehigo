@@ -121,8 +121,11 @@ export const watchlistSchema = z.object({
   max_mileage_km: z.coerce.number().int().min(0).optional(),
   min_price: z.coerce.number().min(0).optional(),
   max_price: z.coerce.number().min(0).optional(),
+  target_price: z.coerce.number().min(0).optional(),
   currency: z.string().default("EUR"),
   keywords: commaList,
+  must_have_keywords: commaList,
+  excluded_keywords: commaList,
 });
 
 export const marketListingInputSchema = z.object({

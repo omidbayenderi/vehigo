@@ -25,7 +25,7 @@ export default function DraftDetail({ draft }: { draft: Draft }) {
   const editable = draft.status === "draft";
 
   return (
-    <div className="rounded-lg border border-line-soft bg-white p-6">
+    <div className="rounded-lg border border-line-soft bg-surface p-6 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <div className="mb-4 flex items-center justify-between">
         <span className="rounded-full bg-surface-sunken px-3 py-1 text-xs font-medium text-ink-soft">
           {statusLabel[draft.status]}
@@ -39,7 +39,7 @@ export default function DraftDetail({ draft }: { draft: Draft }) {
         value={text}
         disabled={!editable || pending}
         onChange={(e) => setText(e.target.value)}
-        className="mb-2 w-full rounded-md border border-line px-3 py-2 text-sm disabled:bg-paper"
+        className="mb-2 w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15 disabled:bg-paper"
       />
 
       {editable ? (

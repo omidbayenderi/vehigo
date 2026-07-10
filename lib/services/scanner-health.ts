@@ -1,0 +1,75 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/supabase/types";
+
+type Client = SupabaseClient<Database>;
+
+export type ScannerHealthIssue = {
+  sourceKey: string;
+  sourceName: string;
+  kind: "never_ran" | "stale" | "failing";
+  detail: string;
+};
+
+export async function checkScannerHealth(supabase: Client): Promise<ScannerHealthIssue[]> {
+  const { data: sources, error: sourcesError } = await supabase
+    .from("market_sources")
+    .select("key,name,min_interval_minutes")
+    .eq("enabled", true)
+    .in("method", ["scrape", "web_search"]);
+  if (sourcesError) throw new Error(sourcesError.message);
+  if (!sources || sources.length === 0) return [];
+
+  const issues: ScannerHealthIssue[] = [];
+
+  for (const source of sources) {
+    const { data: lastRun, error: runError } = await supabase
+      .from("scanner_runs")
+      .select("started_at,status,error")
+      .eq("source_key", source.key)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (runError) throw new Error(runError.message);
+
+    if (!lastRun) {
+      issues.push({
+        sourceKey: source.key,
+        sourceName: source.name,
+        kind: "never_ran",
+        detail: "Hiç çalışmadı",
+      });
+      continue;
+    }
+
+    const thresholdMinutes = source.min_interval_minutes * 2 + 60;
+    const ageMinutes = (Date.now() - new Date(lastRun.started_at).getTime()) / 60_000;
+
+    if (ageMinutes > thresholdMinutes) {
+      const ageHours = Math.round(ageMinutes / 60);
+      issues.push({
+        sourceKey: source.key,
+        sourceName: source.name,
+        kind: "stale",
+        detail: `Son çalışma ${ageHours} saat önce (beklenen aralık aşıldı)`,
+      });
+    } else if (lastRun.status === "failed") {
+      issues.push({
+        sourceKey: source.key,
+        sourceName: source.name,
+        kind: "failing",
+        detail: lastRun.error ? `Son çalışma başarısız: ${lastRun.error}` : "Son çalışma başarısız",
+      });
+    }
+  }
+
+  return issues;
+}
+
+export function formatScannerHealthWarning(issues: ScannerHealthIssue[]): string {
+  const lines = [
+    `⚠️ Tarayıcı sağlık uyarısı`,
+    ``,
+    ...issues.map((issue) => `- ${issue.sourceName}: ${issue.detail}`),
+  ];
+  return lines.join("\n");
+}

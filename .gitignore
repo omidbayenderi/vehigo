@@ -26,3 +26,4 @@ npm-debug.log*
 next-env.d.ts
 .env*
 .gstack/
+supabase/.temp/

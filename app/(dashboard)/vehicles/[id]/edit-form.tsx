@@ -29,7 +29,7 @@ export default function EditVehicleForm({ vehicle }: { vehicle: Vehicle }) {
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-white p-6">
+    <form action={formAction} className="space-y-4 rounded-lg border border-line-soft bg-surface p-6 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <div className="grid grid-cols-2 gap-4">
         <Field label="Marka" name="brand" defaultValue={vehicle.brand ?? ""} required />
         <Field label="Model" name="model" defaultValue={vehicle.model ?? ""} required />
@@ -142,7 +142,7 @@ function SelectField({
         name={name}
         required={required}
         defaultValue={defaultValue}
-        className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm focus:border-brand focus:outline-none"
+        className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
       >
         <option value="" disabled>
           Seçin
