@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { login, type LoginState } from "./actions";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 
 const initialState: LoginState = {};
 
@@ -12,7 +13,7 @@ export default function LoginPage() {
   return (
     <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-paper px-4 py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,color-mix(in_srgb,var(--brand)_16%,transparent),transparent_36%),radial-gradient(circle_at_80%_90%,color-mix(in_srgb,var(--brand)_10%,transparent),transparent_32%)]" />
-      <div className="absolute right-4 top-4"><ThemeToggle compact /></div>
+      <div className="absolute right-4 top-4 flex items-center gap-2"><LanguageToggle compact /><ThemeToggle compact /></div>
       <form
         action={formAction}
         className="relative w-full max-w-md rounded-3xl border border-line-soft bg-surface/90 p-7 shadow-[0_24px_80px_rgba(9,11,18,0.14)] backdrop-blur-xl sm:p-10"

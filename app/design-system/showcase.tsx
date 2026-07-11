@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 
 function Reveal({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -72,7 +73,7 @@ function Swatch({ name, hex, border }: { name: string; hex: string; border?: boo
 export default function DesignSystemShowcase() {
   return (
     <div className="bg-paper">
-      <div className="fixed right-4 top-4 z-50"><ThemeToggle compact /></div>
+      <div className="fixed right-4 top-4 z-50 flex items-center gap-2"><LanguageToggle compact /><ThemeToggle compact /></div>
       {/* HERO */}
       <section className="relative overflow-hidden bg-[#0c1020] text-white">
         <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.06]" aria-hidden="true">

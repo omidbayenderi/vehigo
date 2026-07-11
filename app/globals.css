@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "vazirmatn/Vazirmatn-Variable-font-face.css";
 
 :root {
   --background: #faf9f7;
@@ -85,6 +86,24 @@ body {
   color: var(--foreground);
   font-feature-settings: "tnum" 1;
   transition: background-color 180ms ease, color 180ms ease;
+}
+
+html[lang="fa"] body {
+  font-family: Vazirmatn, var(--font-geist-sans), sans-serif;
+  letter-spacing: 0;
+}
+
+html[lang="fa"] .font-serif {
+  font-family: Vazirmatn, var(--font-geist-sans), sans-serif;
+}
+
+html[dir="rtl"] input[type="email"],
+html[dir="rtl"] input[type="url"],
+html[dir="rtl"] input[type="tel"],
+html[dir="rtl"] input[type="number"],
+html[dir="rtl"] [data-ltr] {
+  direction: ltr;
+  text-align: left;
 }
 
 button, a, input, select, textarea {

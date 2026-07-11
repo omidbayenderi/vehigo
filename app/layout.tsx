@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import { LocaleBridge } from "@/components/ui/locale-bridge";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
   description: "Avrupa genelinde kârlı araç fırsatlarını bulma ve ticaretini yönetme platformu",
 };
 
-const themeScript = `(() => { try { const saved = localStorage.getItem('vehigo-theme'); const dark = saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('dark', dark); } catch {} })();`;
+const themeScript = `(() => { try { const saved = localStorage.getItem('vehigo-theme'); const dark = saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('dark', dark); const locale = localStorage.getItem('vehigo-locale') === 'fa' ? 'fa' : 'tr'; document.documentElement.lang = locale; document.documentElement.dir = locale === 'fa' ? 'rtl' : 'ltr'; } catch {} })();`;
 
 export default function RootLayout({
   children,
@@ -33,11 +34,12 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
+      dir="ltr"
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col"><LocaleBridge>{children}</LocaleBridge></body>
     </html>
   );
 }
