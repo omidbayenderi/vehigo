@@ -198,6 +198,17 @@ export async function listRecentAlerts(supabase: Client, userId: string, limit =
   return (data ?? []) as unknown as AlertWithListing[];
 }
 
+export async function listShortlistedAlerts(supabase: Client, userId: string) {
+  const { data, error } = await supabase
+    .from("listing_alerts")
+    .select("*, market_listings(*), watchlists(*)")
+    .eq("user_id", userId)
+    .eq("decision_status", "shortlisted")
+    .order("decided_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as AlertWithListing[];
+}
+
 export async function processIncomingListings(
   supabase: Client,
   listings: MarketListingInput[],

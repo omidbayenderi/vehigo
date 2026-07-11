@@ -83,6 +83,23 @@ export const complianceChecklistSchema = z.object({
   buyer_identity_verified: z.boolean().default(false),
 });
 
+export const listingPurchaseChecklistSchema = z.object({
+  listing_id: z.string().uuid(),
+  vin: z.string().optional(),
+  vin_verified: z.boolean().default(false),
+  documents_checked: z.boolean().default(false),
+  damage_inspected: z.boolean().default(false),
+  damage_notes: z.string().optional(),
+  seller_trustworthy: z.boolean().default(false),
+  seller_notes: z.string().optional(),
+  payment_risk_acceptable: z.boolean().default(false),
+  payment_notes: z.string().optional(),
+  estimated_transport_cost: z.coerce.number().min(0).default(0),
+  estimated_insurance_cost: z.coerce.number().min(0).default(0),
+  estimated_customs_cost: z.coerce.number().min(0).default(0),
+  estimated_prep_cost: z.coerce.number().min(0).default(0),
+});
+
 export const messageDraftSchema = z.object({
   lead_id: z.string().uuid(),
   offer_id: z.string().uuid().optional(),

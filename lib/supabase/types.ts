@@ -405,6 +405,35 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["scanner_runs"]["Row"]>;
         Relationships: [];
       };
+      listing_purchase_checklist: {
+        Row: {
+          id: string;
+          listing_id: string;
+          vin: string | null;
+          vin_verified: boolean;
+          documents_checked: boolean;
+          damage_inspected: boolean;
+          damage_notes: string | null;
+          seller_trustworthy: boolean;
+          seller_notes: string | null;
+          payment_risk_acceptable: boolean;
+          payment_notes: string | null;
+          estimated_transport_cost: number;
+          estimated_insurance_cost: number;
+          estimated_customs_cost: number;
+          estimated_prep_cost: number;
+          all_clear: boolean;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["listing_purchase_checklist"]["Row"]> & {
+          listing_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["listing_purchase_checklist"]["Row"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

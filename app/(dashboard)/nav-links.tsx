@@ -10,6 +10,7 @@ import {
   FileText,
   MessageCircle,
   BellRing,
+  ListChecks,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/offers", label: "Teklifler", icon: FileText },
   { href: "/messages", label: "Mesajlar", icon: MessageCircle },
   { href: "/alerts", label: "İlan alarmları", icon: BellRing },
+  { href: "/shortlist", label: "Kısa liste", icon: ListChecks },
 ];
 
 export default function NavLinks({ mobile = false }: { mobile?: boolean }) {
