@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
+import { Send } from "lucide-react";
 import { updateTelegramSettingsAction, type FormState } from "./actions";
 
 const initialState: FormState = {};
+const BOT_LINK = "https://t.me/vehigobot";
 
 export default function TelegramSettingsForm({
   username,
@@ -20,11 +22,12 @@ export default function TelegramSettingsForm({
         <div>
           <h2 className="text-sm font-medium text-ink">Telegram bağlantısı</h2>
           <p className="mt-1 text-sm text-ink-faint">
-            Tek bot kullanılır. Kullanıcı adı kaydedildikten sonra kullanıcı botu başlatınca chat_id doğrulanır.
+            1) Kendi Telegram kullanıcı adını (Telegram &gt; Ayarlar &gt; Kullanıcı adı) aşağıya kaydet. 2) Ardından
+            botu başlat — bağlantı ancak sen botla konuştuğunda doğrulanır.
           </p>
         </div>
         <span
-          className={`rounded-full px-2 py-1 text-xs ${
+          className={`shrink-0 rounded-full px-2 py-1 text-xs ${
             verified ? "bg-success-wash text-success" : "bg-warning-wash text-warning"
           }`}
         >
@@ -52,6 +55,18 @@ export default function TelegramSettingsForm({
 
       {state.error ? <p className="mt-2 text-sm text-danger">{state.error}</p> : null}
       {state.ok ? <p className="mt-2 text-sm text-success">{state.ok}</p> : null}
+
+      {!verified ? (
+        <a
+          href={BOT_LINK}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 flex items-center justify-center gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:border-brand hover:text-brand"
+        >
+          <Send className="h-4 w-4" strokeWidth={1.75} />
+          2. adım: Telegram&apos;da botu aç ve /start yaz
+        </a>
+      ) : null}
     </form>
   );
 }
