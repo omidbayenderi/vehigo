@@ -31,19 +31,34 @@ export async function updateTelegramSettingsAction(
 
   try {
     const parsed = telegramSettingsSchema.parse(formDataToObject(formData));
+    const nextUsername = parsed.telegram_username?.toLowerCase() ?? null;
+
+    const { data: current, error: currentError } = await supabase
+      .from("users_profile")
+      .select("telegram_username")
+      .eq("id", user.id)
+      .single();
+    if (currentError) throw new Error(currentError.message);
+
+    const usernameChanged = current.telegram_username !== nextUsername;
+
     const { error } = await supabase
       .from("users_profile")
-      .update({
-        telegram_username: parsed.telegram_username?.toLowerCase() ?? null,
-        telegram_chat_id: null,
-        telegram_verified_at: null,
-      })
+      .update(
+        usernameChanged
+          ? { telegram_username: nextUsername, telegram_chat_id: null, telegram_verified_at: null }
+          : { telegram_username: nextUsername },
+      )
       .eq("id", user.id);
     if (error) throw new Error(error.message);
 
     await logAudit(supabase, user.id, "update_telegram_settings", "user_profile", user.id);
     revalidatePath("/alerts");
-    return { ok: "Telegram kullanıcı adı kaydedildi. Botu Telegram'da başlatarak doğrulayın." };
+    return {
+      ok: usernameChanged
+        ? "Telegram kullanıcı adı kaydedildi. Botu Telegram'da başlatarak doğrulayın."
+        : "Telegram kullanıcı adı zaten kayıtlı, bağlantı korundu.",
+    };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
   }

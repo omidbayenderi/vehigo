@@ -34,6 +34,7 @@ export default function TelegramSettingsForm({
 
       <div className="flex gap-2">
         <input
+          key={username ?? "empty"}
           type="text"
           name="telegram_username"
           defaultValue={username ? `@${username}` : ""}
