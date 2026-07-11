@@ -294,9 +294,9 @@ function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
   if (watchlist.vehicle_type && !vehicleTypeMatches(watchlist.vehicle_type, listing)) return false;
   if (watchlist.min_year !== null && (listing.year === null || listing.year < watchlist.min_year)) return false;
   if (watchlist.max_year !== null && (listing.year === null || listing.year > watchlist.max_year)) return false;
-  if (watchlist.max_mileage_km !== null && (listing.mileage_km === null || listing.mileage_km > watchlist.max_mileage_km)) return false;
-  if (watchlist.min_price !== null && (listing.price === null || listing.price < watchlist.min_price)) return false;
-  if (watchlist.max_price !== null && (listing.price === null || listing.price > watchlist.max_price)) return false;
+  if (watchlist.max_mileage_km !== null && listing.mileage_km !== null && listing.mileage_km > watchlist.max_mileage_km) return false;
+  if (watchlist.min_price !== null && listing.price !== null && listing.price < watchlist.min_price) return false;
+  if (watchlist.max_price !== null && listing.price !== null && listing.price > watchlist.max_price) return false;
   if (watchlist.keywords.length > 0) {
     const haystack = listingSearchText(listing);
     if (!watchlist.keywords.every((keyword) => haystack.includes(keyword.toLowerCase()))) return false;
