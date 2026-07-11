@@ -53,8 +53,16 @@ export async function createMessageDraft(supabase: Client, input: Record<string,
 }
 
 export async function updateDraftText(supabase: Client, id: string, text: string) {
-  const { error } = await supabase.from("message_drafts").update({ draft_text: text }).eq("id", id);
+  const { data, error } = await supabase
+    .from("message_drafts")
+    .update({ draft_text: text })
+    .eq("id", id)
+    .eq("status", "draft")
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error("Sadece taslak durumundaki mesajlar düzenlenebilir.");
+  }
 }
 
 export async function approveDraft(supabase: Client, id: string, approvedBy: string) {
