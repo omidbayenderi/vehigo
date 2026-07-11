@@ -128,6 +128,12 @@ export default async function AlertsPage() {
                     <span className={pillClasses(scoreTone)}>
                       {labelText(alert.opportunity_label)} · {alert.opportunity_score ?? "-"}
                     </span>
+                    {alert.alert_type === "price_drop" ? (
+                      <span className={pillClasses("success")}>Fiyat düştü</span>
+                    ) : null}
+                    {listing.status === "delisted" ? (
+                      <span className={pillClasses("danger")}>Satıldı / kaldırıldı</span>
+                    ) : null}
                     <span className={pillClasses(statusTone(alert.status))}>{alert.status}</span>
                     <span className="text-xs text-ink-faint">
                       {new Date(alert.created_at).toLocaleString("tr-TR")}

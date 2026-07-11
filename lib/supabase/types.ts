@@ -23,6 +23,8 @@ export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
 export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
 export type MarketSourceMethod = "scrape" | "email_alert" | "web_search";
 export type ListingAlertStatus = "pending" | "sent" | "failed" | "skipped";
+export type ListingAlertType = "new_match" | "price_drop";
+export type MarketListingStatus = "active" | "delisted";
 export type ListingDecisionStatus = "new" | "shortlisted" | "rejected" | "actioned";
 export type ListingDecisionReason =
   | "good_price"
@@ -327,6 +329,8 @@ export type Database = {
           currency: string;
           vehicle_type: VehicleType | null;
           raw: Json | null;
+          status: MarketListingStatus;
+          delisted_at: string | null;
           first_seen_at: string;
           last_seen_at: string;
           created_at: string;
@@ -340,6 +344,20 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["market_listings"]["Row"]>;
         Relationships: [];
       };
+      market_listing_price_history: {
+        Row: {
+          id: string;
+          listing_id: string;
+          price: number | null;
+          currency: string | null;
+          recorded_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["market_listing_price_history"]["Row"]> & {
+          listing_id: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["market_listing_price_history"]["Row"]>;
+        Relationships: [];
+      };
       listing_alerts: {
         Row: {
           id: string;
@@ -347,6 +365,7 @@ export type Database = {
           watchlist_id: string;
           user_id: string;
           status: ListingAlertStatus;
+          alert_type: ListingAlertType;
           channel: "telegram";
           error: string | null;
           opportunity_score: number | null;

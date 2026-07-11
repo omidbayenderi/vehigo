@@ -228,9 +228,25 @@ export async function processIncomingListings(
       const created = await createAlertIfNeeded(supabase, listing.row, watchlist);
       if (created) result.alertsCreated++;
     }
+
+    if (listing.priceDropped) {
+      result.alertsCreated += await createPriceDropAlerts(supabase, listing.row);
+    }
   }
 
   return result;
+}
+
+export async function markStaleListingsAsDelisted(supabase: Client, staleDays = 3) {
+  const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("market_listings")
+    .update({ status: "delisted", delisted_at: new Date().toISOString() })
+    .eq("status", "active")
+    .lt("last_seen_at", cutoff)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
 }
 
 async function upsertMarketListing(supabase: Client, input: MarketListingInput) {
@@ -245,6 +261,13 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
     .eq("source_listing_id", sourceListingId)
     .maybeSingle();
   if (existingError) throw new Error(existingError.message);
+
+  const priceDropped =
+    existing !== null &&
+    existing.price !== null &&
+    parsed.price !== undefined &&
+    parsed.price < existing.price;
+  const priceChanged = existing !== null && parsed.price !== undefined && parsed.price !== existing.price;
 
   const row: MarketListingInsert = {
     source_key: parsed.source_key,
@@ -263,6 +286,9 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
     vehicle_type: parsed.vehicle_type,
     raw: (parsed.raw ?? null) as Json,
     last_seen_at: now,
+    // Being fetched again means it's still live — undo any earlier stale/delisted sweep.
+    status: "active",
+    delisted_at: null,
   };
 
   if (existing) {
@@ -273,12 +299,21 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
       .select()
       .single();
     if (error) throw new Error(error.message);
-    return { row: data, isNew: false };
+    if (priceChanged) await recordPriceHistory(supabase, data.id, data.price, data.currency);
+    return { row: data, isNew: false, priceDropped };
   }
 
   const { data, error } = await supabase.from("market_listings").insert(row).select().single();
   if (error) throw new Error(error.message);
-  return { row: data, isNew: true };
+  await recordPriceHistory(supabase, data.id, data.price, data.currency);
+  return { row: data, isNew: true, priceDropped: false };
+}
+
+async function recordPriceHistory(supabase: Client, listingId: string, price: number | null, currency: string) {
+  const { error } = await supabase
+    .from("market_listing_price_history")
+    .insert({ listing_id: listingId, price, currency });
+  if (error) throw new Error(error.message);
 }
 
 export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
@@ -364,12 +399,52 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
     listing_id: listing.id,
     watchlist_id: watchlist.id,
     user_id: watchlist.user_id,
+    alert_type: "new_match",
     opportunity_score: opportunity.score,
     opportunity_label: opportunity.label,
     opportunity_reasons: opportunityReasonsToJson(opportunity.reasons),
   });
   if (error) throw new Error(error.message);
   return true;
+}
+
+/**
+ * Re-notifies everyone who was already alerted about this exact listing (i.e. it
+ * already matched their watchlist once) when its price drops. Relies on the unique
+ * (listing_id, watchlist_id, user_id, alert_type) constraint to stay idempotent —
+ * a second drop for the same listing/user won't insert a duplicate 'price_drop' row.
+ */
+async function createPriceDropAlerts(supabase: Client, listing: Listing) {
+  const { data: priorAlerts, error } = await supabase
+    .from("listing_alerts")
+    .select("watchlist_id, user_id")
+    .eq("listing_id", listing.id)
+    .eq("alert_type", "new_match");
+  if (error) throw new Error(error.message);
+  if (!priorAlerts || priorAlerts.length === 0) return 0;
+
+  let created = 0;
+  for (const prior of priorAlerts) {
+    const { error: existingCheckError, count } = await supabase
+      .from("listing_alerts")
+      .select("id", { count: "exact", head: true })
+      .eq("listing_id", listing.id)
+      .eq("watchlist_id", prior.watchlist_id)
+      .eq("user_id", prior.user_id)
+      .eq("alert_type", "price_drop");
+    if (existingCheckError) throw new Error(existingCheckError.message);
+    if (count && count > 0) continue;
+
+    const { error: insertError } = await supabase.from("listing_alerts").insert({
+      listing_id: listing.id,
+      watchlist_id: prior.watchlist_id,
+      user_id: prior.user_id,
+      alert_type: "price_drop",
+    });
+    if (insertError) throw new Error(insertError.message);
+    created++;
+  }
+  return created;
 }
 
 export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50) {
@@ -395,7 +470,11 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
       continue;
     }
 
-    const response = await sendTelegramMessage(profile.telegram_chat_id, formatListingAlert(listing, watchlist, alert));
+    const previousPrice = alert.alert_type === "price_drop" ? await fetchPreviousPrice(supabase, listing.id) : null;
+    const response = await sendTelegramMessage(
+      profile.telegram_chat_id,
+      formatListingAlert(listing, watchlist, alert, previousPrice),
+    );
     if (response.ok) {
       await markAlert(supabase, alert.id, "sent", null);
       sent++;
@@ -424,12 +503,44 @@ async function markAlert(
     .eq("id", id);
 }
 
-function formatListingAlert(listing: Listing, watchlist: Watchlist, alert: PendingAlert) {
+async function fetchPreviousPrice(supabase: Client, listingId: string) {
+  const { data, error } = await supabase
+    .from("market_listing_price_history")
+    .select("price")
+    .eq("listing_id", listingId)
+    .order("recorded_at", { ascending: false })
+    .range(1, 1);
+  if (error) throw new Error(error.message);
+  return data?.[0]?.price ?? null;
+}
+
+function formatListingAlert(
+  listing: Listing,
+  watchlist: Watchlist,
+  alert: PendingAlert,
+  previousPrice: number | null,
+) {
   const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ");
   const price = listing.price === null ? "-" : `${listing.price.toLocaleString("tr-TR")} ${listing.currency}`;
   const mileage = listing.mileage_km === null ? "-" : `${listing.mileage_km.toLocaleString("tr-TR")} km`;
   const location = [listing.seller_city, listing.seller_country].filter(Boolean).join(", ") || "-";
   const reasons = Array.isArray(alert.opportunity_reasons) ? alert.opportunity_reasons : [];
+
+  if (alert.alert_type === "price_drop") {
+    const previous = previousPrice === null ? null : `${previousPrice.toLocaleString("tr-TR")} ${listing.currency}`;
+    return [
+      `[FİYAT DÜŞTÜ] ${escapeHtml(watchlist.name)}`,
+      ``,
+      `<b>${escapeHtml(title || "Araç ilanı")}</b>`,
+      previous ? `Eski fiyat: <s>${escapeHtml(previous)}</s>` : null,
+      `Yeni fiyat: <b>${escapeHtml(price)}</b>`,
+      `Konum: ${escapeHtml(location)}`,
+      ``,
+      `<a href="${escapeHtml(listing.listing_url)}">İlanı aç</a>`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
 
   return [
     `[${labelText(alert.opportunity_label)}] Yeni fırsat alarmı: ${escapeHtml(watchlist.name)}`,

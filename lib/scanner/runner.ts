@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/types";
 import {
   listActiveWatchlistsForScanner,
   listDueScannerSources,
+  markStaleListingsAsDelisted,
   processIncomingListings,
   recordScannerRun,
 } from "@/lib/services/market-alerts";
@@ -31,6 +32,7 @@ export type ScannerRunSummary = {
   alertsCreated: number;
   alertsSent: number;
   alertsFailed: number;
+  delisted: number;
   skipped: string[];
   failed: { sourceKey: string; error: string }[];
 };
@@ -53,6 +55,7 @@ export async function runScannerOnce(
     alertsCreated: 0,
     alertsSent: 0,
     alertsFailed: 0,
+    delisted: 0,
     skipped: [],
     failed: [],
   };
@@ -99,6 +102,8 @@ export async function runScannerOnce(
       await recordScannerRun(supabase, source.key, startedAt, { status: "failed", error: message });
     }
   }
+
+  summary.delisted = await markStaleListingsAsDelisted(supabase);
 
   return summary;
 }

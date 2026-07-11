@@ -10,7 +10,8 @@ const baseListing: Listing = {
   listing_url: "https://example.com/car", title: "Volkswagen Golf 2022 passenger car",
   seller_name: null, seller_country: "Germany", seller_city: "Berlin", brand: "Volkswagen",
   model: "Golf", year: 2022, mileage_km: 42000, price: 18500, currency: "EUR",
-  vehicle_type: "car", raw: null, first_seen_at: "2026-07-11T00:00:00Z",
+  vehicle_type: "car", raw: null, status: "active", delisted_at: null,
+  first_seen_at: "2026-07-11T00:00:00Z",
   last_seen_at: "2026-07-11T00:00:00Z", created_at: "2026-07-11T00:00:00Z",
   updated_at: "2026-07-11T00:00:00Z",
 };

@@ -269,6 +269,8 @@ export const faTranslations: Record<string, string> = {
   "Alarm kuralı oluşturuldu.": "قانون هشدار ایجاد شد.",
   "İlan bulunamadı": "آگهی پیدا نشد",
   "İlan kararı bulunamadı veya bu kullanıcıya ait değil.": "تصمیم آگهی پیدا نشد یا متعلق به این کاربر نیست.",
+  "Fiyat düştü": "کاهش قیمت",
+  "Satıldı / kaldırıldı": "فروخته شد / حذف شد",
   "Ana navigasyon": "پیمایش اصلی",
   "Marka veya model ara...": "جست‌وجوی برند یا مدل…",
   "Not ekle...": "یادداشت بنویسید…",
