@@ -22,11 +22,11 @@ export async function GET(request: NextRequest) {
 }
 
 async function sendDigest(request: NextRequest) {
-  const hours = Number.parseInt(request.nextUrl.searchParams.get("hours") ?? "24", 10);
+  const hours = Number.parseInt(request.nextUrl.searchParams.get("hours") ?? "12", 10);
   const limit = Number.parseInt(request.nextUrl.searchParams.get("limit") ?? "5", 10);
   const supabase = createAdminClient();
   const result = await sendOpportunityDigest(supabase, {
-    hours: Number.isFinite(hours) ? hours : 24,
+    hours: Number.isFinite(hours) ? hours : 12,
     limitPerUser: Number.isFinite(limit) ? limit : 5,
   });
 

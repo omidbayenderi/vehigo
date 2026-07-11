@@ -4,6 +4,8 @@ import type { ScanAdapter, ScannerWatchlist } from "./types";
 const ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const MAX_QUERIES_PER_RUN = 30;
 const VEHICLE_TERMS: Record<string, string[]> = {
+  car: ["car", "passenger car", "auto", "voiture", "personenwagen"],
+  van: ["van", "light commercial vehicle", "transporter", "camionnette", "bestelwagen"],
   truck: ["truck", "lorry", "tractor unit", "vrachtwagen", "camion", "lastwagen"],
   trailer: ["trailer", "semi trailer", "auflieger", "remorque"],
   construction: ["excavator", "wheel loader", "construction machine", "baumaschine"],
@@ -167,6 +169,8 @@ function inferVehicleType(text: string): MarketListingInput["vehicle_type"] | un
   if (["excavator", "wheel loader", "construction machine", "baumaschine", "iş makinesi"].some((term) => lower.includes(term))) return "construction";
   if (["spare parts", "truck parts", "ersatzteile", "yedek parça"].some((term) => lower.includes(term))) return "spare_part";
   if (["bus", "coach", "reisebus", "otobüs"].some((term) => lower.includes(term))) return "bus";
+  if (["van", "transporter", "camionnette", "bestelwagen", "hafif ticari"].some((term) => lower.includes(term))) return "van";
   if (["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon"].some((term) => lower.includes(term))) return "truck";
+  if (["car", "passenger car", "personenwagen", "voiture", "automobile", "otomobil"].some((term) => lower.includes(term))) return "car";
   return undefined;
 }

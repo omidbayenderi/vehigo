@@ -17,7 +17,7 @@ export const vehicleSchema = z.object({
   price: z.coerce.number().min(0, "Fiyat zorunlu"),
   currency: z.string().default("EUR"),
   vat_status: z.enum(["vat_included", "vat_free", "margin_scheme", "unknown"]).optional(),
-  vehicle_type: z.enum(["truck", "trailer", "construction", "spare_part", "bus", "other"]),
+  vehicle_type: z.enum(["car", "van", "truck", "trailer", "construction", "spare_part", "bus", "other"]),
   euro_class: z.string().optional(),
   condition: z.enum(["new", "used_excellent", "used_good", "used_fair", "damaged"]).optional(),
   availability_status: z.enum(["available", "reserved", "sold", "expired"]).default("available"),
@@ -91,6 +91,9 @@ export const messageDraftSchema = z.object({
 });
 
 const commaList = z.preprocess((value) => {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => String(item).split(",")).map((item) => item.trim()).filter(Boolean);
+  }
   if (typeof value !== "string") return value;
   return value
     .split(",")
@@ -115,7 +118,7 @@ export const watchlistSchema = z.object({
   city: z.string().optional(),
   brand: z.string().optional(),
   model: z.string().optional(),
-  vehicle_type: z.enum(["truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
+  vehicle_type: z.enum(["car", "van", "truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
   min_year: z.coerce.number().int().min(1950).optional(),
   max_year: z.coerce.number().int().min(1950).optional(),
   max_mileage_km: z.coerce.number().int().min(0).optional(),
@@ -142,6 +145,23 @@ export const marketListingInputSchema = z.object({
   mileage_km: z.coerce.number().int().min(0).optional(),
   price: z.coerce.number().min(0).optional(),
   currency: z.string().default("EUR"),
-  vehicle_type: z.enum(["truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
+  vehicle_type: z.enum(["car", "van", "truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const listingDecisionSchema = z.object({
+  decision_status: z.enum(["new", "shortlisted", "rejected", "actioned"]),
+  decision_reason: z
+    .enum([
+      "good_price",
+      "right_vehicle",
+      "trusted_seller",
+      "too_expensive",
+      "wrong_vehicle",
+      "bad_condition",
+      "sold",
+      "duplicate",
+      "other",
+    ])
+    .optional(),
 });

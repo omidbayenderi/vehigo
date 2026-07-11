@@ -16,13 +16,14 @@ type DigestAlert = Alert & {
 };
 
 export async function sendOpportunityDigest(supabase: Client, options: { hours?: number; limitPerUser?: number } = {}) {
-  const hours = options.hours ?? 24;
+  const hours = options.hours ?? 12;
   const limitPerUser = options.limitPerUser ?? 5;
   const since = new Date(Date.now() - hours * 3_600_000).toISOString();
 
   const { data, error } = await supabase
     .from("listing_alerts")
     .select("*, market_listings(*), watchlists(*), users_profile(*)")
+    .eq("status", "pending")
     .gte("created_at", since)
     .order("opportunity_score", { ascending: false, nullsFirst: false });
   if (error) throw new Error(error.message);
@@ -74,8 +75,19 @@ export async function sendOpportunityDigest(supabase: Client, options: { hours?:
     }
 
     const result = await sendTelegramMessage(chatId, messageParts.join("\n\n"));
-    if (result.ok) sent++;
-    else failed++;
+    if (result.ok) {
+      sent++;
+      const alertIds = alerts.map((alert) => alert.id);
+      if (alertIds.length > 0) {
+        const { error: updateError } = await supabase
+          .from("listing_alerts")
+          .update({ status: "sent", sent_at: new Date().toISOString(), error: null })
+          .in("id", alertIds);
+        if (updateError) throw new Error(updateError.message);
+      }
+    } else {
+      failed++;
+    }
   }
 
   return { users: recipients.size, sent, skipped, failed, healthIssues: healthIssues.length };

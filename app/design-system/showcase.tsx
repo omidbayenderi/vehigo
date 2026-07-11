@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 function Reveal({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -71,8 +72,9 @@ function Swatch({ name, hex, border }: { name: string; hex: string; border?: boo
 export default function DesignSystemShowcase() {
   return (
     <div className="bg-paper">
+      <div className="fixed right-4 top-4 z-50"><ThemeToggle compact /></div>
       {/* HERO */}
-      <section className="relative overflow-hidden bg-ink text-paper">
+      <section className="relative overflow-hidden bg-[#0c1020] text-white">
         <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.06]" aria-hidden="true">
           <filter id="grain">
             <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
@@ -91,10 +93,10 @@ export default function DesignSystemShowcase() {
           <h1 className="max-w-3xl font-serif text-5xl font-semibold leading-[1.08] sm:text-7xl">
             Sessiz güven duyan bir iş aracı.
           </h1>
-          <p className="max-w-2xl text-lg leading-relaxed text-ink-faint" style={{ color: "#b9b8cc" }}>
-            Avrupa&apos;dan İran&apos;a ağır vasıta ihracat komisyonculuğu için — araç, müşteri, teklif ve
-            uyumluluk süreçlerini tek ekranda yöneten dahili bir CRM. Bu sayfa, o sistemin renk, tipografi
-            ve bileşen dilini gösteriyor.
+          <p className="max-w-2xl text-lg leading-relaxed" style={{ color: "#c3c7dc" }}>
+            Avrupa genelinde otomobilden ağır vasıtaya kadar doğru fırsatı bulmak, değerlendirmek ve
+            ticaretini yönetmek için tasarlanmış modern operasyon platformu. Bu sayfa, sistemin renk,
+            tipografi ve bileşen dilini gösteriyor.
           </p>
           <div className="flex flex-wrap items-center gap-4 pt-4">
             <Link
@@ -103,7 +105,7 @@ export default function DesignSystemShowcase() {
             >
               Uygulamaya giriş yap →
             </Link>
-            <a href="#palet" className="text-sm font-medium text-paper/70 hover:text-paper">
+            <a href="#palet" className="text-sm font-medium text-white/70 hover:text-white">
               Sistemi incele ↓
             </a>
           </div>

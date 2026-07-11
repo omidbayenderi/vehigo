@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, OfferStatus } from "@/lib/supabase/types";
+import { checkScannerHealth } from "@/lib/services/scanner-health";
 
 type Client = SupabaseClient<Database>;
 
@@ -13,6 +14,10 @@ export type DashboardMetrics = {
   totalVehicleCount: number;
   availableVehicleCount: number;
   leadsByStatus: Record<string, number>;
+  newOpportunityCount: number;
+  shortlistedOpportunityCount: number;
+  scannerHealthIssueCount: number;
+  telegramReady: boolean;
 };
 
 export async function getDashboardMetrics(supabase: Client): Promise<DashboardMetrics> {
@@ -22,6 +27,10 @@ export async function getDashboardMetrics(supabase: Client): Promise<DashboardMe
     { count: totalVehicleCount },
     { count: availableVehicleCount },
     { data: allLeads },
+    { count: newOpportunityCount },
+    { count: shortlistedOpportunityCount },
+    { data: profile },
+    scannerHealthIssues,
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -34,6 +43,10 @@ export async function getDashboardMetrics(supabase: Client): Promise<DashboardMe
       .select("*", { count: "exact", head: true })
       .eq("availability_status", "available"),
     supabase.from("leads").select("status"),
+    supabase.from("listing_alerts").select("*", { count: "exact", head: true }).eq("decision_status", "new"),
+    supabase.from("listing_alerts").select("*", { count: "exact", head: true }).eq("decision_status", "shortlisted"),
+    supabase.from("users_profile").select("telegram_chat_id,telegram_verified_at").maybeSingle(),
+    checkScannerHealth(supabase),
   ]);
 
   const expectedCommissionTotal = (openOffers ?? []).reduce(
@@ -53,5 +66,9 @@ export async function getDashboardMetrics(supabase: Client): Promise<DashboardMe
     totalVehicleCount: totalVehicleCount ?? 0,
     availableVehicleCount: availableVehicleCount ?? 0,
     leadsByStatus,
+    newOpportunityCount: newOpportunityCount ?? 0,
+    shortlistedOpportunityCount: shortlistedOpportunityCount ?? 0,
+    scannerHealthIssueCount: scannerHealthIssues.length,
+    telegramReady: Boolean(profile?.telegram_chat_id && profile.telegram_verified_at),
   };
 }

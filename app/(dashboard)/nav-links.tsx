@@ -22,11 +22,11 @@ const navItems = [
   { href: "/alerts", label: "İlan alarmları", icon: BellRing },
 ];
 
-export default function NavLinks() {
+export default function NavLinks({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-1 flex-col gap-0.5 p-3">
+    <nav className={mobile ? "grid gap-1 p-3" : "flex flex-1 flex-col gap-1 p-3"} aria-label="Ana navigasyon">
       {navItems.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
@@ -37,8 +37,8 @@ export default function NavLinks() {
             prefetch={false}
             className={
               active
-                ? "flex items-center gap-2.5 rounded-md border-l-2 border-brand bg-brand-wash py-2 pl-2.5 pr-3 text-sm font-medium text-brand-ink"
-                : "flex items-center gap-2.5 rounded-md border-l-2 border-transparent py-2 pl-2.5 pr-3 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
+                ? "flex min-h-11 items-center gap-3 rounded-xl bg-brand-wash px-3 text-sm font-semibold text-brand-ink"
+                : "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
             }
           >
             <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />

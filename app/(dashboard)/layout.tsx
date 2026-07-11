@@ -1,5 +1,6 @@
-import { LogOut } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { logout } from "./actions";
 import NavLinks from "./nav-links";
 
@@ -11,9 +12,52 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const initial = user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
-    <div className="flex flex-1 bg-paper">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-line-soft bg-surface">
-        <div className="flex items-center gap-2.5 border-b border-line-soft px-4 py-4">
+    <div className="flex min-h-dvh flex-1 flex-col bg-paper md:flex-row">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line-soft bg-surface/90 px-4 py-3 backdrop-blur-xl md:hidden">
+        <Brand />
+        <div className="flex items-center gap-2">
+          <ThemeToggle compact />
+          <details className="group relative">
+            <summary className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-line bg-surface text-ink-soft hover:bg-surface-sunken" aria-label="Menüyü aç">
+              <Menu className="h-5 w-5" />
+            </summary>
+            <div className="absolute right-0 top-13 w-[min(19rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
+              <NavLinks mobile />
+              <div className="border-t border-line-soft p-3">
+                <p className="mb-2 truncate px-3 text-xs text-ink-faint">{user?.email}</p>
+                <form action={logout}><LogoutButton /></form>
+              </div>
+            </div>
+          </details>
+        </div>
+      </header>
+
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-line-soft bg-surface md:flex">
+        <div className="border-b border-line-soft px-4 py-4">
+          <Brand />
+        </div>
+        <NavLinks />
+        <div className="border-t border-line-soft p-3">
+          <ThemeToggle />
+          <div className="mt-2 flex items-center gap-2.5 rounded-xl px-3 py-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-wash text-xs font-semibold text-brand-ink">
+              {initial}
+            </span>
+            <p className="truncate text-xs text-ink-faint">{user?.email}</p>
+          </div>
+          <form action={logout}><LogoutButton /></form>
+        </div>
+      </aside>
+      <main id="main-content" className="min-w-0 flex-1 bg-paper px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+        <div className="mx-auto w-full max-w-[1500px]">{children}</div>
+      </main>
+    </div>
+  );
+}
+
+function Brand() {
+  return (
+    <div className="flex items-center gap-2.5">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand font-serif text-sm font-semibold text-white shadow-[0_8px_18px_rgba(45,63,224,0.18)]">
             V
           </span>
@@ -23,27 +67,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
               Market Ops
             </span>
           </div>
-        </div>
-        <NavLinks />
-        <div className="border-t border-line-soft p-3">
-          <div className="mb-2 flex items-center gap-2.5 rounded-md px-1 py-1">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-wash text-xs font-semibold text-brand-ink">
-              {initial}
-            </span>
-            <p className="truncate text-xs text-ink-faint">{user?.email}</p>
-          </div>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
-            >
-              <LogOut className="h-4 w-4" strokeWidth={1.75} />
-              Çıkış yap
-            </button>
-          </form>
-        </div>
-      </aside>
-      <main className="flex-1 overflow-y-auto bg-paper p-6">{children}</main>
     </div>
+  );
+}
+
+function LogoutButton() {
+  return (
+    <button type="submit" className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-ink-soft transition-colors hover:bg-danger-wash hover:text-danger">
+      <LogOut className="h-4 w-4" strokeWidth={1.75} />
+      Çıkış yap
+    </button>
   );
 }

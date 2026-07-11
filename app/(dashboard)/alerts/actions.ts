@@ -8,7 +8,7 @@ import type { Database } from "@/lib/supabase/types";
 import { createWatchlist, updateWatchlist } from "@/lib/services/market-alerts";
 import { marketListingToVehicleInsert, scoreLeadForListing } from "@/lib/services/opportunity-flow";
 import { logAudit } from "@/lib/services/audit";
-import { telegramSettingsSchema } from "@/lib/validation/schemas";
+import { listingDecisionSchema, telegramSettingsSchema } from "@/lib/validation/schemas";
 import { formDataToObject } from "@/lib/utils";
 import { runScannerOnce } from "@/lib/scanner/runner";
 import { sendOpportunityDigest } from "@/lib/services/opportunity-digest";
@@ -125,7 +125,7 @@ export async function sendDigestNowAction(): Promise<FormState> {
 
   try {
     const admin = createAdminClient();
-    const result = await sendOpportunityDigest(admin, { hours: 24 });
+    const result = await sendOpportunityDigest(admin, { hours: 12 });
     await logAudit(supabase, user.id, "manual_run", "digest", "send");
     revalidatePath("/alerts");
     return {
@@ -133,6 +133,46 @@ export async function sendDigestNowAction(): Promise<FormState> {
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
+  }
+}
+
+export async function updateOpportunityDecisionAction(
+  alertId: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  try {
+    const parsed = listingDecisionSchema.parse(formDataToObject(formData));
+    const decisionReason = parsed.decision_status === "new" ? null : (parsed.decision_reason ?? null);
+    const { data, error } = await supabase
+      .from("listing_alerts")
+      .update({
+        decision_status: parsed.decision_status,
+        decision_reason: decisionReason,
+        decided_at: parsed.decision_status === "new" ? null : new Date().toISOString(),
+      })
+      .eq("id", alertId)
+      .eq("user_id", user.id)
+      .select("id")
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return { error: "İlan kararı bulunamadı veya bu kullanıcıya ait değil." };
+
+    await logAudit(supabase, user.id, "opportunity_decision", "listing_alert", alertId, {
+      status: parsed.decision_status,
+      reason: decisionReason,
+    });
+    revalidatePath("/alerts");
+    revalidatePath("/dashboard");
+    return { ok: "Karar kaydedildi." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Karar kaydedilemedi" };
   }
 }
 

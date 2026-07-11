@@ -9,6 +9,8 @@ type Vehicle = Database["public"]["Tables"]["vehicles"]["Row"];
 const initialState: FormState = {};
 
 const vehicleTypes = [
+  { value: "car", label: "Otomobil" },
+  { value: "van", label: "Hafif ticari / Van" },
   { value: "truck", label: "Kamyon" },
   { value: "trailer", label: "Römork" },
   { value: "construction", label: "İş Makinesi" },

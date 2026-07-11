@@ -10,6 +10,7 @@ import WatchlistForm from "./watchlist-form";
 import WatchlistToggle from "./watchlist-toggle";
 import ManualTriggerButtons from "./manual-trigger-buttons";
 import { startOfferFromAlertAction } from "./actions";
+import OpportunityDecisionForm from "./opportunity-decision-form";
 
 export default async function AlertsPage() {
   const supabase = await createClient();
@@ -33,7 +34,7 @@ export default async function AlertsPage() {
       <PageHeader
         eyebrow="Pazar izleme"
         title="İlan alarmları"
-        description="Pazar taraması merkezi çalışır: her kaynak bir kez taranır, ilanlar veritabanına alınır, sonra kullanıcı filtreleriyle eşleşen sonuçlar Telegram üzerinden bildirilir."
+        description="Otomobilden ağır vasıtaya kadar aradığınız aracı Avrupa genelinde izleyin. Yeni eşleşmeler her gün sabah ve akşam 12 saatlik Telegram özetiyle gelir."
       />
 
       <div className="mb-6">
@@ -172,6 +173,11 @@ export default async function AlertsPage() {
                       <p className="mt-2 text-xs text-ink-faint">{decision.riskNotes.join(" · ")}</p>
                     </div>
                   </div>
+                  <OpportunityDecisionForm
+                    alertId={alert.id}
+                    status={alert.decision_status}
+                    reason={alert.decision_reason}
+                  />
                 </div>
 
                 <div className="rounded-md border border-line-soft bg-paper p-3">

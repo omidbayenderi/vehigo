@@ -2,7 +2,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 
 export type UserRole = "owner" | "broker" | "assistant";
 export type VatStatus = "vat_included" | "vat_free" | "margin_scheme" | "unknown";
-export type VehicleType = "truck" | "trailer" | "construction" | "spare_part" | "bus" | "other";
+export type VehicleType = "car" | "van" | "truck" | "trailer" | "construction" | "spare_part" | "bus" | "other";
 export type VehicleCondition = "new" | "used_excellent" | "used_good" | "used_fair" | "damaged";
 export type AvailabilityStatus = "available" | "reserved" | "sold" | "expired";
 export type LeadSource = "instagram" | "telegram" | "divar" | "sheypoor" | "google_maps" | "referral" | "manual";
@@ -23,6 +23,17 @@ export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
 export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
 export type MarketSourceMethod = "scrape" | "email_alert" | "web_search";
 export type ListingAlertStatus = "pending" | "sent" | "failed" | "skipped";
+export type ListingDecisionStatus = "new" | "shortlisted" | "rejected" | "actioned";
+export type ListingDecisionReason =
+  | "good_price"
+  | "right_vehicle"
+  | "trusted_seller"
+  | "too_expensive"
+  | "wrong_vehicle"
+  | "bad_condition"
+  | "sold"
+  | "duplicate"
+  | "other";
 export type ScannerRunStatus = "ok" | "failed" | "blocked" | "skipped";
 
 export type Database = {
@@ -341,6 +352,9 @@ export type Database = {
           opportunity_score: number | null;
           opportunity_label: "hot" | "good" | "watch" | "low" | null;
           opportunity_reasons: Json | null;
+          decision_status: ListingDecisionStatus;
+          decision_reason: ListingDecisionReason | null;
+          decided_at: string | null;
           sent_at: string | null;
           created_at: string;
         };

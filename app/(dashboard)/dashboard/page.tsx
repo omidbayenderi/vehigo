@@ -1,4 +1,5 @@
-import { Users, FileText, Coins, Truck } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, BellRing, CheckCircle2, Coins, FileText, ListChecks, Truck, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardMetrics } from "@/lib/services/dashboard";
 import { PageHeader } from "@/components/ui/page-header";
@@ -35,7 +36,45 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <PageHeader eyebrow="Genel bakış" title="Panel" description="Bugünün operasyon özeti." />
+      <PageHeader
+        eyebrow="Günlük çalışma masası"
+        title="Bugün ne yapmalısınız?"
+        description="Yeni fırsatları değerlendirin, kısa listenizi ilerletin ve ilan motorunun hazır olduğundan emin olun."
+      />
+
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
+        <ActionCard
+          icon={BellRing}
+          title={`${metrics.newOpportunityCount} yeni fırsat bekliyor`}
+          description="Henüz karar vermediğiniz ilanları fiyat ve uygunluk skoruna göre inceleyin."
+          href="/alerts"
+          action="Fırsatları değerlendir"
+          tone={metrics.newOpportunityCount > 0 ? "brand" : "success"}
+        />
+        <ActionCard
+          icon={ListChecks}
+          title={`${metrics.shortlistedOpportunityCount} araç kısa listede`}
+          description="Satıcı kontrolü, toplam maliyet ve müşteri eşleştirmesi için sıradaki araçlar."
+          href="/alerts"
+          action="Kısa listeyi aç"
+          tone="warning"
+        />
+      </div>
+
+      {(!metrics.telegramReady || metrics.scannerHealthIssueCount > 0) ? (
+        <div className="mb-6 grid gap-3 md:grid-cols-2">
+          <HealthNotice
+            ok={metrics.telegramReady}
+            title={metrics.telegramReady ? "Telegram hazır" : "Telegram bağlantısı tamamlanmadı"}
+            description={metrics.telegramReady ? "Sabah ve akşam özetleri bu hesaba gönderilecek." : "Yeni ilan özetlerini alabilmek için bot bağlantısını doğrulayın."}
+          />
+          <HealthNotice
+            ok={metrics.scannerHealthIssueCount === 0}
+            title={metrics.scannerHealthIssueCount === 0 ? "İlan motoru sağlıklı" : `${metrics.scannerHealthIssueCount} kaynakta sorun var`}
+            description={metrics.scannerHealthIssueCount === 0 ? "Aktif kaynaklar beklenen aralıkta çalışıyor." : "Eksik ilan kaçırmamak için kaynak durumunu kontrol edin."}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
         <MetricCard icon={Users} tone="brand" label="Aktif müşteri" value={metrics.activeLeadCount.toString()} />
@@ -77,6 +116,63 @@ export default async function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ActionCard({
+  icon: Icon,
+  title,
+  description,
+  href,
+  action,
+  tone,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  title: string;
+  description: string;
+  href: string;
+  action: string;
+  tone: "brand" | "success" | "warning";
+}) {
+  const toneClasses = {
+    brand: "border-brand/30 bg-brand-wash text-brand-ink",
+    success: "border-success/30 bg-success-wash text-success",
+    warning: "border-warning/30 bg-warning-wash text-warning",
+  }[tone];
+
+  return (
+    <section className={`${cardClass} p-5`}>
+      <div className="flex items-start gap-3">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border ${toneClasses}`}>
+          <Icon className="h-5 w-5" strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="font-medium text-ink">{title}</h2>
+          <p className="mt-1 text-sm text-ink-faint">{description}</p>
+          <Link href={href} className="mt-3 inline-flex text-sm font-medium text-brand hover:text-brand-ink">
+            {action} →
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HealthNotice({ ok, title, description }: { ok: boolean; title: string; description: string }) {
+  const Icon = ok ? CheckCircle2 : AlertTriangle;
+  return (
+    <Link
+      href="/alerts"
+      className={ok
+        ? "flex items-start gap-3 rounded-lg border border-success/20 bg-success-wash p-4"
+        : "flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-wash p-4"}
+    >
+      <Icon className={ok ? "mt-0.5 h-5 w-5 text-success" : "mt-0.5 h-5 w-5 text-warning"} strokeWidth={1.8} />
+      <span>
+        <span className="block text-sm font-medium text-ink">{title}</span>
+        <span className="mt-0.5 block text-xs text-ink-soft">{description}</span>
+      </span>
+    </Link>
   );
 }
 

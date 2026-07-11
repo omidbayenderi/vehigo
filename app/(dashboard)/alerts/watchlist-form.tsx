@@ -25,6 +25,8 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
           <span className="mb-1 block text-ink-soft">Araç tipi</span>
           <select name="vehicle_type" className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15">
             <option value="">Farketmez</option>
+            <option value="car">Otomobil</option>
+            <option value="van">Hafif ticari / Van</option>
             <option value="truck">Kamyon</option>
             <option value="trailer">Dorse</option>
             <option value="construction">İş makinesi</option>
@@ -43,17 +45,18 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
       </div>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <label className="text-sm">
-          <span className="mb-1 block text-ink-soft">Kaynaklar</span>
-          <input
-            name="source_keys"
-            defaultValue={sources.map((source) => source.key).join(",")}
-            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
-          />
-          <span className="mt-1 block text-xs text-ink-faint">
-            Virgülle ayırın: {sources.map((source) => source.key).join(", ")}
-          </span>
-        </label>
+        <fieldset className="text-sm">
+          <legend className="mb-1 block text-ink-soft">Arama kaynakları</legend>
+          <div className="flex min-h-10 flex-wrap gap-3 rounded-md border border-line bg-surface px-3 py-2">
+            {sources.filter((source) => source.enabled).map((source) => (
+              <label key={source.key} className="inline-flex items-center gap-2 text-ink">
+                <input type="checkbox" name="source_keys" value={source.key} defaultChecked />
+                {source.name}
+              </label>
+            ))}
+          </div>
+          <span className="mt-1 block text-xs text-ink-faint">Seçim yapmazsanız tüm aktif kaynaklar taranır.</span>
+        </fieldset>
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Anahtar kelimeler</span>
           <input

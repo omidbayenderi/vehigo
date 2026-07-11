@@ -12,4 +12,4 @@ export function pillClasses(tone: PillTone = "neutral") {
   return `inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${toneClasses[tone]}`;
 }
 
-export const cardClass = "rounded-lg border border-line-soft bg-surface shadow-[0_1px_2px_rgba(23,24,43,0.04)]";
+export const cardClass = "rounded-2xl border border-line-soft bg-surface shadow-[0_1px_2px_rgba(9,11,18,0.05),0_12px_36px_rgba(9,11,18,0.04)]";

@@ -156,7 +156,9 @@ function inferVehicleType(text: string): VehicleType | null {
   if (["excavator", "wheel loader", "construction machine", "baumaschine", "iş makinesi"].some((term) => text.includes(term))) return "construction";
   if (["spare parts", "truck parts", "ersatzteile", "yedek parça"].some((term) => text.includes(term))) return "spare_part";
   if (["bus", "coach", "reisebus", "otobüs"].some((term) => text.includes(term))) return "bus";
+  if (["van", "transporter", "camionnette", "bestelwagen", "hafif ticari"].some((term) => text.includes(term))) return "van";
   if (["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon"].some((term) => text.includes(term))) return "truck";
+  if (["car", "passenger car", "personenwagen", "voiture", "automobile", "otomobil"].some((term) => text.includes(term))) return "car";
   return null;
 }
 

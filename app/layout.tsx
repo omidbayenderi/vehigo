@@ -20,8 +20,10 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: "Vehigo",
-  description: "Araç ihracat komisyonculuğu iç aracı",
+  description: "Avrupa genelinde kârlı araç fırsatlarını bulma ve ticaretini yönetme platformu",
 };
+
+const themeScript = `(() => { try { const saved = localStorage.getItem('vehigo-theme'); const dark = saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('dark', dark); } catch {} })();`;
 
 export default function RootLayout({
   children,
@@ -31,9 +33,11 @@ export default function RootLayout({
   return (
     <html
       lang="tr"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

@@ -64,7 +64,7 @@ Pazar alarmı üç dahili agent gibi çalışır:
 - `POST /api/scanner/ingest` — n8n veya site adapter'ları yeni ilanları merkezi havuza gönderir. `x-scanner-secret` header'ı `SCANNER_INGEST_SECRET` ile eşleşmelidir.
 - `POST /api/scanner/email-alert` — saved-search e-postalarından gelen ilan linklerini merkezi havuza işler. n8n Email Trigger veya mailbox parser bu endpoint'e `source_key`, `subject`, `text`/`html` gönderir.
 - `GET/POST /api/scanner/run` — deploy cron/scheduler endpoint'i; zamanı gelen canlı kaynakları tarar. Vercel Cron `GET` + `Authorization: Bearer CRON_SECRET`, n8n/manual çağrılar `POST` + `x-scanner-secret` kullanır. İlk dolum/test için `?force=1`, tek kaynak için `?source=marktplaats` veya `?source=brave_web` kullanılabilir.
-- `GET/POST /api/scanner/digest` — son 24 saatin en yüksek skorlu fırsatlarını kullanıcı bazlı Telegram özeti olarak gönderir.
+- `GET/POST /api/scanner/digest` — varsayılan olarak son 12 saatin yeni ve henüz gönderilmemiş fırsatlarını kullanıcı bazlı Telegram özeti olarak gönderir.
 - `POST /api/telegram/webhook` — Telegram bot webhook'u; `TELEGRAM_WEBHOOK_SECRET` ayarlanırsa Telegram'ın `X-Telegram-Bot-Api-Secret-Token` header'ı doğrulanır.
 
 Doğrudan scraping sadece robots.txt/teknik erişim açısından güvenli kaynaklarda kullanılır. Diğer Avrupa marketplace kaynakları canlı veriyi resmi API, saved-search e-postası veya n8n adapter ile aynı ingest havuzuna gönderir; kullanıcı filtreleme ve Telegram alarm akışı hepsi için aynıdır.
@@ -73,7 +73,7 @@ Doğrudan scraping sadece robots.txt/teknik erişim açısından güvenli kaynak
 
 ## Otomatik tarama
 
-`vercel.json` günde 3 kez `/api/scanner/run`, günde 1 kez `/api/scanner/digest` çağıracak şekilde ayarlandı. Vercel ortam değişkenlerinde şunlar tanımlı olmalı:
+`.github/workflows/scanner-cron.yml` günde 3 kez `/api/scanner/run`, günde 2 kez de son 12 saatin yeni ilanları için `/api/scanner/digest` çağırır. GitHub Actions secrets ve Vercel ortam değişkenlerinde şunlar tanımlı olmalı:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`

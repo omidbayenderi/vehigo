@@ -230,10 +230,6 @@ export async function processIncomingListings(
     }
   }
 
-  const dispatchResult = await dispatchPendingTelegramAlerts(supabase);
-  result.alertsSent = dispatchResult.sent;
-  result.alertsFailed = dispatchResult.failed;
-
   return result;
 }
 
@@ -285,7 +281,7 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
   return { row: data, isNew: true };
 }
 
-function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
+export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
   if (watchlist.source_keys.length > 0 && !watchlist.source_keys.includes(listing.source_key)) return false;
   if (!textMatchesListing(watchlist.country, listing.seller_country, listing)) return false;
   if (!textMatchesListing(watchlist.city, listing.seller_city, listing)) return false;
@@ -346,7 +342,9 @@ function inferVehicleType(text: string): VehicleType | null {
   if (["excavator", "wheel loader", "construction machine", "baumaschine", "iş makinesi"].some((term) => text.includes(term))) return "construction";
   if (["spare parts", "truck parts", "ersatzteile", "yedek parça"].some((term) => text.includes(term))) return "spare_part";
   if (["bus", "coach", "reisebus", "otobüs"].some((term) => text.includes(term))) return "bus";
+  if (["van", "transporter", "camionnette", "bestelwagen", "hafif ticari"].some((term) => text.includes(term))) return "van";
   if (["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon"].some((term) => text.includes(term))) return "truck";
+  if (["car", "passenger car", "personenwagen", "voiture", "automobile", "otomobil"].some((term) => text.includes(term))) return "car";
   return null;
 }
 

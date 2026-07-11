@@ -6,8 +6,13 @@ import type { z } from "zod";
  * uyumlu olsun diye "" yerine tamamen yok sayılır.
  */
 export function formDataToObject(formData: FormData): Record<string, unknown> {
-  const entries = Object.fromEntries(formData.entries());
-  return Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== ""));
+  const result: Record<string, FormDataEntryValue | FormDataEntryValue[]> = {};
+  for (const key of new Set(formData.keys())) {
+    const values = formData.getAll(key).filter((value) => value !== "");
+    if (values.length === 1) result[key] = values[0];
+    if (values.length > 1) result[key] = values;
+  }
+  return result;
 }
 
 /**

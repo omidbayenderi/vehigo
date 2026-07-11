@@ -14,7 +14,7 @@ export default function ManualTriggerButtons() {
     <div className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <h2 className="mb-1 text-sm font-medium text-ink">Manuel çalıştırma</h2>
       <p className="mb-4 text-sm text-ink-faint">
-        Otomatik tarama beklemeden şimdi çalıştırın veya son 24 saatin özetini şimdi gönderin.
+        Otomatik tarama beklemeden şimdi çalıştırın veya son 12 saatin yeni ilan özetini şimdi gönderin.
       </p>
       <div className="flex flex-wrap gap-2">
         <form action={scanAction}>

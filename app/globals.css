@@ -3,6 +3,47 @@
 :root {
   --background: #faf9f7;
   --foreground: #17182b;
+  --ink: #17182b;
+  --ink-soft: #4b4d61;
+  --ink-faint: #737489;
+  --paper: #f7f7f9;
+  --surface: #ffffff;
+  --surface-sunken: #f0f1f5;
+  --line: #d8d9e2;
+  --line-soft: #e9eaf0;
+  --brand: #4f5ff0;
+  --brand-ink: #2937bd;
+  --brand-wash: #eef0ff;
+  --success: #16804a;
+  --success-wash: #e9f7ef;
+  --warning: #a85b0b;
+  --warning-wash: #fff3e2;
+  --danger: #bd3030;
+  --danger-wash: #fdecec;
+  color-scheme: light;
+}
+
+.dark {
+  --background: #090b12;
+  --foreground: #f2f3fa;
+  --ink: #f2f3fa;
+  --ink-soft: #c2c5d6;
+  --ink-faint: #8d91a8;
+  --paper: #090b12;
+  --surface: #11141f;
+  --surface-sunken: #191d2a;
+  --line: #34394b;
+  --line-soft: #262b3a;
+  --brand: #7c89ff;
+  --brand-ink: #b5bdff;
+  --brand-wash: #20274f;
+  --success: #55d18b;
+  --success-wash: #153425;
+  --warning: #f0ad5c;
+  --warning-wash: #3b2a16;
+  --danger: #ff8585;
+  --danger-wash: #3d1e24;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -12,29 +53,59 @@
   --font-mono: var(--font-geist-mono);
   --font-serif: var(--font-fraunces);
 
-  --color-ink: #17182b;
-  --color-ink-soft: #4b4d61;
-  --color-ink-faint: #8b8b9e;
-  --color-paper: #faf9f7;
-  --color-surface: #ffffff;
-  --color-surface-sunken: #f1efe9;
-  --color-line: #d9d4c9;
-  --color-line-soft: #ece8e0;
-  --color-brand: #2d3fe0;
-  --color-brand-ink: #1c2999;
-  --color-brand-wash: #ecedfb;
-  --color-success: #15803d;
-  --color-success-wash: #e7f5ec;
-  --color-warning: #b45309;
-  --color-warning-wash: #fbf0e2;
-  --color-danger: #b91c1c;
-  --color-danger-wash: #fbe9e9;
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-wash: var(--brand-wash);
+  --color-success: var(--success);
+  --color-success-wash: var(--success-wash);
+  --color-warning: var(--warning);
+  --color-warning-wash: var(--warning-wash);
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+}
+
+* {
+  border-color: var(--line-soft);
+}
+
+html {
+  background: var(--paper);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-feature-settings: "tnum" 1;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+button, a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input, select, textarea {
+  min-height: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 ::selection {
