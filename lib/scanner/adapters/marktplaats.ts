@@ -1,4 +1,5 @@
 import type { MarketListingInput } from "@/lib/services/market-alerts";
+import { inferModel } from "@/lib/services/opportunity-flow";
 import type { ScanAdapter } from "./types";
 
 const SEARCH_URL =
@@ -81,6 +82,7 @@ export const marktplaatsAdapter: ScanAdapter = {
       const isFixedPrice = listing.priceInfo?.priceType === "FIXED";
       const yearRaw = attributeValue(listing, "constructionYear");
       const mileageRaw = attributeValue(listing, "mileage");
+      const brand = detectBrand(listing.title);
 
       return {
         source_key: "marktplaats",
@@ -90,7 +92,8 @@ export const marktplaatsAdapter: ScanAdapter = {
         seller_name: listing.sellerInformation?.sellerName,
         seller_country: listing.location?.countryName,
         seller_city: listing.location?.cityName,
-        brand: detectBrand(listing.title),
+        brand,
+        model: inferModel(listing.title, brand ?? null) ?? undefined,
         year: yearRaw ? Number.parseInt(yearRaw, 10) : undefined,
         mileage_km: mileageRaw ? Number.parseInt(mileageRaw.replace(/\D/g, ""), 10) : undefined,
         price: isFixedPrice && priceCents !== undefined ? priceCents / 100 : undefined,

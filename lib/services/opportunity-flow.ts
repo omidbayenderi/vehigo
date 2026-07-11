@@ -166,7 +166,7 @@ function inferBrand(title: string) {
   return brands.find((brand) => lower.includes(brand.toLowerCase())) ?? null;
 }
 
-function inferModel(title: string, brand: string | null) {
+export function inferModel(title: string, brand: string | null) {
   if (!title) return null;
   const cleaned = brand ? title.replace(new RegExp(brand, "i"), "") : title;
   return cleaned.split(/[,|-]/)[0]?.trim().split(/\s+/).slice(0, 3).join(" ") || null;
