@@ -1,13 +1,25 @@
 import type { MarketListingInput } from "@/lib/services/market-alerts";
+import type { VehicleType } from "@/lib/supabase/types";
 import { inferModel } from "@/lib/services/opportunity-flow";
 import type { ScanAdapter } from "./types";
 
-const SEARCH_URL =
-  "https://www.marktplaats.nl/l/auto-s/vrachtwagens/?sortBy=SORT_INDEX&sortOrder=DECREASING";
+/**
+ * "/l/auto-s/" is Marktplaats' whole car/van/truck tree — vrachtwagens (trucks) and
+ * bestelauto-s (vans) are subcategories under it and also show up mixed into the root
+ * feed. We scan the root (broad passenger-car coverage) plus a dedicated vrachtwagens
+ * search (so trucks — the original point of this scanner — don't get diluted by the
+ * much higher volume of passenger car listings). Overlap between the two is expected
+ * and harmless: listings dedupe by source_listing_id downstream.
+ */
+const SEARCH_URLS = [
+  "https://www.marktplaats.nl/l/auto-s/?sortBy=SORT_INDEX&sortOrder=DECREASING",
+  "https://www.marktplaats.nl/l/auto-s/vrachtwagens/?sortBy=SORT_INDEX&sortOrder=DECREASING",
+];
 
 const USER_AGENT = "VehigoMarketScanner/1.0 (+https://vehigo.local; contact via app owner)";
 
 const KNOWN_BRANDS = [
+  // Ağır vasıta / kamyon
   "Mercedes-Benz",
   "Mercedes",
   "MAN",
@@ -15,21 +27,54 @@ const KNOWN_BRANDS = [
   "Volvo",
   "Scania",
   "Iveco",
-  "Renault",
   "Ginaf",
-  "Ford",
   "Isuzu",
-  "Fiat",
-  "Nissan",
   "Fuso",
   "Setra",
   "Neoplan",
   "Krone",
   "Schmitz",
   "Kögel",
-  "VW",
+  // Binek otomobil / van (Marktplaats "Auto's" kategori ağacından)
   "Volkswagen",
+  "VW",
+  "BMW",
+  "Peugeot",
+  "Audi",
+  "Ford",
+  "Renault",
+  "Opel",
+  "Kia",
+  "Toyota",
+  "Citroën",
+  "Fiat",
+  "Seat",
+  "Mini",
+  "Hyundai",
+  "Skoda",
+  "Nissan",
+  "Suzuki",
+  "Mazda",
+  "Land Rover",
+  "Mitsubishi",
+  "Porsche",
+  "Dacia",
+  "Alfa Romeo",
+  "Jeep",
+  "Cupra",
+  "Chevrolet",
+  "Honda",
+  "Tesla",
+  "Lexus",
+  "Jaguar",
 ];
+
+// vipUrl'de bu segment görünürse gerçek tür oradan geliyor; kalanı (marka sayfaları,
+// oldtimers, overige-auto-s vb.) hepsi kök "Auto's" ağacının parçası, yani binek.
+const CATEGORY_VEHICLE_TYPE: Record<string, VehicleType> = {
+  vrachtwagens: "truck",
+  "bestelauto-s": "van",
+};
 
 type MarktplaatsListing = {
   itemId: string;
@@ -50,6 +95,12 @@ function attributeValue(listing: MarktplaatsListing, key: string): string | unde
   return listing.attributes?.find((attr) => attr.key === key)?.value;
 }
 
+function inferVehicleTypeFromVipUrl(vipUrl: string): VehicleType {
+  // vipUrl: /v/auto-s/<category>/<slug> — category is index 3, not 2.
+  const segment = vipUrl.split("/")[3];
+  return CATEGORY_VEHICLE_TYPE[segment] ?? "car";
+}
+
 function extractNextData(html: string): {
   props: { pageProps: { searchRequestAndResponse?: { listings?: MarktplaatsListing[] } } };
 } {
@@ -58,26 +109,35 @@ function extractNextData(html: string): {
   return JSON.parse(match[1]);
 }
 
+async function fetchCategory(url: string): Promise<MarktplaatsListing[]> {
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`marktplaats: HTTP ${response.status}`);
+  }
+
+  const html = await response.text();
+  const data = extractNextData(html);
+  return data.props.pageProps.searchRequestAndResponse?.listings ?? [];
+}
+
 export const marktplaatsAdapter: ScanAdapter = {
   key: "marktplaats",
   async fetchListings(): Promise<MarketListingInput[]> {
-    const response = await fetch(SEARCH_URL, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`marktplaats: HTTP ${response.status}`);
+    const byItemId = new Map<string, MarktplaatsListing>();
+    for (const url of SEARCH_URLS) {
+      for (const listing of await fetchCategory(url)) {
+        byItemId.set(listing.itemId, listing);
+      }
     }
 
-    const html = await response.text();
-    const data = extractNextData(html);
-    const listings = data.props.pageProps.searchRequestAndResponse?.listings ?? [];
-
-    return listings.map((listing): MarketListingInput => {
+    return [...byItemId.values()].map((listing): MarketListingInput => {
       const priceCents = listing.priceInfo?.priceCents;
       const isFixedPrice = listing.priceInfo?.priceType === "FIXED";
       const yearRaw = attributeValue(listing, "constructionYear");
@@ -98,7 +158,7 @@ export const marktplaatsAdapter: ScanAdapter = {
         mileage_km: mileageRaw ? Number.parseInt(mileageRaw.replace(/\D/g, ""), 10) : undefined,
         price: isFixedPrice && priceCents !== undefined ? priceCents / 100 : undefined,
         currency: "EUR",
-        vehicle_type: "truck",
+        vehicle_type: inferVehicleTypeFromVipUrl(listing.vipUrl),
         raw: listing as unknown as Record<string, unknown>,
       };
     });

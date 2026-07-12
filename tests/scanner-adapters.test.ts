@@ -18,7 +18,7 @@ describe("marktplaatsAdapter", () => {
       {
         itemId: "m123",
         title: "Mercedes-Benz Actros 1845 LS",
-        vipUrl: "/v/mercedes-benz/actros/m123",
+        vipUrl: "/v/auto-s/vrachtwagens/m123",
         priceInfo: { priceCents: 3550000, priceType: "FIXED" },
         location: { cityName: "Rotterdam", countryName: "Nederland" },
         sellerInformation: { sellerName: "Truck Trader BV" },
@@ -28,7 +28,7 @@ describe("marktplaatsAdapter", () => {
         ],
       },
     ]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(html, { status: 200 })));
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(html, { status: 200 }))));
 
     const listings = await marktplaatsAdapter.fetchListings({ watchlists: [] });
 
@@ -36,7 +36,7 @@ describe("marktplaatsAdapter", () => {
     expect(listings[0]).toMatchObject({
       source_key: "marktplaats",
       source_listing_id: "m123",
-      listing_url: "https://www.marktplaats.nl/v/mercedes-benz/actros/m123",
+      listing_url: "https://www.marktplaats.nl/v/auto-s/vrachtwagens/m123",
       brand: "Mercedes-Benz",
       year: 2019,
       mileage_km: 480000,
@@ -46,20 +46,53 @@ describe("marktplaatsAdapter", () => {
     });
   });
 
+  it("classifies a listing under a brand subcategory (not vrachtwagens/bestelauto-s) as a passenger car", async () => {
+    const html = marktplaatsHtml([
+      { itemId: "m789", title: "Toyota Corolla 1.8 Hybrid", vipUrl: "/v/auto-s/toyota/m789" },
+    ]);
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(html, { status: 200 }))));
+
+    const listings = await marktplaatsAdapter.fetchListings({ watchlists: [] });
+
+    expect(listings[0]).toMatchObject({ brand: "Toyota", vehicle_type: "car" });
+  });
+
+  it("classifies a bestelauto-s listing as a van", async () => {
+    const html = marktplaatsHtml([
+      { itemId: "m321", title: "Mercedes-Benz Sprinter 311", vipUrl: "/v/auto-s/bestelauto-s/m321" },
+    ]);
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(html, { status: 200 }))));
+
+    const listings = await marktplaatsAdapter.fetchListings({ watchlists: [] });
+
+    expect(listings[0].vehicle_type).toBe("van");
+  });
+
   it("leaves price undefined for negotiable ('Bieden') listings instead of guessing", async () => {
     const html = marktplaatsHtml([
       {
         itemId: "m456",
         title: "DAF XF 106",
-        vipUrl: "/v/daf/xf/m456",
+        vipUrl: "/v/auto-s/vrachtwagens/m456",
         priceInfo: { priceType: "SEE_DESCRIPTION" },
       },
     ]);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(html, { status: 200 })));
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(html, { status: 200 }))));
 
     const listings = await marktplaatsAdapter.fetchListings({ watchlists: [] });
 
     expect(listings[0].price).toBeUndefined();
+  });
+
+  it("dedupes a listing that appears in both the root and vrachtwagens category scans", async () => {
+    const html = marktplaatsHtml([
+      { itemId: "m999", title: "Scania R450", vipUrl: "/v/auto-s/vrachtwagens/m999" },
+    ]);
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(new Response(html, { status: 200 }))));
+
+    const listings = await marktplaatsAdapter.fetchListings({ watchlists: [] });
+
+    expect(listings).toHaveLength(1);
   });
 
   it("throws a descriptive error when the page no longer has __NEXT_DATA__", async () => {
