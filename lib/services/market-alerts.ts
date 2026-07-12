@@ -15,6 +15,8 @@ type MarketListingInsert = Database["public"]["Tables"]["market_listings"]["Inse
 type WatchlistInsert = Database["public"]["Tables"]["watchlists"]["Insert"];
 const SEAT_FILTER_PREFIX = "__vehigo_seat:";
 const CONDITION_FILTER_PREFIX = "__vehigo_condition:";
+const DETAIL_FILTER_PREFIX = "__vehigo_filter:";
+const DETAIL_FILTER_KEYS = ["fuel_type", "transmission", "body_type", "drive_type", "seller_type", "min_power_hp", "max_power_hp", "min_engine_cc", "max_engine_cc", "min_doors", "max_doors", "emission_class", "exterior_color"] as const;
 export type AlertWithListing = Alert & { market_listings: Listing | null; watchlists: Watchlist | null };
 type PendingAlert = Alert & {
   market_listings: Listing | null;
@@ -198,12 +200,14 @@ export async function createWatchlist(
   const parsed = watchlistSchema.parse(input);
   const { active: _active, seat_count, condition, ...watchlist } = parsed;
   void _active; // Editing criteria must preserve the separate pause/resume state.
+  const detailMetadata = extractDetailMetadata(watchlist);
   const metadata = [
     seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
     condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
+    ...detailMetadata.tokens,
   ].filter((value): value is string => Boolean(value));
   const row: WatchlistInsert = {
-    ...watchlist,
+    ...detailMetadata.watchlist,
     must_have_keywords: [...watchlist.must_have_keywords, ...metadata],
     user_id: userId,
   };
@@ -234,8 +238,9 @@ export async function replaceWatchlist(
   const parsed = watchlistSchema.parse(input);
   const { seat_count, condition, ...watchlist } = parsed;
   const visibleMustHaves = watchlist.must_have_keywords.filter(
-    (keyword) => !keyword.startsWith(SEAT_FILTER_PREFIX) && !keyword.startsWith(CONDITION_FILTER_PREFIX),
+    (keyword) => !keyword.startsWith("__vehigo_"),
   );
+  const detailMetadata = extractDetailMetadata(watchlist);
   const metadata = [
     seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
     condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
@@ -244,8 +249,9 @@ export async function replaceWatchlist(
     "country", "city", "brand", "model", "vehicle_type", "min_year", "max_year",
     "max_mileage_km", "min_price", "max_price", "target_price",
   ] as const;
+  metadata.push(...detailMetadata.tokens);
   const update: Database["public"]["Tables"]["watchlists"]["Update"] = {
-    ...watchlist,
+    ...detailMetadata.watchlist,
     must_have_keywords: [...visibleMustHaves, ...metadata],
   };
   for (const key of nullableKeys) {
@@ -460,6 +466,80 @@ export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) 
     const haystack = listingSearchText(listing);
     if (!watchlist.keywords.every((keyword) => haystack.includes(keyword.toLowerCase()))) return false;
   }
+  const visibleMustHaves = watchlist.must_have_keywords.filter((keyword) => !keyword.startsWith("__vehigo_"));
+  if (visibleMustHaves.length > 0) {
+    const haystack = listingSearchText(listing);
+    if (!visibleMustHaves.some((keyword) => haystack.includes(keyword.toLowerCase()))) return false;
+  }
+  if (!matchesDetailFilters(listing, watchlist)) return false;
+  return true;
+}
+
+function extractDetailMetadata<T extends Record<string, unknown>>(watchlist: T) {
+  const clean = { ...watchlist };
+  const tokens: string[] = [];
+  for (const key of DETAIL_FILTER_KEYS) {
+    const value = clean[key];
+    delete clean[key];
+    if (value !== undefined && value !== null && value !== "") tokens.push(`${DETAIL_FILTER_PREFIX}${key}:${String(value)}`);
+  }
+  return { watchlist: clean as T, tokens };
+}
+
+function readDetailFilters(watchlist: Watchlist) {
+  const result: Record<string, string> = {};
+  for (const token of watchlist.must_have_keywords) {
+    if (!token.startsWith(DETAIL_FILTER_PREFIX)) continue;
+    const [key, ...rest] = token.slice(DETAIL_FILTER_PREFIX.length).split(":");
+    if (key && rest.length) result[key] = rest.join(":");
+  }
+  return result;
+}
+
+function matchesDetailFilters(listing: Listing, watchlist: Watchlist) {
+  const filters = readDetailFilters(watchlist);
+  const text = listingSearchText(listing);
+  const categorical: Record<string, Record<string, string[]>> = {
+    fuel_type: { gasoline: ["gasoline", "petrol", "benzin"], diesel: ["diesel"], electric: ["electric", "elektro", "ev"], hybrid: ["hybrid", "phev"], lpg: ["lpg", "autogas"], hydrogen: ["hydrogen", "wasserstoff"], other: [] },
+    transmission: { automatic: ["automatic", "automatik"], manual: ["manual", "schaltgetriebe", "handschaltung"], semi_automatic: ["semi-automatic", "halbautomatik"] },
+    body_type: { sedan: ["sedan", "limousine"], suv: ["suv", "geländewagen"], station_wagon: ["station wagon", "kombi", "estate"], hatchback: ["hatchback"], coupe: ["coupe", "coupé"], convertible: ["convertible", "cabrio"], pickup: ["pickup", "pick-up"], van: ["van", "transporter"] },
+    drive_type: { fwd: ["front wheel drive", "frontantrieb", "fwd"], rwd: ["rear wheel drive", "heckantrieb", "rwd"], awd: ["all wheel drive", "allrad", "4x4", "awd"] },
+    seller_type: { private: ["private seller", "privatanbieter", "privat"], dealer: ["dealer", "händler", "gewerblich"] },
+  };
+  for (const [key, options] of Object.entries(categorical)) {
+    const expected = filters[key];
+    if (!expected) continue;
+    const allKnownTerms = Object.values(options).flat();
+    const detected = allKnownTerms.some((term) => text.includes(term));
+    if (detected && !(options[expected] ?? []).some((term) => text.includes(term))) return false;
+  }
+  const power = firstNumber(text, /(\d{2,4})\s*(?:hp|ps|bhp|cv|pk)\b/i);
+  const engineCc = inferEngineCc(text);
+  const doors = firstNumber(text, /(\d)\s*(?:doors?|türen|tuerig)/i);
+  if (!numberWithin(power, filters.min_power_hp, filters.max_power_hp)) return false;
+  if (!numberWithin(engineCc, filters.min_engine_cc, filters.max_engine_cc)) return false;
+  if (!numberWithin(doors, filters.min_doors, filters.max_doors)) return false;
+  const expectedEmission = filters.emission_class?.toLowerCase();
+  const detectedEmission = text.match(/\beuro\s*[1-6]\b/i)?.[0]?.toLowerCase();
+  if (expectedEmission && detectedEmission && detectedEmission.replace(/\s+/g, "") !== expectedEmission.replace(/\s+/g, "")) return false;
+  const expectedColor = filters.exterior_color?.toLowerCase();
+  const knownColors = ["black", "white", "silver", "grey", "gray", "blue", "red", "green", "brown", "beige", "yellow", "orange", "purple", "siyah", "beyaz", "gri", "mavi", "kırmızı"];
+  const detectedColor = knownColors.find((color) => text.includes(color));
+  if (expectedColor && detectedColor && !text.includes(expectedColor)) return false;
+  return true;
+}
+
+function firstNumber(text: string, pattern: RegExp) { const match = text.match(pattern); return match ? Number.parseInt(match[1], 10) : null; }
+function inferEngineCc(text: string) {
+  const cc = firstNumber(text, /(\d{3,5})\s*(?:cc|cm3|cm³)\b/i);
+  if (cc) return cc;
+  const liters = text.match(/\b(\d(?:[.,]\d))\s*(?:l|liter)\b/i);
+  return liters ? Math.round(Number.parseFloat(liters[1].replace(",", ".")) * 1000) : null;
+}
+function numberWithin(value: number | null, min?: string, max?: string) {
+  if (value === null) return true;
+  if (min && value < Number(min)) return false;
+  if (max && value > Number(max)) return false;
   return true;
 }
 
@@ -482,7 +562,9 @@ function vehicleTypeMatches(expected: VehicleType, listing: Listing) {
 }
 
 function isUnstructuredListing(listing: Listing) {
-  return listing.source_key === "brave_web" || Boolean(readRawString(listing.raw, "source") === "email_alert");
+  return listing.source_key === "brave_web" ||
+    readRawString(listing.raw, "discovery_channel") === "brave_web" ||
+    Boolean(readRawString(listing.raw, "source") === "email_alert");
 }
 
 function listingSearchText(listing: Listing) {

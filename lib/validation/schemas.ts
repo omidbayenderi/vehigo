@@ -156,6 +156,19 @@ export const watchlistSchema = z.object({
   excluded_keywords: commaList,
   seat_count: z.coerce.number().int().min(1).max(100).optional(),
   condition: z.enum(["new", "used_excellent", "used_good", "used_fair", "damaged"]).optional(),
+  fuel_type: z.enum(["gasoline", "diesel", "electric", "hybrid", "lpg", "hydrogen", "other"]).optional(),
+  transmission: z.enum(["automatic", "manual", "semi_automatic"]).optional(),
+  body_type: z.enum(["sedan", "suv", "station_wagon", "hatchback", "coupe", "convertible", "pickup", "van"]).optional(),
+  drive_type: z.enum(["fwd", "rwd", "awd"]).optional(),
+  seller_type: z.enum(["private", "dealer"]).optional(),
+  min_power_hp: z.coerce.number().int().min(1).max(3000).optional(),
+  max_power_hp: z.coerce.number().int().min(1).max(3000).optional(),
+  min_engine_cc: z.coerce.number().int().min(50).max(30000).optional(),
+  max_engine_cc: z.coerce.number().int().min(50).max(30000).optional(),
+  min_doors: z.coerce.number().int().min(1).max(10).optional(),
+  max_doors: z.coerce.number().int().min(1).max(10).optional(),
+  emission_class: z.string().optional(),
+  exterior_color: z.string().optional(),
 });
 
 export const marketListingInputSchema = z.object({

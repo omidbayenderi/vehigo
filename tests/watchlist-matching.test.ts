@@ -75,4 +75,25 @@ describe("listingMatchesWatchlist", () => {
       { ...baseWatchlist, must_have_keywords: ["__vehigo_seat:5", "__vehigo_condition:used_good"] },
     )).toBe(true);
   });
+
+  it("uses visible must-have keywords as an OR inclusion rule", () => {
+    const watchlist = { ...baseWatchlist, must_have_keywords: ["panoramic", "automatic"] };
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf automatic" }, watchlist)).toBe(true);
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf manual" }, watchlist)).toBe(false);
+  });
+
+  it("applies detailed mobile-style filters when the listing exposes the data", () => {
+    const watchlist = {
+      ...baseWatchlist,
+      must_have_keywords: [
+        "__vehigo_filter:fuel_type:diesel",
+        "__vehigo_filter:transmission:automatic",
+        "__vehigo_filter:min_power_hp:140",
+        "__vehigo_filter:max_power_hp:200",
+      ],
+    };
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf diesel automatic 150 PS" }, watchlist)).toBe(true);
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf diesel manual 150 PS" }, watchlist)).toBe(false);
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf diesel automatic 220 PS" }, watchlist)).toBe(false);
+  });
 });

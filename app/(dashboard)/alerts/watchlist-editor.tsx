@@ -4,6 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 import { Pencil, Trash2, X } from "lucide-react";
 import type { Database, VehicleCondition } from "@/lib/supabase/types";
 import { deleteWatchlistAction, editWatchlistAction, type FormState } from "./actions";
+import DetailedVehicleFilters, { detailValuesFromKeywords } from "./detailed-vehicle-filters";
 
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
@@ -81,6 +82,8 @@ export default function WatchlistEditor({
           <option value="">Farketmez</option><option value="new">Sıfır</option><option value="used_excellent">İkinci el - çok iyi</option><option value="used_good">İkinci el - iyi</option><option value="used_fair">İkinci el - normal</option><option value="damaged">Kazalı / hasarlı</option>
         </select></label>
       </div>
+
+      <DetailedVehicleFilters values={detailValuesFromKeywords(watchlist.must_have_keywords)} />
 
       <div className="mt-3 grid gap-3 md:grid-cols-3">
         <Field label="Anahtar kelimeler" name="keywords" value={watchlist.keywords.join(", ")} />

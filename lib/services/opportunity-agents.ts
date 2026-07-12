@@ -76,12 +76,12 @@ export function assessOpportunity(listing: Listing, watchlist: Watchlist): Oppor
     reasons.push(`Keyword uyumu: ${matchedKeywords.join(", ")}`);
   }
 
-  const missingMustHave = watchlist.must_have_keywords.filter(
-    (keyword) => !keyword.startsWith("__vehigo_") && !titleText.includes(keyword.toLowerCase()),
+  const mustHaveHits = watchlist.must_have_keywords.filter(
+    (keyword) => !keyword.startsWith("__vehigo_") && titleText.includes(keyword.toLowerCase()),
   );
-  if (missingMustHave.length > 0) {
-    score -= 25;
-    reasons.push(`Eksik kritik kelime: ${missingMustHave.join(", ")}`);
+  if (mustHaveHits.length > 0) {
+    score += Math.min(15, mustHaveHits.length * 5);
+    reasons.push(`Kritik kelime bulundu: ${mustHaveHits.join(", ")}`);
   }
 
   const excludedHits = watchlist.excluded_keywords.filter((keyword) => titleText.includes(keyword.toLowerCase()));

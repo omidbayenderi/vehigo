@@ -55,14 +55,14 @@ export default async function AlertsPage() {
                 <span>{source.name}</span>
                 <span className="text-right text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
                   {source.method === "email_alert"
-                    ? "E-posta bağlantısı gerekli"
+                    ? "Deep Search · ek bağlantı isteğe bağlı"
                     : `${source.min_interval_minutes} dk ± %${source.jitter_percent} · otomatik`}
                 </span>
               </div>
             ))}
           </div>
           <p className="mt-3 text-xs text-ink-faint">
-            Merkezi Scout agent Marktplaats ve Avrupa Deep Search ağını yaklaşık 8 saatte bir, jitter ile günde 3-4 kez tarar. DB yalnızca aranabilir ilan özeti ve kaynak linkini tutar; asıl içerik kaynak sitede kalır. E-posta/API/n8n bağlantıları ek kapsama sağlar, zorunlu değildir.
+            Merkezi Scout agent Marktplaats ve Avrupa Deep Search ağını yaklaşık 8 saatte bir, jitter ile günde 3-4 kez tarar. Deep Search kaynakları e-posta olmadan keşfeder; korumalı sitelerde e-posta/API/n8n bağlantısı yalnız hız ve veri tamlığı için isteğe bağlı ek kanaldır. DB yalnız aranabilir ilan özeti ve kaynak linkini tutar.
           </p>
         </div>
       </div>

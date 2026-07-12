@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createWatchlistAction, type FormState } from "./actions";
 import type { Database } from "@/lib/supabase/types";
+import DetailedVehicleFilters from "./detailed-vehicle-filters";
 
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
 
@@ -100,6 +101,8 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <Field label="Para birimi" name="currency" defaultValue="EUR" />
       </div>
 
+      <DetailedVehicleFilters />
+
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <fieldset className="text-sm">
           <div className="mb-1 flex items-center justify-between gap-3">
@@ -126,7 +129,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
               </label>
             ))}
             <details className="mt-3 border-t border-line-soft pt-3">
-              <summary className="cursor-pointer text-xs font-medium text-brand">Bağlanabilir kayıtlı arama kaynakları</summary>
+              <summary className="cursor-pointer text-xs font-medium text-brand">Ek bağlantıyla güçlendirilebilen kaynaklar</summary>
               <div className="mt-3 flex max-h-40 flex-wrap gap-3 overflow-y-auto pr-2">
                 {sources.filter((source) => source.enabled && source.method === "email_alert").map((source) => (
                   <label key={source.key} className="inline-flex items-center gap-2 text-xs text-ink">
@@ -138,7 +141,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
             </details>
           </div>
           <span className="mt-1 block text-xs text-ink-faint">
-            {selectedSources.size}/{enabledSources.length} kaynak seçili. Deep Search merkezi agent tarafından otomatik taranır; e-posta kaynakları ek kapsama sağlar.
+            {selectedSources.size}/{enabledSources.length} kaynak seçili. Deep Search e-posta olmadan keşif yapar; e-posta/API bağlantısı yalnız daha hızlı ve eksiksiz kapsama sağlar.
           </span>
         </fieldset>
         <label className="text-sm">
@@ -157,7 +160,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
             placeholder="retarder, euro 6"
             className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           />
-          <span className="mt-1 block text-xs text-ink-faint">Eksikse fırsat skoru ciddi düşer.</span>
+          <span className="mt-1 block text-xs text-ink-faint">Virgülle ayırın. Kelimelerden en az biri ilanda geçerse aday listeye alınır.</span>
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Hariç tutulacak kelimeler</span>
