@@ -8,6 +8,15 @@ import EditCostForm from "./edit-cost-form";
 import ComplianceChecklist from "../compliance-checklist";
 import ConfirmSentButton from "./confirm-sent-button";
 import CloseOutcomeForm from "./close-outcome-form";
+import DeleteOfferButton from "./delete-offer-button";
+
+const statusLabel: Record<string, string> = {
+  draft: "Taslak",
+  sent: "Gönderildi",
+  accepted: "Kabul Edildi",
+  rejected: "Reddedildi",
+  expired: "Süresi Doldu",
+};
 
 export default async function OfferDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,7 +35,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
       <PageHeader
         eyebrow="Teklif"
         title={`Teklif — ${offer.lead?.company_or_name ?? "?"}`}
-        description={`Araç: ${offer.vehicle?.brand} ${offer.vehicle?.model} (${offer.vehicle?.year ?? "?"}) · Durum: ${offer.status}`}
+        description={`Araç: ${offer.vehicle?.brand} ${offer.vehicle?.model} (${offer.vehicle?.year ?? "?"}) · Durum: ${statusLabel[offer.status] ?? offer.status}`}
         actions={
           <>
             <ConfirmSentButton offerId={offer.id} disabled={!offer.pdf_storage_path || offer.status !== "draft"} />
@@ -49,6 +58,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
                 PDF üret
               </button>
             )}
+            <DeleteOfferButton offerId={offer.id} />
           </>
         }
       />

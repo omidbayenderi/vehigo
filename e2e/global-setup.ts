@@ -16,6 +16,12 @@ export default async function globalSetup() {
 
   const admin = createClient(url, serviceRoleKey);
   const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
-  await admin.from("leads").delete().neq("id", ZERO_UUID);
-  await admin.from("vehicles").delete().neq("id", ZERO_UUID);
+
+  // offers.lead_id/vehicle_id intentionally don't cascade (a vehicle/lead shouldn't
+  // silently take a real offer down with it) — so offers must go first, or the
+  // leads/vehicles deletes below fail on the FK and leave stale rows behind.
+  for (const table of ["offers", "leads", "vehicles"] as const) {
+    const { error } = await admin.from(table).delete().neq("id", ZERO_UUID);
+    if (error) throw new Error(`global-setup: "${table}" temizlenemedi: ${error.message}`);
+  }
 }

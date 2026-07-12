@@ -92,8 +92,9 @@ export default function OfferForm({
           onChange={setServiceFee}
         />
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-soft">Komisyon tipi</label>
+          <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor="commission_type">Komisyon tipi</label>
           <select
+            id="commission_type"
             name="commission_type"
             value={commissionType}
             onChange={(e) => setCommissionType(e.target.value as "fixed" | "percentage")}

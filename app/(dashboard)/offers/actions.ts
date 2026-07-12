@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createOffer, updateOfferCosts, confirmOfferSent, closeOfferOutcome } from "@/lib/services/offers";
+import { createOffer, updateOfferCosts, confirmOfferSent, closeOfferOutcome, deleteOffer } from "@/lib/services/offers";
 import { updateComplianceChecklist } from "@/lib/services/compliance";
 import { logAudit } from "@/lib/services/audit";
 import { formDataToObject } from "@/lib/utils";
@@ -86,6 +86,19 @@ export async function confirmOfferSentAction(offerId: string) {
   await logAudit(supabase, user.id, "confirm_sent", "offer", offerId);
   revalidatePath(`/offers/${offerId}`);
   revalidatePath("/leads");
+}
+
+export async function deleteOfferAction(id: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await deleteOffer(supabase, id);
+  await logAudit(supabase, user.id, "delete", "offer", id);
+  revalidatePath("/offers");
+  redirect("/offers");
 }
 
 export async function closeOfferOutcomeAction(

@@ -70,6 +70,7 @@ export const offerCostSchema = z.object({
   validity_date: z.string().optional(),
   delivery_terms: z.string().optional(),
   payment_steps: z.string().optional(),
+  status: z.enum(["draft", "sent", "accepted", "rejected", "expired"]).optional(),
 });
 
 export const offerOutcomeSchema = z.object({

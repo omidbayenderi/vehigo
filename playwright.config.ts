@@ -12,7 +12,12 @@ try {
 export default defineConfig({
   testDir: "./e2e",
   testIgnore: "**/._*",
-  timeout: 30_000,
+  // Generous: this drive cold-compiles each new Next.js route on first visit,
+  // and this one test walks through ~8 distinct routes.
+  timeout: 90_000,
+  // Next dev on-demand-compiles each route on its first request; on this drive that
+  // can comfortably exceed the 5s expect() default, especially right after a cache clear.
+  expect: { timeout: 15_000 },
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],

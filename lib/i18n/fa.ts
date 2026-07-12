@@ -1,4 +1,7 @@
 export const faTranslations: Record<string, string> = {
+  "Teklifi sil": "حذف پیشنهاد",
+  "Siliniyor...": "در حال حذف…",
+  "Bu teklifi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.": "آیا از حذف این پیشنهاد مطمئن هستید؟ این عملیات قابل بازگشت نیست.",
   "Panel": "داشبورد",
   "Araçlar": "خودروها",
   "Müşteriler": "مشتریان",

@@ -110,6 +110,16 @@ export async function updateOfferCosts(supabase: Client, id: string, input: Reco
   return data;
 }
 
+export async function deleteOffer(supabase: Client, id: string) {
+  const { data, error } = await supabase.from("offers").delete().eq("id", id).select("id");
+  if (error) throw new Error(error.message);
+  // RLS silently filters out rows the caller isn't allowed to delete rather than
+  // erroring, so an empty result means "not deleted", not "already gone".
+  if (!data || data.length === 0) {
+    throw new Error("Bu teklifi silme izniniz yok veya teklif zaten silinmiş.");
+  }
+}
+
 export async function getOffer(supabase: Client, id: string) {
   const { data, error } = await supabase.from("offers").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);

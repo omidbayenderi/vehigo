@@ -48,9 +48,8 @@ test("vehicle -> lead -> match -> offer -> compliance -> PDF açılıyor", async
 
   // Eşleştirme: az önce eklenen araç uygun adaylar arasında görünmeli
   await page.goto(`/matches?lead_id=${leadId}`);
-  const vehicleRow = page.locator("div", { hasText: `${brand} ${model}` }).first();
-  await expect(vehicleRow).toBeVisible();
-  await vehicleRow.getByRole("button", { name: "Bu aracı seç" }).click();
+  await expect(page.getByText(`${brand} ${model}`)).toBeVisible();
+  await page.getByRole("button", { name: "Bu aracı seç" }).click();
   await expect(page).toHaveURL(/\/offers\/new\?/);
 
   // Teklif oluştur
@@ -78,4 +77,21 @@ test("vehicle -> lead -> match -> offer -> compliance -> PDF açılıyor", async
 
   // Tüm kutular işaretlenince PDF linki aktifleşmeli
   await expect(page.getByRole("link", { name: "PDF üret" })).toBeVisible();
+
+  const offerId = page.url().split("/offers/")[1];
+
+  // Durum değiştirilebilmeli ve sayfa yenilendikten sonra kalıcı olmalı
+  await page.getByLabel("Durum").selectOption("accepted");
+  await page.getByRole("button", { name: "Güncelle" }).click();
+  await expect(page.getByText("Durum: Kabul Edildi")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("Durum")).toHaveValue("accepted");
+
+  // Teklif silinebilmeli
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Teklifi sil" }).click();
+  await expect(page).toHaveURL(/\/offers$/);
+
+  const response = await page.goto(`/offers/${offerId}`);
+  expect(response?.status()).toBe(404);
 });

@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "sh scripts/pretest-e2e.sh && playwright test",
     "scan": "tsx scripts/scanner/index.ts",
     "scan:once": "tsx scripts/scanner/index.ts --once",
     "scan:force": "tsx scripts/scanner/index.ts --once --force"

@@ -62,8 +62,9 @@ export default function EditCostForm({ offer }: { offer: Offer }) {
           onChange={setServiceFee}
         />
         <div>
-          <label className="mb-1 block text-sm font-medium text-ink-soft">Komisyon tipi</label>
+          <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor="commission_type">Komisyon tipi</label>
           <select
+            id="commission_type"
             name="commission_type"
             value={commissionType}
             onChange={(e) => setCommissionType(e.target.value as "fixed" | "percentage")}
@@ -139,8 +140,9 @@ export default function EditCostForm({ offer }: { offer: Offer }) {
 function StatusSelect({ defaultValue }: { defaultValue: string }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-ink-soft">Durum</label>
+      <label className="mb-1 block text-sm font-medium text-ink-soft" htmlFor="status">Durum</label>
       <select
+        id="status"
         name="status"
         defaultValue={defaultValue}
         className="w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
