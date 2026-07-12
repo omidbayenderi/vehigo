@@ -432,7 +432,13 @@ async function recordPriceHistory(supabase: Client, listingId: string, price: nu
 }
 
 export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
-  if (watchlist.source_keys.length > 0 && !watchlist.source_keys.includes(listing.source_key)) return false;
+  const discoveredBySelectedWebSearch =
+    watchlist.source_keys.includes("brave_web") && readRawString(listing.raw, "discovery_channel") === "brave_web";
+  if (
+    watchlist.source_keys.length > 0 &&
+    !watchlist.source_keys.includes(listing.source_key) &&
+    !discoveredBySelectedWebSearch
+  ) return false;
   if (!textMatchesListing(watchlist.country, listing.seller_country, listing)) return false;
   if (!textMatchesListing(watchlist.city, listing.seller_city, listing)) return false;
   if (!textMatchesListing(watchlist.brand, listing.brand, listing, true)) return false;

@@ -26,6 +26,18 @@ const baseWatchlist: Watchlist = {
 };
 
 describe("listingMatchesWatchlist", () => {
+  it("accepts a canonically attributed marketplace result discovered by selected Brave Deep Search", () => {
+    const listing = { ...baseListing,
+      source_key: "kleinanzeigen",
+      raw: { discovery_channel: "brave_web", description: "Mercedes Actros truck" },
+      brand: "Mercedes-Benz",
+      model: "Actros",
+    };
+    const watchlist = { ...baseWatchlist, source_keys: ["brave_web"], brand: "Mercedes-Benz", model: "Actros" };
+
+    expect(listingMatchesWatchlist(listing, watchlist)).toBe(true);
+  });
+
   it("matches a small passenger car against the complete trader filter", () => {
     expect(listingMatchesWatchlist(baseListing, baseWatchlist)).toBe(true);
   });
