@@ -9,6 +9,11 @@ const EUROPE_MARKETPLACE_HOSTS = [
   "truck1.eu", "leboncoin.fr", "autotrader.co.uk", "machineryline.com",
   "machineseeker.com", "wallapop.com", "trucksnl.com", "mascus.com",
   "agriaffaires.com", "europe-camions.com", "kleyntrucks.com", "basworld.com",
+  // Ülke bazlı yerel pazaryerleri — kayıt/e-posta gerekmeden Brave'in
+  // site: operatörüyle taranır.
+  "kleinanzeigen.de", "olx.pt", "olx.pl", "olx.ro", "olx.bg",
+  "subito.it", "2dehands.be", "2ememain.be", "blocket.se", "car.gr",
+  "coches.net", "sbazar.cz",
 ];
 const EUROPE_MARKETPLACE_SITE_GROUPS = Array.from(
   { length: Math.ceil(EUROPE_MARKETPLACE_HOSTS.length / 4) },
@@ -50,58 +55,66 @@ export const braveWebAdapter: ScanAdapter = {
     const token = process.env.BRAVE_SEARCH_API_KEY;
     if (!token) throw new Error("BRAVE_SEARCH_API_KEY tanımlı değil");
 
-    const queries = buildQueries(watchlists);
+    const plans = buildQueries(watchlists).slice(0, MAX_QUERIES_PER_RUN);
     const listings: MarketListingInput[] = [];
 
-    for (const plan of queries.slice(0, MAX_QUERIES_PER_RUN)) {
-      const url = new URL(ENDPOINT);
-      url.searchParams.set("q", plan.query);
-      url.searchParams.set("count", "20");
-      url.searchParams.set("safesearch", "off");
-      url.searchParams.set("extra_snippets", "true");
-
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "X-Subscription-Token": token,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`brave_web: HTTP ${response.status}`);
-      }
-
-      const data = (await response.json()) as BraveResponse;
-      for (const result of data.web?.results ?? []) {
-        if (!result.url || !isLikelyVehicleListing(result.url, result.title, result.description)) continue;
-        const inferredText = `${result.title ?? ""} ${result.description ?? ""} ${result.url}`;
-        listings.push({
-          source_key: "brave_web",
-          source_listing_id: result.url,
-          listing_url: result.url,
-          title: result.title,
-          seller_name: result.profile?.name,
-          seller_country: plan.watchlist?.country ?? undefined,
-          seller_city: plan.watchlist?.city ?? undefined,
-          brand: plan.watchlist?.brand && textIncludes(inferredText, plan.watchlist.brand) ? plan.watchlist.brand : undefined,
-          model: plan.watchlist?.model && textIncludes(inferredText, plan.watchlist.model) ? plan.watchlist.model : undefined,
-          vehicle_type: inferVehicleType(inferredText) ?? plan.watchlist?.vehicle_type ?? undefined,
-          seat_count: inferSeatCount(inferredText),
-          condition: inferCondition(inferredText),
-          raw: {
-            query: plan.query,
-            description: result.description,
-            age: result.age,
-            source: "brave_web",
-            marketplace_host: new URL(result.url).hostname.replace(/^www\./, ""),
-          },
-        });
-      }
+    for (let index = 0; index < plans.length; index += 4) {
+      const batch = plans.slice(index, index + 4);
+      const results = await Promise.all(batch.map((plan) => fetchQuery(plan, token)));
+      listings.push(...results.flat());
     }
 
     return dedupeByUrl(listings);
   },
 };
+
+async function fetchQuery(plan: QueryPlan, token: string): Promise<MarketListingInput[]> {
+  const url = new URL(ENDPOINT);
+  url.searchParams.set("q", plan.query);
+  url.searchParams.set("count", "20");
+  url.searchParams.set("safesearch", "off");
+  url.searchParams.set("extra_snippets", "true");
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": token,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`brave_web: HTTP ${response.status}`);
+  }
+
+  const data = (await response.json()) as BraveResponse;
+  const listings: MarketListingInput[] = [];
+  for (const result of data.web?.results ?? []) {
+    if (!result.url || !isLikelyVehicleListing(result.url, result.title, result.description)) continue;
+    const inferredText = `${result.title ?? ""} ${result.description ?? ""} ${result.url}`;
+    listings.push({
+      source_key: "brave_web",
+      source_listing_id: result.url,
+      listing_url: result.url,
+      title: result.title,
+      seller_name: result.profile?.name,
+      seller_country: plan.watchlist?.country ?? undefined,
+      seller_city: plan.watchlist?.city ?? undefined,
+      brand: plan.watchlist?.brand && textIncludes(inferredText, plan.watchlist.brand) ? plan.watchlist.brand : undefined,
+      model: plan.watchlist?.model && textIncludes(inferredText, plan.watchlist.model) ? plan.watchlist.model : undefined,
+      vehicle_type: inferVehicleType(inferredText) ?? plan.watchlist?.vehicle_type ?? undefined,
+      seat_count: inferSeatCount(inferredText),
+      condition: inferCondition(inferredText),
+      raw: {
+        query: plan.query,
+        description: result.description,
+        age: result.age,
+        source: "brave_web",
+        marketplace_host: new URL(result.url).hostname.replace(/^www\./, ""),
+      },
+    });
+  }
+  return listings;
+}
 
 function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
   const seen = new Set<string>();
@@ -120,7 +133,7 @@ function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
       "(for sale OR kaufen OR te koop OR vendre OR occasion OR gebraucht OR used)",
     ].filter(Boolean);
 
-    for (const term of vehicleTerms.slice(0, 2)) {
+    for (const term of vehicleTerms.slice(0, 1)) {
       const vehicleParts = brandModel ? [brandModel, term, ...baseParts] : [term, ...baseParts];
       const variants = [
         vehicleParts.join(" "),
