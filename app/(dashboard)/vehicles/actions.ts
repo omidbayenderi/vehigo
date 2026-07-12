@@ -8,6 +8,7 @@ import {
   createVehicle,
   importVehiclesFromCsv,
   updateVehicle,
+  deleteVehicle,
   type CsvImportReport,
 } from "@/lib/services/vehicles";
 import { logAudit } from "@/lib/services/audit";
@@ -36,6 +37,22 @@ export async function createVehicleAction(
     if (err instanceof Error && err.message !== "NEXT_REDIRECT") {
       return { error: err.message };
     }
+    throw err;
+  }
+}
+
+export async function deleteVehicleAction(id: string, _prevState: FormState, _formData: FormData): Promise<FormState> {
+  void _prevState; void _formData;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  try {
+    await deleteVehicle(supabase, id);
+    await logAudit(supabase, user.id, "delete", "vehicle", id);
+    revalidatePath("/vehicles");
+    redirect("/vehicles");
+  } catch (err) {
+    if (err instanceof Error && err.message !== "NEXT_REDIRECT") return { error: err.message };
     throw err;
   }
 }

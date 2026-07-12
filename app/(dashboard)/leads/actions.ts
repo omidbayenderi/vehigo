@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createLead, updateLead, setLeadStatus, addLeadNote } from "@/lib/services/leads";
+import { createLead, deleteLead, replaceLead, setLeadStatus, addLeadNote } from "@/lib/services/leads";
 import { logAudit } from "@/lib/services/audit";
 import { formDataToObject } from "@/lib/utils";
 import type { LeadStatus } from "@/lib/supabase/types";
@@ -49,13 +49,29 @@ export async function updateLeadAction(
   const input = formDataToObject(formData);
 
   try {
-    await updateLead(supabase, id, input);
+    await replaceLead(supabase, id, input);
     await logAudit(supabase, user.id, "update", "lead", id);
     revalidatePath("/leads");
     revalidatePath(`/leads/${id}`);
     return {};
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
+  }
+}
+
+export async function deleteLeadAction(id: string, _prevState: FormState, _formData: FormData): Promise<FormState> {
+  void _prevState; void _formData;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  try {
+    await deleteLead(supabase, id);
+    await logAudit(supabase, user.id, "delete", "lead", id);
+    revalidatePath("/leads");
+    redirect("/leads");
+  } catch (err) {
+    if (err instanceof Error && err.message !== "NEXT_REDIRECT") return { error: err.message };
+    throw err;
   }
 }
 

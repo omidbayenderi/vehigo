@@ -68,6 +68,24 @@ export async function updateLead(supabase: Client, id: string, input: Record<str
   return data;
 }
 
+export async function replaceLead(supabase: Client, id: string, input: Record<string, unknown>) {
+  const parsed = leadSchema.parse(input);
+  const nullableKeys = ["city", "phone_whatsapp", "telegram_handle", "instagram_handle", "business_type", "desired_vehicle_type", "budget_min", "budget_max", "source", "notes"] as const;
+  const update: Database["public"]["Tables"]["leads"]["Update"] = { ...parsed };
+  for (const key of nullableKeys) if (!(key in input)) (update as Record<string, unknown>)[key] = null;
+  const { data, error } = await supabase.from("leads").update(update).eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function deleteLead(supabase: Client, id: string) {
+  const { data: offer } = await supabase.from("offers").select("id").eq("lead_id", id).limit(1).maybeSingle();
+  if (offer) throw new Error("Bu müşteriye bağlı teklif var. Önce ilgili teklifi silin.");
+  const { data, error } = await supabase.from("leads").delete().eq("id", id).select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function setLeadStatus(
   supabase: Client,
   id: string,

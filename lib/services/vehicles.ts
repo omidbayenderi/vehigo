@@ -60,6 +60,14 @@ export async function updateVehicle(supabase: Client, id: string, input: Record<
   return data;
 }
 
+export async function deleteVehicle(supabase: Client, id: string) {
+  const { data: offer } = await supabase.from("offers").select("id").eq("vehicle_id", id).limit(1).maybeSingle();
+  if (offer) throw new Error("Bu araca bağlı teklif var. Önce ilgili teklifi silin.");
+  const { data, error } = await supabase.from("vehicles").delete().eq("id", id).select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export type CsvImportRow = Record<string, string>;
 export type CsvImportReport = {
   inserted: number;

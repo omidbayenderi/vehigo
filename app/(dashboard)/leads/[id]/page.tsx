@@ -6,6 +6,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { cardClass, pillClasses, type PillTone } from "@/lib/ui";
 import StatusSelect from "./status-select";
 import NoteForm from "./note-form";
+import EditLeadForm from "./edit-lead-form";
+import DeleteEntityButton from "@/components/ui/delete-entity-button";
+import { deleteLeadAction } from "../actions";
 
 const activityLabel: Record<string, string> = {
   note: "Not",
@@ -48,9 +51,12 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
               Uygun araçları göster
             </Link>
             <StatusSelect leadId={lead.id} status={lead.status} />
+            <DeleteEntityButton label={lead.company_or_name} action={deleteLeadAction.bind(null, lead.id)} />
           </>
         }
       />
+
+      <EditLeadForm lead={lead} />
 
       <div className={`mb-6 grid grid-cols-2 gap-4 ${cardClass} p-6 text-sm`}>
         <InfoRow label="Şehir" value={lead.city} />

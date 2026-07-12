@@ -6,6 +6,7 @@ import { selectVehicleForLeadAction } from "./actions";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cardClass } from "@/lib/ui";
+import MatchManager from "./match-manager";
 
 export default async function MatchesPage({
   searchParams,
@@ -16,17 +17,20 @@ export default async function MatchesPage({
   const supabase = await createClient();
 
   if (!lead_id) {
-    const { data: leads } = await supabase
+    const [{ data: leads }, { data: savedMatches }] = await Promise.all([supabase
       .from("leads")
       .select("*")
       .neq("status", "closed_won")
       .neq("status", "closed_lost")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false }), supabase
+      .from("matches")
+      .select("id,match_score,created_at,leads(company_or_name),vehicles(brand,model,year)")
+      .order("created_at", { ascending: false })]);
 
     return (
       <div>
         <PageHeader eyebrow="Eşleştirme" title="Eşleştirme" description="Eşleştirme yapmak için bir müşteri seçin." />
-        <div className={`overflow-hidden ${cardClass}`}>
+        <div className={`mb-6 overflow-hidden ${cardClass}`}>
           <ul className="divide-y divide-line-soft">
             {leads?.map((lead) => (
               <li key={lead.id}>
@@ -50,6 +54,17 @@ export default async function MatchesPage({
           {leads?.length === 0 ? (
             <EmptyState icon={GitCompareArrows} title="Eşleştirilecek müşteri yok" description="Kapanmamış müşteri talebi bulunduğunda burada listelenir." />
           ) : null}
+        </div>
+        <div className={cardClass}>
+          <div className="border-b border-line-soft px-5 py-4"><h2 className="font-medium text-ink">Kaydedilmiş eşleştirmeler</h2></div>
+          <div className="divide-y divide-line-soft">
+            {(savedMatches ?? []).map((match) => {
+              const lead = match.leads as unknown as { company_or_name: string } | null;
+              const vehicle = match.vehicles as unknown as { brand: string; model: string; year: number | null } | null;
+              return <div key={match.id} className="flex flex-col justify-between gap-3 px-5 py-4 sm:flex-row sm:items-center"><div><p className="font-medium text-ink">{lead?.company_or_name ?? "Müşteri"} ↔ {vehicle ? `${vehicle.brand} ${vehicle.model}` : "Araç"}</p><p className="text-xs text-ink-faint">{vehicle?.year ?? "Yıl bilinmiyor"} · {new Date(match.created_at).toLocaleString("tr-TR")}</p></div><MatchManager id={match.id} score={match.match_score} /></div>;
+            })}
+            {(savedMatches ?? []).length === 0 ? <EmptyState icon={GitCompareArrows} title="Kaydedilmiş eşleştirme yok" description="Bir müşteri için araç seçtiğinizde burada yönetilebilir." /> : null}
+          </div>
         </div>
       </div>
     );

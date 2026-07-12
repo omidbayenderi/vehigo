@@ -7,6 +7,33 @@ import { scoreMatch } from "@/lib/services/matching";
 import { setLeadStatus } from "@/lib/services/leads";
 import { logAudit } from "@/lib/services/audit";
 
+export type MatchFormState = { error?: string; ok?: string };
+
+export async function updateMatchAction(id: string, _state: MatchFormState, formData: FormData): Promise<MatchFormState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const score = Number(formData.get("match_score"));
+  if (!Number.isInteger(score) || score < 0 || score > 100) return { error: "Skor 0-100 arasında olmalı." };
+  const { error } = await supabase.from("matches").update({ match_score: score }).eq("id", id);
+  if (error) return { error: error.message };
+  await logAudit(supabase, user.id, "update", "match", id, { score });
+  revalidatePath("/matches");
+  return { ok: "Skor güncellendi." };
+}
+
+export async function deleteMatchAction(id: string, _state: MatchFormState, _formData: FormData): Promise<MatchFormState> {
+  void _state; void _formData;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { error } = await supabase.from("matches").delete().eq("id", id);
+  if (error) return { error: error.message };
+  await logAudit(supabase, user.id, "delete", "match", id);
+  revalidatePath("/matches");
+  return { ok: "Eşleştirme silindi." };
+}
+
 export async function selectVehicleForLeadAction(leadId: string, vehicleId: string) {
   const supabase = await createClient();
   const {
