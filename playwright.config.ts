@@ -14,7 +14,7 @@ export default defineConfig({
   testIgnore: "**/._*",
   // Generous: this drive cold-compiles each new Next.js route on first visit,
   // and this one test walks through ~8 distinct routes.
-  timeout: 90_000,
+  timeout: 120_000,
   // Next dev on-demand-compiles each route on its first request; on this drive that
   // can comfortably exceed the 5s expect() default, especially right after a cache clear.
   expect: { timeout: 30_000 },

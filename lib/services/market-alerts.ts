@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json, VehicleType } from "@/lib/supabase/types";
+import type { Database, Json, VehicleCondition, VehicleType } from "@/lib/supabase/types";
 import { marketListingInputSchema, watchlistSchema } from "@/lib/validation/schemas";
 import { partialUpdateFields } from "@/lib/utils";
 import { sendTelegramMessage } from "@/lib/services/notifications";
@@ -12,6 +12,8 @@ type Alert = Database["public"]["Tables"]["listing_alerts"]["Row"];
 type UserProfile = Database["public"]["Tables"]["users_profile"]["Row"];
 type MarketListingInsert = Database["public"]["Tables"]["market_listings"]["Insert"];
 type WatchlistInsert = Database["public"]["Tables"]["watchlists"]["Insert"];
+const SEAT_FILTER_PREFIX = "__vehigo_seat:";
+const CONDITION_FILTER_PREFIX = "__vehigo_condition:";
 export type AlertWithListing = Alert & { market_listings: Listing | null; watchlists: Watchlist | null };
 type PendingAlert = Alert & {
   market_listings: Listing | null;
@@ -34,6 +36,8 @@ export type MarketListingInput = {
   price?: number;
   currency?: string;
   vehicle_type?: VehicleType;
+  seat_count?: number;
+  condition?: VehicleCondition;
   raw?: Record<string, unknown>;
 };
 
@@ -169,7 +173,16 @@ export async function createWatchlist(
   userId: string,
 ) {
   const parsed = watchlistSchema.parse(input);
-  const row: WatchlistInsert = { ...parsed, user_id: userId };
+  const { seat_count, condition, ...watchlist } = parsed;
+  const metadata = [
+    seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
+    condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
+  ].filter((value): value is string => Boolean(value));
+  const row: WatchlistInsert = {
+    ...watchlist,
+    must_have_keywords: [...watchlist.must_have_keywords, ...metadata],
+    user_id: userId,
+  };
   const { data, error } = await supabase.from("watchlists").insert(row).select().single();
   if (error) throw new Error(error.message);
   return data;
@@ -181,7 +194,10 @@ export async function updateWatchlist(
   input: Record<string, unknown>,
 ) {
   const parsed = partialUpdateFields(watchlistSchema, input);
-  const { data, error } = await supabase.from("watchlists").update(parsed).eq("id", id).select().single();
+  const update = Object.fromEntries(
+    Object.entries(parsed).filter(([key]) => key !== "seat_count" && key !== "condition"),
+  ) as Database["public"]["Tables"]["watchlists"]["Update"];
+  const { data, error } = await supabase.from("watchlists").update(update).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data;
 }
@@ -295,7 +311,11 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
     price: parsed.price,
     currency: parsed.currency,
     vehicle_type: parsed.vehicle_type,
-    raw: (parsed.raw ?? null) as Json,
+    raw: {
+      ...(parsed.raw ?? {}),
+      ...(parsed.seat_count ? { vehigo_seat_count: parsed.seat_count } : {}),
+      ...(parsed.condition ? { vehigo_condition: parsed.condition } : {}),
+    } as Json,
     last_seen_at: now,
     // Being fetched again means it's still live — undo any earlier stale/delisted sweep.
     status: "active",
@@ -334,6 +354,12 @@ export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) 
   if (!textMatchesListing(watchlist.brand, listing.brand, listing, true)) return false;
   if (!textMatchesListing(watchlist.model, listing.model, listing, true)) return false;
   if (watchlist.vehicle_type && !vehicleTypeMatches(watchlist.vehicle_type, listing)) return false;
+  const seatFilter = readSeatFilter(watchlist);
+  const listingSeatCount = readRawNumber(listing.raw, "vehigo_seat_count");
+  if (seatFilter !== null && listingSeatCount !== null && listingSeatCount !== seatFilter) return false;
+  const conditionFilter = readConditionFilter(watchlist);
+  const listingCondition = readRawCondition(listing.raw);
+  if (conditionFilter !== null && listingCondition !== null && listingCondition !== conditionFilter) return false;
   if (watchlist.min_year !== null && (listing.year === null || listing.year < watchlist.min_year)) return false;
   if (watchlist.max_year !== null && (listing.year === null || listing.year > watchlist.max_year)) return false;
   if (watchlist.max_mileage_km !== null && listing.mileage_km !== null && listing.mileage_km > watchlist.max_mileage_km) return false;
@@ -387,6 +413,42 @@ function readRawString(raw: Json | null, key: string) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const value = raw[key as keyof typeof raw];
   return typeof value === "string" ? value : null;
+}
+
+function readRawNumber(raw: Json | null, key: string) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = raw[key as keyof typeof raw];
+  return typeof value === "number" ? value : null;
+}
+
+function readRawCondition(raw: Json | null): VehicleCondition | null {
+  const value = readRawString(raw, "vehigo_condition");
+  return value && ["new", "used_excellent", "used_good", "used_fair", "damaged"].includes(value)
+    ? value as VehicleCondition
+    : null;
+}
+
+export function readListingSeatCount(listing: Listing) {
+  return readRawNumber(listing.raw, "vehigo_seat_count");
+}
+
+export function readListingCondition(listing: Listing) {
+  return readRawCondition(listing.raw);
+}
+
+export function readSeatFilter(watchlist: Watchlist) {
+  const token = watchlist.must_have_keywords.find((keyword) => keyword.startsWith(SEAT_FILTER_PREFIX));
+  if (!token) return null;
+  const value = Number.parseInt(token.slice(SEAT_FILTER_PREFIX.length), 10);
+  return Number.isFinite(value) ? value : null;
+}
+
+export function readConditionFilter(watchlist: Watchlist): VehicleCondition | null {
+  const token = watchlist.must_have_keywords.find((keyword) => keyword.startsWith(CONDITION_FILTER_PREFIX));
+  const value = token?.slice(CONDITION_FILTER_PREFIX.length);
+  return value && ["new", "used_excellent", "used_good", "used_fair", "damaged"].includes(value)
+    ? value as VehicleCondition
+    : null;
 }
 
 function inferVehicleType(text: string): VehicleType | null {

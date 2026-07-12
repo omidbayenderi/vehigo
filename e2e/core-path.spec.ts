@@ -95,3 +95,20 @@ test("vehicle -> lead -> match -> offer -> compliance -> PDF açılıyor", async
   const response = await page.goto(`/offers/${offerId}`);
   expect(response?.status()).toBe(404);
 });
+
+test("otomobil alarmında koltuk sayısı ve araç durumu seçilebiliyor", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("E-posta").fill(email!);
+  await page.getByLabel("Şifre").fill(password!);
+  await page.getByRole("button", { name: "Giriş yap" }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
+
+  await page.goto("/alerts");
+  await expect(page.getByLabel("Koltuk sayısı")).toHaveCount(0);
+  await page.getByLabel("Araç tipi").selectOption("car");
+  await expect(page.getByLabel("Koltuk sayısı")).toBeVisible();
+  await page.getByLabel("Koltuk sayısı").fill("5");
+  await page.getByLabel("Araç durumu").selectOption("damaged");
+  await expect(page.getByLabel("Koltuk sayısı")).toHaveValue("5");
+  await expect(page.getByLabel("Araç durumu")).toHaveValue("damaged");
+});

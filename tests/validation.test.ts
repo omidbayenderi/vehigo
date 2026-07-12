@@ -9,10 +9,14 @@ describe("watchlist form validation", () => {
     form.append("source_keys", "marktplaats");
     form.append("source_keys", "brave_web");
     form.append("vehicle_type", "car");
+    form.append("seat_count", "5");
+    form.append("condition", "used_good");
 
     const result = watchlistSchema.parse(formDataToObject(form));
     expect(result.source_keys).toEqual(["marktplaats", "brave_web"]);
     expect(result.vehicle_type).toBe("car");
+    expect(result.seat_count).toBe(5);
+    expect(result.condition).toBe("used_good");
   });
 });
 

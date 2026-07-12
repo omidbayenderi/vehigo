@@ -77,7 +77,7 @@ export function assessOpportunity(listing: Listing, watchlist: Watchlist): Oppor
   }
 
   const missingMustHave = watchlist.must_have_keywords.filter(
-    (keyword) => !titleText.includes(keyword.toLowerCase()),
+    (keyword) => !keyword.startsWith("__vehigo_") && !titleText.includes(keyword.toLowerCase()),
   );
   if (missingMustHave.length > 0) {
     score -= 25;

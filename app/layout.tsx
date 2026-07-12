@@ -39,9 +39,11 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <Script id="vehigo-preferences" strategy="beforeInteractive">
-        {themeScript}
-      </Script>
+      <head>
+        <Script id="vehigo-preferences" strategy="beforeInteractive">
+          {themeScript}
+        </Script>
+      </head>
       <body className="flex min-h-full flex-col"><LocaleBridge>{children}</LocaleBridge></body>
     </html>
   );

@@ -1,6 +1,6 @@
 import { BellRing, ExternalLink, FileText, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { listMarketSources, listRecentAlerts, listWatchlists } from "@/lib/services/market-alerts";
+import { listMarketSources, listRecentAlerts, listWatchlists, readConditionFilter, readSeatFilter } from "@/lib/services/market-alerts";
 import { describeOpportunity, recommendLeadsForListing } from "@/lib/services/opportunity-flow";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -91,6 +91,13 @@ export default async function AlertsPage() {
                 <p className="mt-1 text-xs text-ink-faint">
                   Kaynaklar: {watchlist.source_keys.length > 0 ? watchlist.source_keys.join(", ") : "tümü"}
                 </p>
+                {readSeatFilter(watchlist) || readConditionFilter(watchlist) ? (
+                  <p className="mt-1 text-xs text-ink-faint">
+                    {[readSeatFilter(watchlist) ? `${readSeatFilter(watchlist)} koltuk` : null, conditionFilterLabel(readConditionFilter(watchlist))]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
               </div>
               <div className="flex items-center gap-2">
                 <span className={pillClasses(watchlist.active ? "success" : "neutral")}>
@@ -250,6 +257,15 @@ function scorePillTone(score: number | null): PillTone {
   if (score >= 80) return "success";
   if (score >= 55) return "warning";
   return "neutral";
+}
+
+function conditionFilterLabel(condition: ReturnType<typeof readConditionFilter>) {
+  if (condition === "new") return "Sıfır";
+  if (condition === "used_excellent") return "İkinci el - çok iyi";
+  if (condition === "used_good") return "İkinci el - iyi";
+  if (condition === "used_fair") return "İkinci el - normal";
+  if (condition === "damaged") return "Kazalı / hasarlı";
+  return null;
 }
 
 function statusTone(status: string): PillTone {

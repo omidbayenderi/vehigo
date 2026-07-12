@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createWatchlistAction, type FormState } from "./actions";
 import type { Database } from "@/lib/supabase/types";
 
@@ -10,6 +10,7 @@ const initialState: FormState = {};
 
 export default function WatchlistForm({ sources }: { sources: Source[] }) {
   const [state, formAction, pending] = useActionState(createWatchlistAction, initialState);
+  const [vehicleType, setVehicleType] = useState("");
 
   return (
     <form action={formAction} className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
@@ -23,7 +24,12 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <Field label="Model" name="model" placeholder="Actros" />
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Araç tipi</span>
-          <select name="vehicle_type" className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15">
+          <select
+            name="vehicle_type"
+            value={vehicleType}
+            onChange={(event) => setVehicleType(event.target.value)}
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+          >
             <option value="">Farketmez</option>
             <option value="car">Otomobil</option>
             <option value="van">Hafif ticari / Van</option>
@@ -33,6 +39,18 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
             <option value="spare_part">Yedek parça</option>
             <option value="bus">Otobüs</option>
             <option value="other">Diğer</option>
+          </select>
+        </label>
+        {vehicleType === "car" ? <Field label="Koltuk sayısı" name="seat_count" type="number" /> : null}
+        <label className="text-sm">
+          <span className="mb-1 block text-ink-soft">Araç durumu</span>
+          <select name="condition" className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15">
+            <option value="">Farketmez</option>
+            <option value="new">Sıfır</option>
+            <option value="used_excellent">İkinci el - çok iyi</option>
+            <option value="used_good">İkinci el - iyi</option>
+            <option value="used_fair">İkinci el - normal</option>
+            <option value="damaged">Kazalı / hasarlı</option>
           </select>
         </label>
         <Field label="Min yıl" name="min_year" type="number" />

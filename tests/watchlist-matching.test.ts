@@ -10,7 +10,7 @@ const baseListing: Listing = {
   listing_url: "https://example.com/car", title: "Volkswagen Golf 2022 passenger car",
   seller_name: null, seller_country: "Germany", seller_city: "Berlin", brand: "Volkswagen",
   model: "Golf", year: 2022, mileage_km: 42000, price: 18500, currency: "EUR",
-  vehicle_type: "car", raw: null, status: "active", delisted_at: null,
+  vehicle_type: "car", raw: { vehigo_seat_count: 5, vehigo_condition: "used_good" }, status: "active", delisted_at: null,
   first_seen_at: "2026-07-11T00:00:00Z",
   last_seen_at: "2026-07-11T00:00:00Z", created_at: "2026-07-11T00:00:00Z",
   updated_at: "2026-07-11T00:00:00Z",
@@ -49,5 +49,18 @@ describe("listingMatchesWatchlist", () => {
     const vanListing = { ...baseListing, title: "Ford Transit transporter for sale", brand: "Ford", model: "Transit", vehicle_type: null };
     const vanWatchlist = { ...baseWatchlist, brand: "Ford", model: "Transit", vehicle_type: "van" as const };
     expect(listingMatchesWatchlist(vanListing, vanWatchlist)).toBe(true);
+  });
+
+  it("applies passenger-car seat count and condition filters when listing details are known", () => {
+    expect(listingMatchesWatchlist(baseListing, { ...baseWatchlist, must_have_keywords: ["__vehigo_seat:5", "__vehigo_condition:used_good"] })).toBe(true);
+    expect(listingMatchesWatchlist(baseListing, { ...baseWatchlist, must_have_keywords: ["__vehigo_seat:7"] })).toBe(false);
+    expect(listingMatchesWatchlist(baseListing, { ...baseWatchlist, must_have_keywords: ["__vehigo_condition:damaged"] })).toBe(false);
+  });
+
+  it("keeps a listing eligible for manual verification when seat count or condition is unknown", () => {
+    expect(listingMatchesWatchlist(
+      { ...baseListing, raw: null },
+      { ...baseWatchlist, must_have_keywords: ["__vehigo_seat:5", "__vehigo_condition:used_good"] },
+    )).toBe(true);
   });
 });

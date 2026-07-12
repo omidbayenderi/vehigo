@@ -26,6 +26,8 @@ describe("marktplaatsAdapter", () => {
         attributes: [
           { key: "constructionYear", value: "2019" },
           { key: "mileage", value: "480.000 km" },
+          { key: "numberOfSeats", value: "2 zitplaatsen" },
+          { key: "condition", value: "Gebruikt" },
         ],
       },
     ]);
@@ -44,6 +46,8 @@ describe("marktplaatsAdapter", () => {
       price: 35500,
       currency: "EUR",
       vehicle_type: "truck",
+      seat_count: 2,
+      condition: "used_good",
     });
   });
 
@@ -146,7 +150,7 @@ describe("braveWebAdapter", () => {
     const braveBody = {
       web: {
         results: [
-          { title: "MAN TGX 18.500 for sale", url: "https://dealer.example/man-tgx", description: "used truck, te koop" },
+          { title: "MAN TGX 18.500 for sale", url: "https://dealer.example/man-tgx", description: "used truck, 2 seats, te koop" },
           { title: "MAN TGX 18.500 for sale", url: "https://dealer.example/man-tgx", description: "duplicate" },
           { title: "Funny truck video", url: "https://youtube.com/watch?v=abc", description: "not a listing" },
         ],
@@ -160,7 +164,7 @@ describe("braveWebAdapter", () => {
     const listings = await braveWebAdapter.fetchListings({ watchlists: [] });
 
     expect(listings).toHaveLength(1);
-    expect(listings[0]).toMatchObject({ source_key: "brave_web", listing_url: "https://dealer.example/man-tgx" });
+    expect(listings[0]).toMatchObject({ source_key: "brave_web", listing_url: "https://dealer.example/man-tgx", seat_count: 2, condition: "used_good" });
   });
 
   it("throws when the Brave API itself returns an error status", async () => {

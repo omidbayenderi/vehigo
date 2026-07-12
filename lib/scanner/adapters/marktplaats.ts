@@ -1,5 +1,5 @@
 import type { MarketListingInput } from "@/lib/services/market-alerts";
-import type { VehicleType } from "@/lib/supabase/types";
+import type { VehicleCondition, VehicleType } from "@/lib/supabase/types";
 import { inferModel } from "@/lib/services/opportunity-flow";
 import type { ScanAdapter, ScannerWatchlist } from "./types";
 
@@ -96,6 +96,25 @@ function attributeValue(listing: MarktplaatsListing, key: string): string | unde
   return listing.attributes?.find((attr) => attr.key === key)?.value;
 }
 
+function inferSeatCount(listing: MarktplaatsListing): number | undefined {
+  for (const key of ["numberOfSeats", "seats", "seatCount", "numberOfSeatsAndDoors"]) {
+    const value = attributeValue(listing, key);
+    const match = value?.match(/\d{1,2}/);
+    if (match) return Number.parseInt(match[0], 10);
+  }
+  const match = listing.title.match(/(\d{1,2})\s*(?:zitplaatsen|zits|seats|koltuk)/i);
+  return match ? Number.parseInt(match[1], 10) : undefined;
+}
+
+function inferCondition(listing: MarktplaatsListing): VehicleCondition | undefined {
+  const text = `${attributeValue(listing, "condition") ?? ""} ${listing.title}`.toLowerCase();
+  if (["schade", "beschadigd", "ongeval", "accident", "damaged"].some((term) => text.includes(term))) return "damaged";
+  if (["zo goed als nieuw", "excellent", "topstaat"].some((term) => text.includes(term))) return "used_excellent";
+  if (["nieuw", "new", "0 km", "ongebruikt"].some((term) => text.includes(term))) return "new";
+  if (["gebruikt", "occasion", "used"].some((term) => text.includes(term))) return "used_good";
+  return undefined;
+}
+
 function inferVehicleTypeFromVipUrl(vipUrl: string): VehicleType {
   // vipUrl: /v/auto-s/<category>/<slug> — category is index 3, not 2.
   const segment = vipUrl.split("/")[3];
@@ -160,6 +179,8 @@ export const marktplaatsAdapter: ScanAdapter = {
         price: isFixedPrice && priceCents !== undefined ? priceCents / 100 : undefined,
         currency: "EUR",
         vehicle_type: inferVehicleTypeFromVipUrl(listing.vipUrl),
+        seat_count: inferSeatCount(listing),
+        condition: inferCondition(listing),
         raw: listing as unknown as Record<string, unknown>,
       };
     });

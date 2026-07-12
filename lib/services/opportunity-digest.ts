@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/types";
+import type { Database, VehicleCondition } from "@/lib/supabase/types";
 import { sendTelegramMessage } from "@/lib/services/notifications";
-import { checkScannerHealth, formatScannerHealthWarning } from "@/lib/services/scanner-health";
+import { checkScannerHealth, type ScannerHealthIssue } from "@/lib/services/scanner-health";
+import { readListingCondition, readListingSeatCount } from "@/lib/services/market-alerts";
 
 type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -43,15 +44,13 @@ export async function sendOpportunityDigest(
   }
 
   const healthIssues = await checkScannerHealth(supabase);
-  const healthWarning = healthIssues.length > 0 ? formatScannerHealthWarning(healthIssues) : null;
-
   const recipients = new Map<string, { chatId: string; alerts: DigestAlert[] }>();
   for (const [userId, alerts] of grouped) {
     const chatId = alerts[0]?.users_profile?.telegram_chat_id;
     if (chatId) recipients.set(userId, { chatId, alerts });
   }
 
-  if (healthWarning) {
+  if (healthIssues.length > 0) {
     const { data: profiles, error: profilesError } = await supabase
       .from("users_profile")
       .select("id,telegram_chat_id")
@@ -61,7 +60,10 @@ export async function sendOpportunityDigest(
       if (!profile.telegram_chat_id) continue;
       if (options.userId && profile.id !== options.userId) continue;
       if (!recipients.has(profile.id)) {
-        recipients.set(profile.id, { chatId: profile.telegram_chat_id, alerts: [] });
+        recipients.set(profile.id, {
+          chatId: profile.telegram_chat_id,
+          alerts: [],
+        });
       }
     }
   }
@@ -71,8 +73,9 @@ export async function sendOpportunityDigest(
   let failed = 0;
 
   for (const { chatId, alerts } of recipients.values()) {
+    const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, "fa") : null;
     const messageParts = [
-      alerts.length > 0 ? formatDigest(alerts, hours) : null,
+      alerts.length > 0 ? formatDigest(alerts, hours, "fa") : null,
       healthWarning,
     ].filter((part): part is string => Boolean(part));
 
@@ -107,7 +110,8 @@ export async function sendOpportunityDigest(
   };
 }
 
-function formatDigest(alerts: DigestAlert[], hours: number) {
+export function formatDigest(alerts: DigestAlert[], hours: number, locale: "tr" | "fa" = "tr") {
+  if (locale === "fa") return formatDigestFa(alerts, hours);
   const lines = [
     `Vehigo fırsat özeti - ${hours} saatlik dönem ve bekleyenler`,
     ``,
@@ -119,11 +123,18 @@ function formatDigest(alerts: DigestAlert[], hours: number) {
       const price = listing.price === null ? "-" : `${listing.price.toLocaleString("tr-TR")} ${listing.currency}`;
       const location = [listing.seller_city, listing.seller_country].filter(Boolean).join(", ") || "-";
       const reasons = Array.isArray(alert.opportunity_reasons) ? alert.opportunity_reasons : [];
+      const seatCount = readListingSeatCount(listing);
+      const condition = readListingCondition(listing);
+      const details = [
+        seatCount ? `Koltuk: ${seatCount}` : null,
+        condition ? `Durum: ${conditionLabel(condition, "tr")}` : null,
+      ].filter(Boolean).join(" | ");
 
       return [
         `${index + 1}. [${alert.alert_type === "price_drop" ? "FİYAT DÜŞTÜ" : labelText(alert.opportunity_label)}] ${escapeHtml(title || "Araç ilanı")}`,
         `Skor: ${alert.opportunity_score ?? "-"}/100 | Kural: ${escapeHtml(watchlist?.name ?? "-")}`,
         `Fiyat: ${escapeHtml(price)} | Konum: ${escapeHtml(location)} | Kaynak: ${escapeHtml(listing.source_key)}`,
+        details || null,
         reasons[0] ? `Neden: ${escapeHtml(String(reasons[0]))}` : null,
         `<a href="${escapeHtml(listing.listing_url)}">İlanı aç</a>`,
         ``,
@@ -132,6 +143,90 @@ function formatDigest(alerts: DigestAlert[], hours: number) {
   ];
 
   return lines.join("\n");
+}
+
+function formatDigestFa(alerts: DigestAlert[], hours: number) {
+  const lines = [
+    `خلاصه فرصت‌های وهیگو — دوره ${hours.toLocaleString("fa-IR")} ساعته و موارد در انتظار`,
+    ``,
+    ...alerts.flatMap((alert, index) => {
+      const listing = alert.market_listings;
+      const watchlist = alert.watchlists;
+      if (!listing) return [];
+      const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ");
+      const price = listing.price === null ? "نامشخص" : `${listing.price.toLocaleString("fa-IR")} ${listing.currency}`;
+      const location = [listing.seller_city, listing.seller_country].filter(Boolean).join("، ") || "نامشخص";
+      const reasons = Array.isArray(alert.opportunity_reasons) ? alert.opportunity_reasons : [];
+      const seatCount = readListingSeatCount(listing);
+      const condition = readListingCondition(listing);
+      const details = [
+        seatCount ? `تعداد صندلی: ${seatCount.toLocaleString("fa-IR")}` : null,
+        condition ? `وضعیت: ${conditionLabel(condition, "fa")}` : null,
+      ].filter(Boolean).join(" | ");
+
+      return [
+        `${(index + 1).toLocaleString("fa-IR")}. [${alert.alert_type === "price_drop" ? "کاهش قیمت" : labelTextFa(alert.opportunity_label)}] ${escapeHtml(title || "آگهی خودرو")}`,
+        `امتیاز: ${alert.opportunity_score?.toLocaleString("fa-IR") ?? "-"}/۱۰۰ | هشدار: ${escapeHtml(watchlist?.name ?? "-")}`,
+        `قیمت: ${escapeHtml(price)} | مکان: ${escapeHtml(location)} | منبع: ${escapeHtml(listingSource(listing))}`,
+        details || null,
+        reasons[0] ? `دلیل: ${escapeHtml(translateReasonFa(String(reasons[0])))}` : null,
+        `<a href="${escapeHtml(listing.listing_url)}">مشاهده آگهی</a>`,
+        ``,
+      ].filter(Boolean) as string[];
+    }),
+  ];
+  return lines.join("\n");
+}
+
+function listingSource(listing: Listing) {
+  try {
+    return new URL(listing.listing_url).hostname.replace(/^www\./, "");
+  } catch {
+    return listing.source_key;
+  }
+}
+
+function conditionLabel(condition: VehicleCondition, locale: "tr" | "fa") {
+  const labels = locale === "fa"
+    ? { new: "صفر کیلومتر", used_excellent: "دست‌دوم ـ بسیار خوب", used_good: "دست‌دوم ـ خوب", used_fair: "دست‌دوم ـ معمولی", damaged: "تصادفی / آسیب‌دیده" }
+    : { new: "Sıfır", used_excellent: "İkinci el - çok iyi", used_good: "İkinci el - iyi", used_fair: "İkinci el - normal", damaged: "Kazalı / hasarlı" };
+  return labels[condition];
+}
+
+function labelTextFa(label: DigestAlert["opportunity_label"]) {
+  if (label === "hot") return "فرصت داغ";
+  if (label === "good") return "فرصت مناسب";
+  if (label === "watch") return "نیازمند بررسی";
+  return "اطلاعات";
+}
+
+function translateReasonFa(reason: string) {
+  return reason
+    .replace(/^Marka uyumu:/, "تطابق برند:")
+    .replace(/^Model uyumu:/, "تطابق مدل:")
+    .replace(/^Ülke uyumu:/, "تطابق کشور:")
+    .replace(/^Şehir uyumu:/, "تطابق شهر:")
+    .replace(/^Araç tipi uyumu:/, "تطابق نوع خودرو:")
+    .replace(/^Yıl beklentiyi karşılıyor:/, "سال ساخت مطابق خواسته:")
+    .replace(/^Km beklentiyi karşılıyor:/, "کارکرد مطابق خواسته:")
+    .replace(/^Fiyat hedefin %10\+ altında:/, "قیمت بیش از ۱۰٪ پایین‌تر از هدف:")
+    .replace(/^Fiyat hedef içinde:/, "قیمت در محدوده هدف:")
+    .replace("Fiyat hedefe yakın", "قیمت نزدیک به هدف است")
+    .replace("Fiyat hedefin üzerinde", "قیمت بالاتر از هدف است")
+    .replace(/^Keyword uyumu:/, "تطابق کلیدواژه:")
+    .replace("Yeni yakalandı", "به‌تازگی پیدا شده است")
+    .replace("Genel web araması sonucu, manuel kontrol önerilir", "نتیجه جست‌وجوی عمومی وب است؛ بررسی دستی توصیه می‌شود");
+}
+
+function formatHealthWarning(issues: ScannerHealthIssue[], locale: "tr" | "fa") {
+  if (locale === "tr") {
+    return ["⚠️ Tarayıcı sağlık uyarısı", "", ...issues.map((issue) => `- ${issue.sourceName}: ${issue.detail}`)].join("\n");
+  }
+  return [
+    "⚠️ هشدار سلامت جست‌وجوگر",
+    "",
+    ...issues.map((issue) => `- ${issue.sourceName}: ${issue.kind === "never_ran" ? "هنوز اجرا نشده است" : issue.kind === "stale" ? "جست‌وجو با تأخیر انجام شده است" : "آخرین اجرا ناموفق بود"}`),
+  ].join("\n");
 }
 
 function labelText(label: DigestAlert["opportunity_label"]) {

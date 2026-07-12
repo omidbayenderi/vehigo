@@ -1,8 +1,19 @@
 import type { MarketListingInput } from "@/lib/services/market-alerts";
+import type { VehicleCondition } from "@/lib/supabase/types";
 import type { ScanAdapter, ScannerWatchlist } from "./types";
 
 const ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const MAX_QUERIES_PER_RUN = 30;
+const EUROPE_MARKETPLACE_HOSTS = [
+  "mobile.de", "autoscout24.com", "truckscout24.com", "autoline.info",
+  "truck1.eu", "leboncoin.fr", "autotrader.co.uk", "machineryline.com",
+  "machineseeker.com", "wallapop.com", "trucksnl.com", "mascus.com",
+  "agriaffaires.com", "europe-camions.com", "kleyntrucks.com", "basworld.com",
+];
+const EUROPE_MARKETPLACE_SITE_GROUPS = Array.from(
+  { length: Math.ceil(EUROPE_MARKETPLACE_HOSTS.length / 4) },
+  (_, index) => EUROPE_MARKETPLACE_HOSTS.slice(index * 4, index * 4 + 4),
+);
 const VEHICLE_TERMS: Record<string, string[]> = {
   car: ["car", "passenger car", "auto", "voiture", "personenwagen"],
   van: ["van", "light commercial vehicle", "transporter", "camionnette", "bestelwagen"],
@@ -46,9 +57,8 @@ export const braveWebAdapter: ScanAdapter = {
       const url = new URL(ENDPOINT);
       url.searchParams.set("q", plan.query);
       url.searchParams.set("count", "20");
-      url.searchParams.set("freshness", "pd");
       url.searchParams.set("safesearch", "off");
-      url.searchParams.set("search_lang", "en");
+      url.searchParams.set("extra_snippets", "true");
 
       const response = await fetch(url, {
         headers: {
@@ -76,11 +86,14 @@ export const braveWebAdapter: ScanAdapter = {
           brand: plan.watchlist?.brand && textIncludes(inferredText, plan.watchlist.brand) ? plan.watchlist.brand : undefined,
           model: plan.watchlist?.model && textIncludes(inferredText, plan.watchlist.model) ? plan.watchlist.model : undefined,
           vehicle_type: inferVehicleType(inferredText) ?? plan.watchlist?.vehicle_type ?? undefined,
+          seat_count: inferSeatCount(inferredText),
+          condition: inferCondition(inferredText),
           raw: {
             query: plan.query,
             description: result.description,
             age: result.age,
             source: "brave_web",
+            marketplace_host: new URL(result.url).hostname.replace(/^www\./, ""),
           },
         });
       }
@@ -101,28 +114,27 @@ function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
     const vehicleTerms = VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck;
     const location = [watchlist?.city, watchlist?.country].filter(Boolean).join(" ");
     const keywords = watchlist?.keywords.join(" ") ?? "";
-    const year = watchlist?.min_year ? `${watchlist.min_year}..2026` : "";
-    const price = watchlist?.max_price ? `under ${watchlist.max_price} ${watchlist.currency}` : "";
+    const baseParts = [
+      location || "Europe",
+      keywords,
+      "(for sale OR kaufen OR te koop OR vendre OR occasion OR gebraucht OR used)",
+    ].filter(Boolean);
 
-    for (const term of vehicleTerms.slice(0, 3)) {
-      const query = [
-        brandModel || term,
-        brandModel ? term : "",
-        location || "Europe",
-        keywords,
-        year,
-        price,
-        "(for sale OR kaufen OR te koop OR occasion OR used)",
-      ]
-        .filter(Boolean)
-        .join(" ");
+    for (const term of vehicleTerms.slice(0, 2)) {
+      const vehicleParts = brandModel ? [brandModel, term, ...baseParts] : [term, ...baseParts];
+      const variants = [
+        vehicleParts.join(" "),
+        ...EUROPE_MARKETPLACE_SITE_GROUPS.map(
+          (hosts) => `${vehicleParts.join(" ")} (${hosts.map((host) => `site:${host}`).join(" OR ")})`,
+        ),
+      ];
 
-      if (!seen.has(query)) {
-        seen.add(query);
-        queries.push({
-          query,
-          watchlist,
-        });
+      for (const query of variants) {
+
+        if (!seen.has(query)) {
+          seen.add(query);
+          queries.push({ query, watchlist });
+        }
       }
     }
   }
@@ -133,6 +145,7 @@ function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
 function isLikelyVehicleListing(url: string, title?: string, description?: string) {
   const text = `${url} ${title ?? ""} ${description ?? ""}`.toLowerCase();
   if (text.includes("facebook.com") || text.includes("youtube.com") || text.includes("wikipedia.org")) return false;
+  if (isKnownMarketplaceUrl(url)) return true;
   return [
     "truck",
     "lorry",
@@ -147,7 +160,21 @@ function isLikelyVehicleListing(url: string, title?: string, description?: strin
     "kaufen",
     "occasion",
     "used",
+    "auto",
+    "wagen",
+    "fahrzeug",
+    "voiture",
+    "automobile",
   ].some((term) => text.includes(term));
+}
+
+function isKnownMarketplaceUrl(url: string) {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return EUROPE_MARKETPLACE_HOSTS.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+  } catch {
+    return false;
+  }
 }
 
 function dedupeByUrl(listings: MarketListingInput[]) {
@@ -172,5 +199,19 @@ function inferVehicleType(text: string): MarketListingInput["vehicle_type"] | un
   if (["van", "transporter", "camionnette", "bestelwagen", "hafif ticari"].some((term) => lower.includes(term))) return "van";
   if (["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon"].some((term) => lower.includes(term))) return "truck";
   if (["car", "passenger car", "personenwagen", "voiture", "automobile", "otomobil"].some((term) => lower.includes(term))) return "car";
+  return undefined;
+}
+
+function inferSeatCount(text: string) {
+  const match = text.match(/(\d{1,2})\s*(?:seats?|sitze|places|zitplaatsen|posti|plazas|koltuk)/i);
+  return match ? Number.parseInt(match[1], 10) : undefined;
+}
+
+function inferCondition(text: string): VehicleCondition | undefined {
+  const lower = text.toLowerCase();
+  if (["damaged", "accident", "schaden", "unfall", "accidenté", "schade", "kazalı"].some((term) => lower.includes(term))) return "damaged";
+  if (["brand new", "new vehicle", "neuwagen", "véhicule neuf", "nieuw"].some((term) => lower.includes(term))) return "new";
+  if (["like new", "excellent condition", "topzustand", "comme neuf"].some((term) => lower.includes(term))) return "used_excellent";
+  if (["used", "occasion", "gebraucht", "tweedehands", "d'occasion"].some((term) => lower.includes(term))) return "used_good";
   return undefined;
 }

@@ -154,6 +154,8 @@ export const watchlistSchema = z.object({
   keywords: commaList,
   must_have_keywords: commaList,
   excluded_keywords: commaList,
+  seat_count: z.coerce.number().int().min(1).max(100).optional(),
+  condition: z.enum(["new", "used_excellent", "used_good", "used_fair", "damaged"]).optional(),
 });
 
 export const marketListingInputSchema = z.object({
@@ -171,6 +173,8 @@ export const marketListingInputSchema = z.object({
   price: z.coerce.number().min(0).optional(),
   currency: z.string().default("EUR"),
   vehicle_type: z.enum(["car", "van", "truck", "trailer", "construction", "spare_part", "bus", "other"]).optional(),
+  seat_count: z.coerce.number().int().min(1).max(100).optional(),
+  condition: z.enum(["new", "used_excellent", "used_good", "used_fair", "damaged"]).optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
