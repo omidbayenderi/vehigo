@@ -25,5 +25,12 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*
+!.env.test.local.example
 .gstack/
 supabase/.temp/
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
