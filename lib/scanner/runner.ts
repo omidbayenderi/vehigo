@@ -42,9 +42,11 @@ export async function runScannerOnce(
   options: ScannerRunOptions = {},
 ): Promise<ScannerRunSummary> {
   const logger = options.logger ?? console;
-  const dueSources = (await listDueScannerSources(supabase, { force: options.force })).filter((source) =>
-    options.sourceKey ? source.key === options.sourceKey : true,
-  );
+  const dueSources = await listDueScannerSources(supabase, {
+    force: options.force,
+    sourceKey: options.sourceKey,
+    workerId: crypto.randomUUID(),
+  });
   const watchlists = await listActiveWatchlistsForScanner(supabase);
 
   const summary: ScannerRunSummary = {

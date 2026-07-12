@@ -1,0 +1,65 @@
+{
+  "name": "Vehigo - Scanner Health (Hourly)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "47 * * * *"
+            }
+          ]
+        }
+      },
+      "id": "70022f83-765b-450e-885f-d314268089b8",
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.VEHIGO_APP_URL.replace(/\\/$/, '') + '/api/scanner/health' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "authorization",
+              "value": "={{ 'Bearer ' + $env.VEHIGO_SCANNER_SECRET }}"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "6ccc7ff1-40f6-44e6-bcec-dac8ee0be8c7",
+      "name": "Check Scanner Health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Hourly": {
+      "main": [[{"node": "Check Scanner Health", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "versionId": "08d98491-25d7-4326-a62c-5b23adb7050b",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

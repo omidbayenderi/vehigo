@@ -8,6 +8,7 @@ import { cardClass, pillClasses, type PillTone } from "@/lib/ui";
 import TelegramSettingsForm from "./telegram-settings-form";
 import WatchlistForm from "./watchlist-form";
 import WatchlistToggle from "./watchlist-toggle";
+import WatchlistEditor from "./watchlist-editor";
 import ManualTriggerButtons from "./manual-trigger-buttons";
 import { startOfferFromAlertAction } from "./actions";
 import OpportunityDecisionForm from "./opportunity-decision-form";
@@ -61,7 +62,7 @@ export default async function AlertsPage() {
             ))}
           </div>
           <p className="mt-3 text-xs text-ink-faint">
-            Otomatik tarama şu anda Marktplaats ve Brave Web Search için çalışır. Diğer pazarlar, sitelerin bot/robots politikalarına uymak için kayıtlı arama e-postaları üzerinden beslenir.
+            Merkezi Scout agent Marktplaats ve Avrupa Deep Search ağını yaklaşık 8 saatte bir, jitter ile günde 3-4 kez tarar. DB yalnızca aranabilir ilan özeti ve kaynak linkini tutar; asıl içerik kaynak sitede kalır. E-posta/API/n8n bağlantıları ek kapsama sağlar, zorunlu değildir.
           </p>
         </div>
       </div>
@@ -78,9 +79,10 @@ export default async function AlertsPage() {
           {watchlists.map((watchlist) => (
             <div
               key={watchlist.id}
-              className="flex items-center justify-between gap-4 border-l-[3px] px-5 py-4 transition-colors hover:bg-surface-sunken"
+              className="border-l-[3px] px-5 py-4 transition-colors hover:bg-surface-sunken"
               style={{ borderLeftColor: watchlist.active ? "#15803D" : "#D9D4C9" }}
             >
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
               <div>
                 <p className="font-medium text-ink">{watchlist.name}</p>
                 <p className="mt-1 text-sm text-ink-faint">
@@ -105,6 +107,8 @@ export default async function AlertsPage() {
                 </span>
                 <WatchlistToggle id={watchlist.id} active={watchlist.active} />
               </div>
+              </div>
+              <WatchlistEditor watchlist={watchlist} sources={sources} seatCount={readSeatFilter(watchlist)} condition={readConditionFilter(watchlist)} />
             </div>
           ))}
           {watchlists.length === 0 ? (

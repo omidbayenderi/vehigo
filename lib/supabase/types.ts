@@ -275,6 +275,10 @@ export type Database = {
           last_error: string | null;
           method: MarketSourceMethod;
           notes: string | null;
+          locked_until: string | null;
+          locked_by: string | null;
+          consecutive_failures: number;
+          last_success_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -381,6 +385,8 @@ export type Database = {
           decision_reason: ListingDecisionReason | null;
           decided_at: string | null;
           sent_at: string | null;
+          delivery_attempts: number;
+          next_attempt_at: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["listing_alerts"]["Row"]> & {
@@ -442,7 +448,17 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      claim_due_market_sources: {
+        Args: {
+          p_force?: boolean;
+          p_source_key?: string | null;
+          p_worker_id?: string | null;
+          p_lease_minutes?: number;
+        };
+        Returns: Database["public"]["Tables"]["market_sources"]["Row"][];
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

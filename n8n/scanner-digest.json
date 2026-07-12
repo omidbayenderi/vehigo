@@ -1,0 +1,65 @@
+{
+  "name": "Vehigo - Opportunity Digest (2x Daily)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "31 9,21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "c457a58a-c757-4f81-ab17-5e1554e178a2",
+      "name": "Twice Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VEHIGO_APP_URL.replace(/\\/$/, '') + '/api/scanner/digest?hours=12&limit=5' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-scanner-secret",
+              "value": "={{ $env.VEHIGO_SCANNER_SECRET }}"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "06d3bd24-a5b1-4bdb-b302-cf1b33a364d8",
+      "name": "Send Digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Twice Daily": {
+      "main": [[{"node": "Send Digest", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "versionId": "9496744c-0f4a-4fae-a10e-ef59f915765d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

@@ -1,0 +1,65 @@
+{
+  "name": "Vehigo - Scanner Run (3x Daily)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "17 5,13,21 * * *"
+            }
+          ]
+        }
+      },
+      "id": "b6728e6b-71bb-46dc-b4c7-44dc0da4715c",
+      "name": "Three Times Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VEHIGO_APP_URL.replace(/\\/$/, '') + '/api/scanner/run' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-scanner-secret",
+              "value": "={{ $env.VEHIGO_SCANNER_SECRET }}"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "32d57191-7688-484f-8229-b9d5068ae696",
+      "name": "Run Due Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 300]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Three Times Daily": {
+      "main": [[{"node": "Run Due Sources", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "UTC"
+  },
+  "versionId": "975d4520-990f-479b-88cf-f8d53672c993",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

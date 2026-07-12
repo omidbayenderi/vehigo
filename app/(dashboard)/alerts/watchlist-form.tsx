@@ -7,18 +7,56 @@ import type { Database } from "@/lib/supabase/types";
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
 
 const initialState: FormState = {};
+const EUROPEAN_COUNTRIES = [
+  "Almanya", "Avusturya", "Belçika", "Bulgaristan", "Çekya", "Danimarka", "Estonya",
+  "Finlandiya", "Fransa", "Hırvatistan", "Hollanda", "İrlanda", "İspanya", "İsveç",
+  "İtalya", "Kıbrıs", "Letonya", "Litvanya", "Lüksemburg", "Macaristan", "Malta",
+  "Norveç", "Polonya", "Portekiz", "Romanya", "Slovakya", "Slovenya", "Yunanistan",
+];
 
 export default function WatchlistForm({ sources }: { sources: Source[] }) {
   const [state, formAction, pending] = useActionState(createWatchlistAction, initialState);
   const [vehicleType, setVehicleType] = useState("");
+  const enabledSources = sources.filter((source) => source.enabled);
+  const [selectedSources, setSelectedSources] = useState(() => new Set(
+    enabledSources
+      .filter((source) => source.method === "scrape" || source.method === "web_search")
+      .map((source) => source.key),
+  ));
+  const setSourceChecked = (key: string, checked: boolean) => {
+    setSelectedSources((current) => {
+      const next = new Set(current);
+      if (checked) next.add(key); else next.delete(key);
+      return next;
+    });
+  };
 
   return (
     <form action={formAction} className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
-      <h2 className="mb-4 text-sm font-medium text-ink">Yeni alarm kuralı</h2>
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-ink">Avrupa Deep Search oluştur</h2>
+          <p className="mt-1 max-w-2xl text-sm text-ink-faint">
+            Aracı bir kez tarif edin; Vehigo yerel pazarları, genel web indeksini ve bağlı n8n akışlarını sizin yerinize tekrar tekrar tarasın.
+          </p>
+        </div>
+        <span className="w-fit rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">40+ pazar alan adı</span>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-3">
         <Field label="Alarm adı" name="name" required placeholder="Actros Almanya" />
-        <Field label="Ülke" name="country" placeholder="Germany" />
+        <label className="text-sm">
+          <span className="mb-1 block text-ink-soft">Ülke</span>
+          <input
+            name="country"
+            list="european-countries"
+            placeholder="Tüm Avrupa"
+            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
+          />
+          <datalist id="european-countries">
+            {EUROPEAN_COUNTRIES.map((country) => <option key={country} value={country} />)}
+          </datalist>
+        </label>
         <Field label="Şehir" name="city" placeholder="Berlin" />
         <Field label="Marka" name="brand" placeholder="Mercedes-Benz" />
         <Field label="Model" name="model" placeholder="Actros" />
@@ -64,25 +102,43 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <fieldset className="text-sm">
-          <legend className="mb-1 block text-ink-soft">Arama kaynakları</legend>
-          <div className="flex min-h-10 flex-wrap gap-3 rounded-md border border-line bg-surface px-3 py-2">
-            {sources.filter((source) => source.enabled).map((source) => (
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <legend className="text-ink-soft">Arama ağı</legend>
+            <div className="flex gap-2 text-xs">
+              <button type="button" onClick={() => setSelectedSources(new Set(enabledSources.map((source) => source.key)))} className="font-medium text-brand hover:underline">Hepsini seç</button>
+              <button type="button" onClick={() => setSelectedSources(new Set())} className="text-ink-faint hover:text-ink">Temizle</button>
+            </div>
+          </div>
+          <div className="rounded-md border border-line bg-surface p-3">
+            {sources.filter((source) => source.enabled && (source.method === "scrape" || source.method === "web_search")).map((source) => (
               <label key={source.key} className="inline-flex items-center gap-2 text-ink">
                 <input
                   type="checkbox"
                   name="source_keys"
                   value={source.key}
-                  defaultChecked={source.method === "scrape" || source.method === "web_search"}
+                  checked={selectedSources.has(source.key)}
+                  onChange={(event) => setSourceChecked(source.key, event.target.checked)}
                 />
-                {source.name}
+                {source.key === "brave_web" ? "Avrupa Deep Search" : source.name}
                 <span className="text-xs text-ink-faint">
-                  {source.method === "email_alert" ? "(e-posta bağlantısı)" : "(otomatik)"}
+                  {source.key === "brave_web" ? "(40+ yerel pazar + açık sosyal sonuçlar)" : "(doğrudan otomatik)"}
                 </span>
               </label>
             ))}
+            <details className="mt-3 border-t border-line-soft pt-3">
+              <summary className="cursor-pointer text-xs font-medium text-brand">Bağlanabilir kayıtlı arama kaynakları</summary>
+              <div className="mt-3 flex max-h-40 flex-wrap gap-3 overflow-y-auto pr-2">
+                {sources.filter((source) => source.enabled && source.method === "email_alert").map((source) => (
+                  <label key={source.key} className="inline-flex items-center gap-2 text-xs text-ink">
+                    <input type="checkbox" name="source_keys" value={source.key} checked={selectedSources.has(source.key)} onChange={(event) => setSourceChecked(source.key, event.target.checked)} />
+                    {source.name}
+                  </label>
+                ))}
+              </div>
+            </details>
           </div>
           <span className="mt-1 block text-xs text-ink-faint">
-            Otomatik kaynaklar doğrudan taranır. E-posta kaynakları yalnızca ilgili pazarın kayıtlı arama e-postası sisteme bağlandığında ilan üretir.
+            {selectedSources.size}/{enabledSources.length} kaynak seçili. Deep Search merkezi agent tarafından otomatik taranır; e-posta kaynakları ek kapsama sağlar.
           </span>
         </fieldset>
         <label className="text-sm">

@@ -25,6 +25,7 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
       parse_mode: "HTML",
       disable_web_page_preview: false,
     }),
+    signal: AbortSignal.timeout(12_000),
   });
 
   const payload = (await response.json().catch(() => null)) as { ok?: boolean; description?: string } | null;

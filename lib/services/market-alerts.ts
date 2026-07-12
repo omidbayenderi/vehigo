@@ -69,20 +69,30 @@ export async function listMarketSources(supabase: Client) {
   return data ?? [];
 }
 
-export async function listDueScannerSources(supabase: Client, options: { force?: boolean } = {}) {
-  const nowIso = new Date().toISOString();
-  let query = supabase
-    .from("market_sources")
-    .select("*")
-    .eq("enabled", true)
-    .in("method", ["scrape", "web_search"]);
-
-  if (!options.force) {
-    query = query.or(`next_run_at.is.null,next_run_at.lte.${nowIso}`);
+export async function listDueScannerSources(
+  supabase: Client,
+  options: { force?: boolean; sourceKey?: string; workerId?: string } = {},
+) {
+  const { data, error } = await supabase.rpc("claim_due_market_sources", {
+    p_force: options.force ?? false,
+    p_source_key: options.sourceKey ?? null,
+    p_worker_id: options.workerId ?? crypto.randomUUID(),
+    p_lease_minutes: 10,
+  });
+  if (error) {
+    // Backward-compatible deploy: use the pre-lease query until migration 0014
+    // has been applied to the production Supabase project.
+    let fallback = supabase
+      .from("market_sources")
+      .select("*")
+      .eq("enabled", true)
+      .in("method", ["scrape", "web_search"]);
+    if (options.sourceKey) fallback = fallback.eq("key", options.sourceKey);
+    if (!options.force) fallback = fallback.or(`next_run_at.is.null,next_run_at.lte.${new Date().toISOString()}`);
+    const { data: fallbackData, error: fallbackError } = await fallback;
+    if (fallbackError) throw new Error(fallbackError.message);
+    return fallbackData ?? [];
   }
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
   return data ?? [];
 }
 
@@ -143,13 +153,25 @@ export async function recordScannerRun(
   });
 
   if (source) {
+    const baseUpdate = {
+      last_run_at: startedAt.toISOString(),
+      next_run_at: nextRunAt,
+      last_status: runRow.status,
+      last_error: runRow.error,
+    };
+    await supabase
+      .from("market_sources")
+      .update(baseUpdate)
+      .eq("id", source.id);
+    // Optional hardening columns are updated separately so a code deploy can
+    // safely precede the production DB migration.
     await supabase
       .from("market_sources")
       .update({
-        last_run_at: startedAt.toISOString(),
-        next_run_at: nextRunAt,
-        last_status: runRow.status,
-        last_error: runRow.error,
+        locked_until: null,
+        locked_by: null,
+        consecutive_failures: runRow.status === "ok" ? 0 : (source.consecutive_failures ?? 0) + 1,
+        last_success_at: runRow.status === "ok" ? new Date().toISOString() : source.last_success_at,
       })
       .eq("id", source.id);
   }
@@ -173,7 +195,8 @@ export async function createWatchlist(
   userId: string,
 ) {
   const parsed = watchlistSchema.parse(input);
-  const { seat_count, condition, ...watchlist } = parsed;
+  const { active: _active, seat_count, condition, ...watchlist } = parsed;
+  void _active; // Editing criteria must preserve the separate pause/resume state.
   const metadata = [
     seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
     condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
@@ -200,6 +223,63 @@ export async function updateWatchlist(
   const { data, error } = await supabase.from("watchlists").update(update).eq("id", id).select().single();
   if (error) throw new Error(error.message);
   return data;
+}
+
+export async function replaceWatchlist(
+  supabase: Client,
+  id: string,
+  input: Record<string, unknown>,
+) {
+  const parsed = watchlistSchema.parse(input);
+  const { seat_count, condition, ...watchlist } = parsed;
+  const visibleMustHaves = watchlist.must_have_keywords.filter(
+    (keyword) => !keyword.startsWith(SEAT_FILTER_PREFIX) && !keyword.startsWith(CONDITION_FILTER_PREFIX),
+  );
+  const metadata = [
+    seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
+    condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
+  ].filter((value): value is string => Boolean(value));
+  const nullableKeys = [
+    "country", "city", "brand", "model", "vehicle_type", "min_year", "max_year",
+    "max_mileage_km", "min_price", "max_price", "target_price",
+  ] as const;
+  const update: Database["public"]["Tables"]["watchlists"]["Update"] = {
+    ...watchlist,
+    must_have_keywords: [...visibleMustHaves, ...metadata],
+  };
+  for (const key of nullableKeys) {
+    if (!(key in input)) (update as Record<string, unknown>)[key] = null;
+  }
+  const { data, error } = await supabase.from("watchlists").update(update).eq("id", id).select().single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function deleteWatchlist(supabase: Client, id: string) {
+  const { data, error } = await supabase.from("watchlists").delete().eq("id", id).select("id").single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Search the lightweight local index before waiting for the next remote scan. */
+export async function matchStoredListingsForWatchlist(supabase: Client, watchlistId: string, limit = 1000) {
+  const [{ data: watchlist, error: watchlistError }, { data: listings, error: listingsError }] = await Promise.all([
+    supabase.from("watchlists").select("*").eq("id", watchlistId).single(),
+    supabase
+      .from("market_listings")
+      .select("*")
+      .eq("status", "active")
+      .order("last_seen_at", { ascending: false })
+      .limit(limit),
+  ]);
+  if (watchlistError) throw new Error(watchlistError.message);
+  if (listingsError) throw new Error(listingsError.message);
+
+  let created = 0;
+  for (const listing of listings ?? []) {
+    if (listingMatchesWatchlist(listing, watchlist) && await createAlertIfNeeded(supabase, listing, watchlist)) created++;
+  }
+  return created;
 }
 
 export async function listRecentAlerts(supabase: Client, userId: string, limit = 30) {
@@ -260,6 +340,10 @@ export async function processIncomingListings(
       result.alertsCreated += await createPriceDropAlerts(supabase, listing.row);
     }
   }
+
+  const delivery = await dispatchPendingTelegramAlerts(supabase);
+  result.alertsSent = delivery.sent;
+  result.alertsFailed = delivery.failed;
 
   return result;
 }
@@ -536,25 +620,36 @@ async function createPriceDropAlerts(supabase: Client, listing: Listing) {
 }
 
 export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50) {
-  const { data: alerts, error } = await supabase
+  const now = new Date().toISOString();
+  let { data: alerts, error } = await supabase
     .from("listing_alerts")
     .select("*, market_listings(*), watchlists(*), users_profile(*)")
-    .eq("status", "pending")
+    .or(`status.eq.pending,and(status.eq.failed,next_attempt_at.lte.${now})`)
     .order("created_at", { ascending: true })
-    .limit(limit);
+    .limit(limit * 4);
+  if (error) {
+    const fallback = await supabase
+      .from("listing_alerts")
+      .select("*, market_listings(*), watchlists(*), users_profile(*)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(limit * 4);
+    alerts = fallback.data;
+    error = fallback.error;
+  }
   if (error) throw new Error(error.message);
 
   let sent = 0;
   let failed = 0;
 
   for (const alert of (alerts ?? []) as unknown as PendingAlert[]) {
+    if (sent + failed >= limit) break;
     const profile = alert.users_profile;
     const listing = alert.market_listings;
     const watchlist = alert.watchlists;
 
     if (!profile?.telegram_chat_id || !listing || !watchlist) {
-      await markAlert(supabase, alert.id, "failed", "Telegram chat_id doğrulanmamış");
-      failed++;
+      // Keep it pending: once Telegram is linked, the next scan/digest can deliver it.
       continue;
     }
 
@@ -564,10 +659,10 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
       formatListingAlert(listing, watchlist, alert, previousPrice),
     );
     if (response.ok) {
-      await markAlert(supabase, alert.id, "sent", null);
+      await markAlert(supabase, alert, "sent", null);
       sent++;
     } else {
-      await markAlert(supabase, alert.id, "failed", response.error ?? "Telegram gönderimi başarısız");
+      await markAlert(supabase, alert, "failed", response.error ?? "Telegram gönderimi başarısız");
       failed++;
     }
   }
@@ -577,18 +672,32 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
 
 async function markAlert(
   supabase: Client,
-  id: string,
+  alert: PendingAlert,
   status: "sent" | "failed",
   error: string | null,
 ) {
-  await supabase
+  const attempts = (alert.delivery_attempts ?? 0) + 1;
+  const retryMinutes = Math.min(360, 5 * 2 ** Math.min(attempts - 1, 6));
+  const { error: retryUpdateError } = await supabase
     .from("listing_alerts")
     .update({
       status,
       error,
       sent_at: status === "sent" ? new Date().toISOString() : null,
+      delivery_attempts: attempts,
+      next_attempt_at: status === "failed" ? new Date(Date.now() + retryMinutes * 60_000).toISOString() : null,
     })
-    .eq("id", id);
+    .eq("id", alert.id);
+  if (retryUpdateError) {
+    await supabase
+      .from("listing_alerts")
+      .update({
+        status,
+        error,
+        sent_at: status === "sent" ? new Date().toISOString() : null,
+      })
+      .eq("id", alert.id);
+  }
 }
 
 async function fetchPreviousPrice(supabase: Client, listingId: string) {

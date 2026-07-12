@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
-import { createWatchlist, updateWatchlist } from "@/lib/services/market-alerts";
+import { createWatchlist, deleteWatchlist, matchStoredListingsForWatchlist, replaceWatchlist, updateWatchlist } from "@/lib/services/market-alerts";
 import { marketListingToVehicleInsert, scoreLeadForListing } from "@/lib/services/opportunity-flow";
 import { logAudit } from "@/lib/services/audit";
 import { listingDecisionSchema, telegramSettingsSchema } from "@/lib/validation/schemas";
@@ -76,9 +76,10 @@ export async function createWatchlistAction(
 
   try {
     const watchlist = await createWatchlist(supabase, formDataToObject(formData), user.id);
+    const existingMatches = await matchStoredListingsForWatchlist(createAdminClient(), watchlist.id);
     await logAudit(supabase, user.id, "create", "watchlist", watchlist.id);
     revalidatePath("/alerts");
-    return { ok: "Alarm kuralı oluşturuldu." };
+    return { ok: existingMatches > 0 ? `Alarm oluşturuldu; mevcut indekste ${existingMatches} uygun ilan bulundu. Telegram bağlantınız hazırsa bir sonraki teslimatta gönderilecek.` : "Alarm oluşturuldu; mevcut indeks tarandı ve yeni arama emri sıraya alındı." };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
   }
@@ -94,6 +95,41 @@ export async function toggleWatchlistAction(id: string, active: boolean) {
   await updateWatchlist(supabase, id, { active });
   await logAudit(supabase, user.id, active ? "enable" : "disable", "watchlist", id);
   revalidatePath("/alerts");
+}
+
+export async function editWatchlistAction(
+  id: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  try {
+    const watchlist = await replaceWatchlist(supabase, id, formDataToObject(formData));
+    const existingMatches = await matchStoredListingsForWatchlist(createAdminClient(), watchlist.id);
+    await logAudit(supabase, user.id, "update", "watchlist", watchlist.id);
+    revalidatePath("/alerts");
+    return { ok: existingMatches > 0 ? `Filtre güncellendi; indeksten ${existingMatches} yeni eşleşme eklendi.` : "Filtre güncellendi ve mevcut indeks yeniden kontrol edildi." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Filtre güncellenemedi" };
+  }
+}
+
+export async function deleteWatchlistAction(id: string): Promise<FormState> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  try {
+    await deleteWatchlist(supabase, id);
+    await logAudit(supabase, user.id, "delete", "watchlist", id);
+    revalidatePath("/alerts");
+    return { ok: "Filtre silindi." };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Filtre silinemedi" };
+  }
 }
 
 export async function runScannerNowAction(): Promise<FormState> {

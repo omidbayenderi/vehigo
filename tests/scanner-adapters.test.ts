@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { marktplaatsAdapter } from "@/lib/scanner/adapters/marktplaats";
-import { braveWebAdapter } from "@/lib/scanner/adapters/brave-web";
+import { braveWebAdapter, buildQueries, EUROPE_MARKETPLACE_HOSTS, sourceKeyForUrl } from "@/lib/scanner/adapters/brave-web";
 import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
 
 afterEach(() => {
@@ -135,6 +135,53 @@ describe("marktplaatsAdapter", () => {
 });
 
 describe("braveWebAdapter", () => {
+  it("covers a broad European local-market catalogue and gives every watchlist an early query slot", () => {
+    expect(EUROPE_MARKETPLACE_HOSTS.length).toBeGreaterThanOrEqual(40);
+    const watchlists = Array.from({ length: 8 }, (_, index) => ({
+      id: `watch-${index}`,
+      name: `Watch ${index}`,
+      brand: `Brand${index}`,
+      model: `Model${index}`,
+      vehicle_type: "car",
+      country: null,
+      city: null,
+      keywords: [],
+      source_keys: ["brave_web"],
+    })) as unknown as ScannerWatchlist[];
+
+    const firstRound = buildQueries(watchlists).slice(0, watchlists.length);
+    expect(firstRound.map((plan) => plan.watchlist?.id)).toEqual(watchlists.map((watchlist) => watchlist.id));
+  });
+
+  it("does not spend web-search quota on a watchlist that opted out of Brave", () => {
+    const watchlist = { source_keys: ["marktplaats"], keywords: [] } as unknown as ScannerWatchlist;
+    expect(buildQueries([watchlist])).toEqual([]);
+  });
+
+  it("builds a targeted Brave query for a specifically selected marketplace source", () => {
+    const watchlist = {
+      id: "kleinanzeigen-watch",
+      brand: "Volkswagen",
+      model: "Golf",
+      vehicle_type: "car",
+      country: null,
+      city: null,
+      keywords: [],
+      source_keys: ["kleinanzeigen"],
+    } as unknown as ScannerWatchlist;
+
+    const queries = buildQueries([watchlist]);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].query).toContain("site:kleinanzeigen.de");
+  });
+
+  it("maps marketplace and public-social hostnames to canonical catalog source keys", () => {
+    expect(sourceKeyForUrl("https://www.kleinanzeigen.de/s-anzeige/example/123")).toBe("kleinanzeigen");
+    expect(sourceKeyForUrl("https://m.olx.pt/d/anuncio/example")).toBe("olx_pt");
+    expect(sourceKeyForUrl("https://www.facebook.com/groups/cars/posts/123")).toBe("facebook_public");
+    expect(sourceKeyForUrl("https://dealer.example/car/123")).toBe("brave_web");
+  });
+
   it("throws without hitting the network when BRAVE_SEARCH_API_KEY is unset", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -165,6 +212,44 @@ describe("braveWebAdapter", () => {
 
     expect(listings).toHaveLength(1);
     expect(listings[0]).toMatchObject({ source_key: "brave_web", listing_url: "https://dealer.example/man-tgx", seat_count: 2, condition: "used_good" });
+  });
+
+  it("attributes indexed results to their marketplace without copying watchlist location or type", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const braveBody = {
+      web: { results: [{ title: "Volkswagen Golf occasion", url: "https://www.kleinanzeigen.de/s-anzeige/golf/123" }] },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(braveBody), { status: 200 })));
+    const watchlist = {
+      brand: "Volkswagen", model: "Golf", vehicle_type: "van", country: "Germany", city: "Berlin",
+      keywords: [], source_keys: ["kleinanzeigen"],
+    } as unknown as ScannerWatchlist;
+
+    const listings = await braveWebAdapter.fetchListings({ watchlists: [watchlist] });
+
+    expect(listings[0]).toMatchObject({ source_key: "kleinanzeigen", brand: "Volkswagen", model: "Golf" });
+    expect(listings[0].seller_country).toBeUndefined();
+    expect(listings[0].seller_city).toBeUndefined();
+    expect(listings[0].vehicle_type).toBeUndefined();
+    expect(listings[0].raw).toMatchObject({ discovery_channel: "brave_web", marketplace_host: "kleinanzeigen.de" });
+  });
+
+  it("keeps successful query results when another query in the same batch fails", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const successBody = {
+      web: { results: [{ title: "Volkswagen Golf car for sale", url: "https://www.kleinanzeigen.de/s-anzeige/golf/456" }] },
+    };
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce(new Response("", { status: 429 }))
+      .mockImplementation(() => Promise.resolve(new Response(JSON.stringify(successBody), { status: 200 })));
+    vi.stubGlobal("fetch", fetchSpy);
+    const watchlist = {
+      brand: "Volkswagen", model: "Golf", vehicle_type: "car", country: null, city: null,
+      keywords: [], source_keys: ["brave_web"],
+    } as unknown as ScannerWatchlist;
+
+    const listings = await braveWebAdapter.fetchListings({ watchlists: [watchlist] });
+    expect(listings.some((listing) => listing.source_key === "kleinanzeigen")).toBe(true);
   });
 
   it("throws when the Brave API itself returns an error status", async () => {

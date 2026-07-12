@@ -38,9 +38,13 @@ Sistem hiçbir zaman müşteriye otomatik mesaj göndermez. `lib/services/messag
 
 İlan izleme özelliği kullanıcı başına ayrı crawler çalıştırmaz. Her kaynak merkezi ve jitter'lı aralıklarla taranır; yeni ilanlar `market_listings` havuzuna tekilleştirilerek yazılır, ardından kullanıcıların `watchlists` filtreleriyle eşleştirilir. Eşleşen ilanlar tek Telegram botu üzerinden ilgili kullanıcının doğrulanmış Telegram chat'ine dahili alarm olarak gönderilir.
 
+Yeni veya düzenlenmiş bir watchlist önce son görülen 1.000 aktif ilanlık yerel hafif indekse karşı çalışır. Eşleşme yoksa watchlist sürekli tarama emri olarak aktif kalır. Veritabanı kaynak sayfayı ya da görselleri kopyalamaz; yalnız arama/eşleştirme için gereken özet alanları, ilk/son görülme zamanı ve kanonik ilan linkini saklar.
+
 Telegram Bot API kullanıcı adına doğrudan mesaj göndermez; kullanıcı uygulamada Telegram kullanıcı adını kaydeder ve botu Telegram'da başlatarak `chat_id` doğrulamasını tamamlar.
 
-Genel web araması için `brave_web` kaynağı aktif watchlist filtrelerinden sorgu üretir ve Brave Search API üzerinden son 24 saatlik web sonuçlarını `market_listings` havuzuna ekler. Bu katman, bilinen 16 marketplace dışındaki ilan sayfalarını da yakalamak için kullanılır.
+Scanner veya n8n ingest yeni bir eşleşme ürettiğinde bekleyen Telegram alarmlarını aynı çalışmada teslim eder. Telegram henüz bağlanmamışsa alarm başarısız sayılmaz; `pending` kalır ve sonraki çalışma ya da özet gönderiminde tekrar değerlendirilir.
+
+Genel web araması için `brave_web` kaynağı aktif watchlist filtrelerinden adil sırayla sorgu üretir ve Brave Search API sonuçlarını `market_listings` havuzuna ekler. Bu katman 40'tan fazla Avrupa marketplace alan adını, herkese açık Facebook grup gönderilerini ve Telegram kanal sayfalarını kapsar. Özel gruplar yalnızca kullanıcının yetkilendirdiği n8n bağlantısıyla ingest edilebilir.
 
 ## Agent ekibi
 
