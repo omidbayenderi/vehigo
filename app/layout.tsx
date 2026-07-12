@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import { LocaleBridge } from "@/components/ui/locale-bridge";
 import "./globals.css";
@@ -38,7 +39,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
-      <head><script dangerouslySetInnerHTML={{ __html: themeScript }} /></head>
+      <Script id="vehigo-preferences" strategy="beforeInteractive">
+        {themeScript}
+      </Script>
       <body className="flex min-h-full flex-col"><LocaleBridge>{children}</LocaleBridge></body>
     </html>
   );

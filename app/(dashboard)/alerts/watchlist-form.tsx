@@ -50,12 +50,22 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
           <div className="flex min-h-10 flex-wrap gap-3 rounded-md border border-line bg-surface px-3 py-2">
             {sources.filter((source) => source.enabled).map((source) => (
               <label key={source.key} className="inline-flex items-center gap-2 text-ink">
-                <input type="checkbox" name="source_keys" value={source.key} defaultChecked />
+                <input
+                  type="checkbox"
+                  name="source_keys"
+                  value={source.key}
+                  defaultChecked={source.method === "scrape" || source.method === "web_search"}
+                />
                 {source.name}
+                <span className="text-xs text-ink-faint">
+                  {source.method === "email_alert" ? "(e-posta bağlantısı)" : "(otomatik)"}
+                </span>
               </label>
             ))}
           </div>
-          <span className="mt-1 block text-xs text-ink-faint">Seçim yapmazsanız tüm aktif kaynaklar taranır.</span>
+          <span className="mt-1 block text-xs text-ink-faint">
+            Otomatik kaynaklar doğrudan taranır. E-posta kaynakları yalnızca ilgili pazarın kayıtlı arama e-postası sisteme bağlandığında ilan üretir.
+          </span>
         </fieldset>
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Anahtar kelimeler</span>

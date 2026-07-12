@@ -17,17 +17,23 @@ export default defineConfig({
   timeout: 90_000,
   // Next dev on-demand-compiles each route on its first request; on this drive that
   // can comfortably exceed the 5s expect() default, especially right after a cache clear.
-  expect: { timeout: 15_000 },
+  expect: { timeout: 30_000 },
   fullyParallel: false,
   workers: 1,
   reporter: [["list"]],
+  // The workspace lives on an exFAT drive. Playwright's recursive cleanup can
+  // race macOS AppleDouble sidecars there, so keep disposable artifacts on the
+  // local temporary filesystem instead.
+  outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? "/tmp/vehigo-playwright-results",
   globalSetup: "./e2e/global-setup.ts",
   use: {
     baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev",
+    // Turbopack's persistence DB is unreliable on this exFAT workspace. Next.js
+    // officially supports opting into webpack for local development/E2E.
+    command: "npm run dev -- --webpack",
     url: "http://localhost:3000/login",
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,

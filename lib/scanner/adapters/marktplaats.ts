@@ -1,7 +1,7 @@
 import type { MarketListingInput } from "@/lib/services/market-alerts";
 import type { VehicleType } from "@/lib/supabase/types";
 import { inferModel } from "@/lib/services/opportunity-flow";
-import type { ScanAdapter } from "./types";
+import type { ScanAdapter, ScannerWatchlist } from "./types";
 
 /**
  * "/l/auto-s/" is Marktplaats' whole car/van/truck tree — vrachtwagens (trucks) and
@@ -15,6 +15,7 @@ const SEARCH_URLS = [
   "https://www.marktplaats.nl/l/auto-s/?sortBy=SORT_INDEX&sortOrder=DECREASING",
   "https://www.marktplaats.nl/l/auto-s/vrachtwagens/?sortBy=SORT_INDEX&sortOrder=DECREASING",
 ];
+const MAX_WATCHLIST_SEARCHES = 20;
 
 const USER_AGENT = "VehigoMarketScanner/1.0 (+https://vehigo.local; contact via app owner)";
 
@@ -129,9 +130,9 @@ async function fetchCategory(url: string): Promise<MarktplaatsListing[]> {
 
 export const marktplaatsAdapter: ScanAdapter = {
   key: "marktplaats",
-  async fetchListings(): Promise<MarketListingInput[]> {
+  async fetchListings({ watchlists }): Promise<MarketListingInput[]> {
     const byItemId = new Map<string, MarktplaatsListing>();
-    for (const url of SEARCH_URLS) {
+    for (const url of buildSearchUrls(watchlists)) {
       for (const listing of await fetchCategory(url)) {
         byItemId.set(listing.itemId, listing);
       }
@@ -164,3 +165,29 @@ export const marktplaatsAdapter: ScanAdapter = {
     });
   },
 };
+
+function buildSearchUrls(watchlists: ScannerWatchlist[]) {
+  const urls = new Set(SEARCH_URLS);
+
+  for (const watchlist of watchlists) {
+    if (
+      watchlist.source_keys.length > 0 &&
+      !watchlist.source_keys.includes("marktplaats")
+    ) {
+      continue;
+    }
+
+    const query = [watchlist.brand, watchlist.model, ...watchlist.keywords]
+      .map((part) => part?.trim())
+      .filter((part): part is string => Boolean(part))
+      .filter((part, index, parts) => parts.findIndex((candidate) => candidate.toLowerCase() === part.toLowerCase()) === index)
+      .join(" ");
+    if (!query) continue;
+
+    const slug = encodeURIComponent(query).replaceAll("%20", "+");
+    urls.add(`https://www.marktplaats.nl/q/${slug}/?sortBy=SORT_INDEX&sortOrder=DECREASING`);
+    if (urls.size >= SEARCH_URLS.length + MAX_WATCHLIST_SEARCHES) break;
+  }
+
+  return [...urls];
+}

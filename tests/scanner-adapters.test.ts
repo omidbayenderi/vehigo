@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { marktplaatsAdapter } from "@/lib/scanner/adapters/marktplaats";
 import { braveWebAdapter } from "@/lib/scanner/adapters/brave-web";
+import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -93,6 +94,25 @@ describe("marktplaatsAdapter", () => {
     const listings = await marktplaatsAdapter.fetchListings({ watchlists: [] });
 
     expect(listings).toHaveLength(1);
+  });
+
+  it("adds a targeted Marktplaats search for each compatible active watchlist", async () => {
+    const html = marktplaatsHtml([]);
+    const fetchSpy = vi.fn().mockImplementation(() => Promise.resolve(new Response(html, { status: 200 })));
+    vi.stubGlobal("fetch", fetchSpy);
+    const watchlist = {
+      brand: "Toyota",
+      model: "Corolla",
+      keywords: ["kombi", "Toyota"],
+      source_keys: ["marktplaats"],
+    } as ScannerWatchlist;
+
+    await marktplaatsAdapter.fetchListings({ watchlists: [watchlist] });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
+    expect(fetchSpy.mock.calls.map(([url]) => url)).toContain(
+      "https://www.marktplaats.nl/q/Toyota+Corolla+kombi/?sortBy=SORT_INDEX&sortOrder=DECREASING",
+    );
   });
 
   it("throws a descriptive error when the page no longer has __NEXT_DATA__", async () => {

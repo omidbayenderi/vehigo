@@ -38,6 +38,13 @@ describe("listingMatchesWatchlist", () => {
     expect(listingMatchesWatchlist({ ...baseListing, price: 24000 }, baseWatchlist)).toBe(false);
   });
 
+  it("matches a combined brand phrase when the structured brand is narrower but the title is exact", () => {
+    const listing = { ...baseListing, title: "Toyota Corolla Kombi 2007", brand: "Toyota", model: "Corolla" };
+    const watchlist = { ...baseWatchlist, brand: "Toyota Corolla", model: "Kombi", min_year: 2006, max_year: 2007 };
+
+    expect(listingMatchesWatchlist({ ...listing, year: 2007 }, watchlist)).toBe(true);
+  });
+
   it("infers a van type from an unstructured web result", () => {
     const vanListing = { ...baseListing, title: "Ford Transit transporter for sale", brand: "Ford", model: "Transit", vehicle_type: null };
     const vanWatchlist = { ...baseWatchlist, brand: "Ford", model: "Transit", vehicle_type: "van" as const };

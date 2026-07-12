@@ -31,6 +31,7 @@ supabase/.temp/
 
 # playwright
 /test-results/
+/test-results-old-*/
 /.test-results-stale-*/
 /playwright-report/
 /blob-report/

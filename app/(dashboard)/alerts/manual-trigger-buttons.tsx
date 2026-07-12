@@ -6,7 +6,7 @@ import { runScannerNowAction, sendDigestNowAction, type FormState } from "./acti
 
 const initialState: FormState = {};
 
-export default function ManualTriggerButtons() {
+export default function ManualTriggerButtons({ canRunScanner }: { canRunScanner: boolean }) {
   const [scanState, scanAction, scanPending] = useActionState(runScannerNowAction, initialState);
   const [digestState, digestAction, digestPending] = useActionState(sendDigestNowAction, initialState);
 
@@ -14,10 +14,12 @@ export default function ManualTriggerButtons() {
     <div className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
       <h2 className="mb-1 text-sm font-medium text-ink">Manuel çalıştırma</h2>
       <p className="mb-4 text-sm text-ink-faint">
-        Otomatik tarama beklemeden şimdi çalıştırın veya son 12 saatin yeni ilan özetini şimdi gönderin.
+        {canRunScanner
+          ? "Otomatik taramayı beklemeden şimdi çalıştırın veya bekleyen yeni eşleşmeleri Telegram’a gönderin."
+          : "Bekleyen yeni eşleşmeleri Telegram’a şimdi gönderin."}
       </p>
       <div className="flex flex-wrap gap-2">
-        <form action={scanAction}>
+        {canRunScanner ? <form action={scanAction}>
           <button
             type="submit"
             disabled={scanPending}
@@ -26,7 +28,7 @@ export default function ManualTriggerButtons() {
             <RefreshCw className={`h-4 w-4 ${scanPending ? "animate-spin" : ""}`} strokeWidth={1.75} />
             {scanPending ? "Taranıyor..." : "Şimdi tara"}
           </button>
-        </form>
+        </form> : null}
         <form action={digestAction}>
           <button
             type="submit"

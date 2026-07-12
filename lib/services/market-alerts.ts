@@ -331,8 +331,8 @@ export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) 
   if (watchlist.source_keys.length > 0 && !watchlist.source_keys.includes(listing.source_key)) return false;
   if (!textMatchesListing(watchlist.country, listing.seller_country, listing)) return false;
   if (!textMatchesListing(watchlist.city, listing.seller_city, listing)) return false;
-  if (!textMatchesListing(watchlist.brand, listing.brand, listing)) return false;
-  if (!textMatchesListing(watchlist.model, listing.model, listing)) return false;
+  if (!textMatchesListing(watchlist.brand, listing.brand, listing, true)) return false;
+  if (!textMatchesListing(watchlist.model, listing.model, listing, true)) return false;
   if (watchlist.vehicle_type && !vehicleTypeMatches(watchlist.vehicle_type, listing)) return false;
   if (watchlist.min_year !== null && (listing.year === null || listing.year < watchlist.min_year)) return false;
   if (watchlist.max_year !== null && (listing.year === null || listing.year > watchlist.max_year)) return false;
@@ -346,10 +346,16 @@ export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) 
   return true;
 }
 
-function textMatchesListing(expected: string | null, actual: string | null, listing: Listing) {
+function textMatchesListing(
+  expected: string | null,
+  actual: string | null,
+  listing: Listing,
+  allowTitleFallback = false,
+) {
   if (!expected) return true;
   if (actual?.toLowerCase().includes(expected.toLowerCase())) return true;
-  return isUnstructuredListing(listing) && listingSearchText(listing).includes(expected.toLowerCase());
+  return (allowTitleFallback || isUnstructuredListing(listing)) &&
+    listingSearchText(listing).includes(expected.toLowerCase());
 }
 
 function vehicleTypeMatches(expected: VehicleType, listing: Listing) {
@@ -436,15 +442,24 @@ async function createPriceDropAlerts(supabase: Client, listing: Listing) {
 
   let created = 0;
   for (const prior of priorAlerts) {
-    const { error: existingCheckError, count } = await supabase
+    const { data: existing, error: existingCheckError } = await supabase
       .from("listing_alerts")
-      .select("id", { count: "exact", head: true })
+      .select("id")
       .eq("listing_id", listing.id)
       .eq("watchlist_id", prior.watchlist_id)
       .eq("user_id", prior.user_id)
-      .eq("alert_type", "price_drop");
+      .eq("alert_type", "price_drop")
+      .maybeSingle();
     if (existingCheckError) throw new Error(existingCheckError.message);
-    if (count && count > 0) continue;
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from("listing_alerts")
+        .update({ status: "pending", sent_at: null, error: null, created_at: new Date().toISOString() })
+        .eq("id", existing.id);
+      if (updateError) throw new Error(updateError.message);
+      created++;
+      continue;
+    }
 
     const { error: insertError } = await supabase.from("listing_alerts").insert({
       listing_id: listing.id,

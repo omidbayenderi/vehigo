@@ -15,17 +15,23 @@ type DigestAlert = Alert & {
   users_profile: UserProfile | null;
 };
 
-export async function sendOpportunityDigest(supabase: Client, options: { hours?: number; limitPerUser?: number } = {}) {
+export async function sendOpportunityDigest(
+  supabase: Client,
+  options: { hours?: number; limitPerUser?: number; userId?: string } = {},
+) {
   const hours = options.hours ?? 12;
   const limitPerUser = options.limitPerUser ?? 5;
-  const since = new Date(Date.now() - hours * 3_600_000).toISOString();
 
-  const { data, error } = await supabase
+  let pendingQuery = supabase
     .from("listing_alerts")
     .select("*, market_listings(*), watchlists(*), users_profile(*)")
     .eq("status", "pending")
-    .gte("created_at", since)
-    .order("opportunity_score", { ascending: false, nullsFirst: false });
+    .order("opportunity_score", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: true })
+    .limit(1000);
+  if (options.userId) pendingQuery = pendingQuery.eq("user_id", options.userId);
+
+  const { data, error } = await pendingQuery;
   if (error) throw new Error(error.message);
 
   const grouped = new Map<string, DigestAlert[]>();
@@ -53,6 +59,7 @@ export async function sendOpportunityDigest(supabase: Client, options: { hours?:
     if (profilesError) throw new Error(profilesError.message);
     for (const profile of profiles ?? []) {
       if (!profile.telegram_chat_id) continue;
+      if (options.userId && profile.id !== options.userId) continue;
       if (!recipients.has(profile.id)) {
         recipients.set(profile.id, { chatId: profile.telegram_chat_id, alerts: [] });
       }
@@ -90,12 +97,19 @@ export async function sendOpportunityDigest(supabase: Client, options: { hours?:
     }
   }
 
-  return { users: recipients.size, sent, skipped, failed, healthIssues: healthIssues.length };
+  return {
+    users: recipients.size,
+    sent,
+    skipped,
+    failed,
+    healthIssues: healthIssues.length,
+    pendingAlerts: grouped.values().reduce((total, alerts) => total + alerts.length, 0),
+  };
 }
 
 function formatDigest(alerts: DigestAlert[], hours: number) {
   const lines = [
-    `Vehigo fırsat özeti - son ${hours} saat`,
+    `Vehigo fırsat özeti - ${hours} saatlik dönem ve bekleyenler`,
     ``,
     ...alerts.flatMap((alert, index) => {
       const listing = alert.market_listings;
@@ -107,7 +121,7 @@ function formatDigest(alerts: DigestAlert[], hours: number) {
       const reasons = Array.isArray(alert.opportunity_reasons) ? alert.opportunity_reasons : [];
 
       return [
-        `${index + 1}. [${labelText(alert.opportunity_label)}] ${escapeHtml(title || "Araç ilanı")}`,
+        `${index + 1}. [${alert.alert_type === "price_drop" ? "FİYAT DÜŞTÜ" : labelText(alert.opportunity_label)}] ${escapeHtml(title || "Araç ilanı")}`,
         `Skor: ${alert.opportunity_score ?? "-"}/100 | Kural: ${escapeHtml(watchlist?.name ?? "-")}`,
         `Fiyat: ${escapeHtml(price)} | Konum: ${escapeHtml(location)} | Kaynak: ${escapeHtml(listing.source_key)}`,
         reasons[0] ? `Neden: ${escapeHtml(String(reasons[0]))}` : null,

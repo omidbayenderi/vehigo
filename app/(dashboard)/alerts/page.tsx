@@ -38,7 +38,7 @@ export default async function AlertsPage() {
       />
 
       <div className="mb-6">
-        <ManualTriggerButtons />
+        <ManualTriggerButtons canRunScanner={profile?.role === "owner"} />
       </div>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
@@ -50,16 +50,18 @@ export default async function AlertsPage() {
           <h2 className="mb-3 text-sm font-medium text-ink">Kaynak tarama politikası</h2>
           <div className="space-y-2 text-sm text-ink-soft">
             {sources.map((source) => (
-              <div key={source.id} className="flex items-center justify-between">
+              <div key={source.id} className="flex items-center justify-between gap-3">
                 <span>{source.name}</span>
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {source.min_interval_minutes} dk ± %{source.jitter_percent}
+                <span className="text-right text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {source.method === "email_alert"
+                    ? "E-posta bağlantısı gerekli"
+                    : `${source.min_interval_minutes} dk ± %${source.jitter_percent} · otomatik`}
                 </span>
               </div>
             ))}
           </div>
           <p className="mt-3 text-xs text-ink-faint">
-            Bu aralıklar site bazlıdır; kullanıcı sayısı arttıkça aynı kaynak için istek sayısı artmaz.
+            Otomatik tarama şu anda Marktplaats ve Brave Web Search için çalışır. Diğer pazarlar, sitelerin bot/robots politikalarına uymak için kayıtlı arama e-postaları üzerinden beslenir.
           </p>
         </div>
       </div>

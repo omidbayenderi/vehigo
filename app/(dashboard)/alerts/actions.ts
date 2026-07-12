@@ -104,12 +104,22 @@ export async function runScannerNowAction(): Promise<FormState> {
   if (!user) redirect("/login");
 
   try {
+    const { data: profile, error: profileError } = await supabase
+      .from("users_profile")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (profileError) throw new Error(profileError.message);
+    if (profile.role !== "owner") {
+      return { error: "Manuel pazar taraması yalnızca hesap yöneticisi tarafından çalıştırılabilir." };
+    }
+
     const admin = createAdminClient();
     const summary = await runScannerOnce(admin, { force: true });
     await logAudit(supabase, user.id, "manual_run", "scanner", "run");
     revalidatePath("/alerts");
     return {
-      ok: `Tarama tamamlandı: ${summary.scannedSources} kaynak, ${summary.fetched} ilan çekildi, ${summary.inserted} yeni, ${summary.alertsSent} bildirim gönderildi, ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
+      ok: `Tarama tamamlandı: ${summary.scannedSources} otomatik kaynak, ${summary.fetched} ilan çekildi, ${summary.inserted} yeni ilan, ${summary.alertsCreated} yeni eşleşme oluşturuldu. Telegram bildirimleri sabah/akşam özetinde veya “Özet gönder” ile iletilir. ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
@@ -125,11 +135,14 @@ export async function sendDigestNowAction(): Promise<FormState> {
 
   try {
     const admin = createAdminClient();
-    const result = await sendOpportunityDigest(admin, { hours: 12 });
+    const result = await sendOpportunityDigest(admin, { hours: 12, userId: user.id });
     await logAudit(supabase, user.id, "manual_run", "digest", "send");
     revalidatePath("/alerts");
     return {
-      ok: `Özet gönderildi: ${result.sent} kullanıcıya iletildi, ${result.skipped} atlandı, ${result.failed} başarısız.${result.healthIssues > 0 ? ` ⚠️ ${result.healthIssues} kaynakta sağlık sorunu tespit edildi ve bildirildi.` : ""}`,
+      ok:
+        result.users === 0
+          ? "Gönderilecek yeni eşleşme yok. Tarama çalışıyor; alarm filtrelerinize uyan yeni ilan bulunduğunda Telegram özeti hazırlanır."
+          : `Özet tamamlandı: ${result.sent} Telegram mesajı iletildi, ${result.skipped} atlandı, ${result.failed} başarısız.${result.healthIssues > 0 ? ` ⚠️ ${result.healthIssues} otomatik kaynakta sağlık sorunu tespit edildi ve bildirildi.` : ""}`,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
