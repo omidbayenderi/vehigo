@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { AlertTriangle, BellRing, CheckCircle2, Coins, FileText, ListChecks, Truck, Users } from "lucide-react";
+import { Activity, AlertTriangle, BellRing, CheckCircle2, Coins, FileText, ListChecks, Radio, Send, Truck, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardMetrics } from "@/lib/services/dashboard";
 import { PageHeader } from "@/components/ui/page-header";
 import { cardClass } from "@/lib/ui";
+import { DashboardRefreshButton } from "@/components/ui/dashboard-refresh-button";
 
 const statusLabel: Record<string, string> = {
   new: "Yeni",
@@ -37,9 +38,21 @@ export default async function DashboardPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Günlük çalışma masası"
+        eyebrow="Canlı operasyon merkezi"
         title="Bugün ne yapmalısınız?"
-        description="Yeni fırsatları değerlendirin, kısa listenizi ilerletin ve ilan motorunun hazır olduğundan emin olun."
+        description="Satış hunisini, Avrupa ilan akışını ve bildirim teslimatını tek ekrandan yönetin."
+        actions={(
+          <div className="flex items-center gap-3">
+            <div className="text-right text-xs text-ink-faint">
+              <span className="flex items-center justify-end gap-1.5 font-medium text-success">
+                <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
+                Canlı Supabase verisi
+              </span>
+              <time dateTime={metrics.measuredAt}>Son kontrol {formatTime(metrics.measuredAt)}</time>
+            </div>
+            <DashboardRefreshButton />
+          </div>
+        )}
       />
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
@@ -47,7 +60,7 @@ export default async function DashboardPage() {
           icon={BellRing}
           title={`${metrics.newOpportunityCount} yeni fırsat bekliyor`}
           description="Henüz karar vermediğiniz ilanları fiyat ve uygunluk skoruna göre inceleyin."
-          href="/alerts"
+          href="/shortlist"
           action="Fırsatları değerlendir"
           tone={metrics.newOpportunityCount > 0 ? "brand" : "success"}
         />
@@ -61,29 +74,27 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {(!metrics.telegramReady || metrics.scannerHealthIssueCount > 0) ? (
-        <div className="mb-6 grid gap-3 md:grid-cols-2">
+      <div className="mb-6 grid gap-3 md:grid-cols-2">
           <HealthNotice
-            ok={metrics.telegramReady}
-            title={metrics.telegramReady ? "Telegram hazır" : "Telegram bağlantısı tamamlanmadı"}
-            description={metrics.telegramReady ? "Sabah ve akşam özetleri bu hesaba gönderilecek." : "Yeni ilan özetlerini alabilmek için bot bağlantısını doğrulayın."}
+            ok={metrics.telegramReady && metrics.telegramFailureCount === 0}
+            title={!metrics.telegramReady ? "Telegram bağlantısı tamamlanmadı" : metrics.telegramFailureCount > 0 ? `${metrics.telegramFailureCount} Telegram teslimatı başarısız` : "Telegram hazır"}
+            description={!metrics.telegramReady ? "Yeni ilan özetlerini alabilmek için bot bağlantısını doğrulayın." : metrics.telegramFailureCount > 0 ? "Başarısız mesajları alarm merkezinden inceleyin." : "Bot doğrulandı ve bekleyen teslimat hatası yok."}
           />
           <HealthNotice
             ok={metrics.scannerHealthIssueCount === 0}
             title={metrics.scannerHealthIssueCount === 0 ? "İlan motoru sağlıklı" : `${metrics.scannerHealthIssueCount} kaynakta sorun var`}
-            description={metrics.scannerHealthIssueCount === 0 ? "Aktif kaynaklar beklenen aralıkta çalışıyor." : "Eksik ilan kaçırmamak için kaynak durumunu kontrol edin."}
+            description={metrics.scannerHealthIssueCount === 0 ? `${metrics.activeSourceCount} aktif kaynak beklenen aralıkta çalışıyor.` : `${metrics.healthySourceCount}/${metrics.activeSourceCount} kaynak sağlıklı. Eksik ilan riskini kontrol edin.`}
           />
-        </div>
-      ) : null}
+      </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard icon={Users} tone="brand" label="Aktif müşteri" value={metrics.activeLeadCount.toString()} />
         <MetricCard icon={FileText} tone="warning" label="Açık teklif" value={metrics.openOfferCount.toString()} />
         <MetricCard
           icon={Coins}
           tone="success"
           label="Beklenen komisyon"
-          value={metrics.expectedCommissionTotal.toLocaleString("tr-TR")}
+          value={formatMoneyTotals(metrics.expectedCommissionTotals)}
         />
         <MetricCard
           icon={Truck}
@@ -92,6 +103,22 @@ export default async function DashboardPage() {
           value={`${metrics.availableVehicleCount} / ${metrics.totalVehicleCount}`}
         />
       </div>
+
+      <section className={`${cardClass} mb-6 overflow-hidden`} aria-labelledby="market-pulse-title">
+        <div className="flex flex-col gap-2 border-b border-line-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 id="market-pulse-title" className="font-medium text-ink">Pazar motoru · son 24 saat</h2>
+            <p className="mt-0.5 text-xs text-ink-faint">Scanner çalışma kayıtlarından hesaplanan canlı hacim</p>
+          </div>
+          <p className="text-xs text-ink-faint">Son başarılı tarama: <strong className="font-medium text-ink-soft">{formatRelativeTime(metrics.lastSuccessfulScanAt)}</strong></p>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-y divide-line-soft md:grid-cols-4 md:divide-y-0">
+          <PulseMetric icon={Radio} label="Yeni ilan" value={metrics.listingsDiscovered24h} />
+          <PulseMetric icon={BellRing} label="Kriter eşleşmesi" value={metrics.alertsCreated24h} />
+          <PulseMetric icon={Activity} label="Sağlıklı kaynak" value={`${metrics.healthySourceCount}/${metrics.activeSourceCount}`} />
+          <PulseMetric icon={Send} label="Teslimat hatası" value={metrics.telegramFailureCount} danger={metrics.telegramFailureCount > 0} />
+        </div>
+      </section>
 
       <div className={`${cardClass} p-6`}>
         <h2 className="mb-4 text-sm font-medium text-ink-soft">Müşteri durumlarına göre dağılım</h2>
@@ -114,6 +141,38 @@ export default async function DashboardPage() {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(value));
+}
+
+function formatRelativeTime(value: string | null) {
+  if (!value) return "Henüz başarılı çalışma yok";
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000));
+  if (minutes < 1) return "şimdi";
+  if (minutes < 60) return `${minutes} dk önce`;
+  const hours = Math.round(minutes / 60);
+  return hours < 24 ? `${hours} sa önce` : `${Math.round(hours / 24)} gün önce`;
+}
+
+function formatMoneyTotals(totals: Array<{ currency: string; amount: number }>) {
+  if (totals.length === 0) return "0 EUR";
+  return totals.map(({ amount, currency }) => `${amount.toLocaleString("tr-TR", { maximumFractionDigits: 0 })} ${currency}`).join(" · ");
+}
+
+function PulseMetric({ icon: Icon, label, value, danger = false }: { icon: React.ComponentType<{ className?: string; strokeWidth?: number }>; label: string; value: string | number; danger?: boolean }) {
+  return (
+    <div className="flex min-h-24 items-center gap-3 p-4">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${danger ? "bg-danger-wash text-danger" : "bg-surface-sunken text-brand"}`}>
+        <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+      </span>
+      <div>
+        <p className="text-xs text-ink-faint">{label}</p>
+        <p className={`mt-0.5 text-xl font-semibold tabular-nums ${danger ? "text-danger" : "text-ink"}`}>{value}</p>
       </div>
     </div>
   );
