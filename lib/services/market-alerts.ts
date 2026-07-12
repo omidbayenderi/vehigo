@@ -4,6 +4,7 @@ import { marketListingInputSchema, watchlistSchema } from "@/lib/validation/sche
 import { partialUpdateFields } from "@/lib/utils";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import { assessOpportunity, opportunityReasonsToJson } from "@/lib/services/opportunity-agents";
+import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
 
 type Client = SupabaseClient<Database>;
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
@@ -654,26 +655,49 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
     const listing = alert.market_listings;
     const watchlist = alert.watchlists;
 
-    if (!profile?.telegram_chat_id || !listing || !watchlist) {
-      // Keep it pending: once Telegram is linked, the next scan/digest can deliver it.
-      continue;
-    }
+    if (!listing || !watchlist) continue;
 
     const previousPrice = alert.alert_type === "price_drop" ? await fetchPreviousPrice(supabase, listing.id) : null;
-    const response = await sendTelegramMessage(
-      profile.telegram_chat_id,
-      formatListingAlert(listing, watchlist, alert, previousPrice),
-    );
-    if (response.ok) {
+    const baseMessage = formatListingAlert(listing, watchlist, alert, previousPrice);
+    const deliveries: Array<{ destination: string; message: string }> = [];
+    const criteriaChannel = process.env.TELEGRAM_CRITERIA_CHANNEL ?? "@Vehigo_Kriter";
+    const opportunityChannel = process.env.TELEGRAM_OPPORTUNITY_CHANNEL ?? "@Vehigo_Firsat";
+    const arbitrageChannel = process.env.TELEGRAM_ARBITRAGE_CHANNEL ?? "@Vehigo_Arbitraj";
+    if (criteriaChannel) deliveries.push({ destination: criteriaChannel, message: `<b>KRİTER EŞLEŞMESİ</b>\n${baseMessage}` });
+    if ((alert.opportunity_score ?? 0) >= 65 && opportunityChannel) deliveries.push({ destination: opportunityChannel, message: `<b>FIRSAT SKORU: ${alert.opportunity_score}/100</b>\n${baseMessage}` });
+    let arbitrage: ArbitrageAssessment | null = null;
+    if (arbitrageChannel) {
+      arbitrage = await assessEuropeanArbitrage(supabase, listing, watchlist);
+      if (arbitrage.approved) deliveries.push({ destination: arbitrageChannel, message: formatArbitrageAlert(baseMessage, arbitrage) });
+    }
+    if (profile?.telegram_chat_id) deliveries.push({ destination: profile.telegram_chat_id, message: baseMessage });
+    if (deliveries.length === 0) continue;
+    const responses = await Promise.all(deliveries.map((delivery) => sendTelegramMessage(delivery.destination, delivery.message)));
+    const failedDelivery = responses.find((response) => !response.ok);
+    if (!failedDelivery) {
       await markAlert(supabase, alert, "sent", null);
       sent++;
     } else {
-      await markAlert(supabase, alert, "failed", response.error ?? "Telegram gönderimi başarısız");
+      await markAlert(supabase, alert, "failed", failedDelivery.error ?? "Telegram kanal gönderimi başarısız");
       failed++;
     }
   }
 
   return { sent, failed };
+}
+
+function formatArbitrageAlert(baseMessage: string, assessment: ArbitrageAssessment) {
+  const margin = assessment.estimatedNetProfitPercent?.toFixed(1) ?? "?";
+  const median = assessment.medianComparablePrice?.toLocaleString("tr-TR") ?? "?";
+  return [
+    `<b>AI AVRUPA ARBİTRAJ FIRSATI</b>`,
+    `<b>Tahmini net kâr:</b> %${margin}`,
+    `<b>Medyan karşılaştırma:</b> ${median} EUR (${assessment.comparableCount} ilan)`,
+    `<b>AI güveni:</b> %${Math.round(assessment.confidence * 100)}`,
+    `<b>Değerlendirme:</b> ${escapeHtml(assessment.reason)}`,
+    "",
+    baseMessage,
+  ].join("\n");
 }
 
 async function markAlert(
