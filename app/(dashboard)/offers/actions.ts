@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createOffer, updateOfferCosts, confirmOfferSent } from "@/lib/services/offers";
+import { createOffer, updateOfferCosts, confirmOfferSent, closeOfferOutcome } from "@/lib/services/offers";
 import { updateComplianceChecklist } from "@/lib/services/compliance";
 import { logAudit } from "@/lib/services/audit";
 import { formDataToObject } from "@/lib/utils";
@@ -86,4 +86,32 @@ export async function confirmOfferSentAction(offerId: string) {
   await logAudit(supabase, user.id, "confirm_sent", "offer", offerId);
   revalidatePath(`/offers/${offerId}`);
   revalidatePath("/leads");
+}
+
+export async function closeOfferOutcomeAction(
+  id: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const input = formDataToObject(formData);
+
+  try {
+    await closeOfferOutcome(supabase, id, input);
+    await logAudit(supabase, user.id, "close_outcome", "offer", id, {
+      closed_outcome: String(formData.get("closed_outcome") ?? ""),
+      actual_total_cost: String(formData.get("actual_total_cost") ?? ""),
+      actual_revenue: String(formData.get("actual_revenue") ?? ""),
+    });
+    revalidatePath(`/offers/${id}`);
+    revalidatePath("/reports");
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };
+  }
 }

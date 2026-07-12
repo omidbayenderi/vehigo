@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
-import { offerCostSchema } from "@/lib/validation/schemas";
+import { offerCostSchema, offerOutcomeSchema } from "@/lib/validation/schemas";
 import { partialUpdateFields } from "@/lib/utils";
 
 type Client = SupabaseClient<Database>;
@@ -164,4 +164,98 @@ export async function confirmOfferSent(supabase: Client, id: string, performedBy
   }
 
   return offer;
+}
+
+/**
+ * Kullanıcının işlem kapandıktan sonra elle kaydettiği gerçek maliyet/gelir —
+ * beklenen kâr (commission_amount_calculated) ile karşılaştırmak için.
+ */
+export async function closeOfferOutcome(supabase: Client, id: string, input: Record<string, unknown>) {
+  const parsed = offerOutcomeSchema.parse(input);
+  const { data, error } = await supabase
+    .from("offers")
+    .update({ ...parsed, closed_at: new Date().toISOString() })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export type ProfitReportRow = {
+  key: string;
+  country: string;
+  source: string;
+  model: string;
+  dealCount: number;
+  wonCount: number;
+  lostCount: number;
+  expectedProfitSum: number;
+  realizedProfitSum: number;
+  variance: number;
+};
+
+type ClosedOfferInput = Pick<
+  Database["public"]["Tables"]["offers"]["Row"],
+  "vehicle_id" | "closed_outcome" | "commission_amount_calculated" | "actual_revenue" | "actual_total_cost"
+>;
+type VehicleGroupingInput = { id: string; seller_country: string | null; source_site: string | null; brand: string | null; model: string | null };
+
+export function aggregateProfitReport(
+  offers: ClosedOfferInput[],
+  vehicleById: Map<string, VehicleGroupingInput>,
+): ProfitReportRow[] {
+  const groups = new Map<string, ProfitReportRow>();
+  for (const offer of offers) {
+    const vehicle = offer.vehicle_id ? vehicleById.get(offer.vehicle_id) : undefined;
+    const country = vehicle?.seller_country ?? "Bilinmiyor";
+    const source = vehicle?.source_site ?? "Bilinmiyor";
+    const model = [vehicle?.brand, vehicle?.model].filter(Boolean).join(" ") || "Bilinmiyor";
+    const key = `${country}__${source}__${model}`;
+
+    const row = groups.get(key) ?? {
+      key,
+      country,
+      source,
+      model,
+      dealCount: 0,
+      wonCount: 0,
+      lostCount: 0,
+      expectedProfitSum: 0,
+      realizedProfitSum: 0,
+      variance: 0,
+    };
+
+    row.dealCount++;
+    if (offer.closed_outcome === "won") {
+      row.wonCount++;
+      row.expectedProfitSum += offer.commission_amount_calculated ?? 0;
+      if (offer.actual_revenue !== null && offer.actual_total_cost !== null) {
+        row.realizedProfitSum += offer.actual_revenue - offer.actual_total_cost;
+      }
+    } else {
+      row.lostCount++;
+    }
+    row.variance = Math.round((row.realizedProfitSum - row.expectedProfitSum) * 100) / 100;
+
+    groups.set(key, row);
+  }
+
+  return [...groups.values()].sort((a, b) => b.realizedProfitSum - a.realizedProfitSum);
+}
+
+export async function getProfitReport(supabase: Client): Promise<ProfitReportRow[]> {
+  const { data: offers, error } = await supabase.from("offers").select("*").not("closed_outcome", "is", null);
+  if (error) throw new Error(error.message);
+  if (!offers || offers.length === 0) return [];
+
+  const vehicleIds = [...new Set(offers.map((o) => o.vehicle_id).filter((id): id is string => Boolean(id)))];
+  const { data: vehicles, error: vehiclesError } =
+    vehicleIds.length > 0
+      ? await supabase.from("vehicles").select("id, seller_country, source_site, brand, model").in("id", vehicleIds)
+      : { data: [], error: null };
+  if (vehiclesError) throw new Error(vehiclesError.message);
+  const vehicleById = new Map((vehicles ?? []).map((v) => [v.id, v]));
+
+  return aggregateProfitReport(offers, vehicleById);
 }

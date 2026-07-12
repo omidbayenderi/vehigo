@@ -18,6 +18,7 @@ export type LeadStatus =
   | "closed_lost";
 export type CommissionType = "fixed" | "percentage";
 export type OfferStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+export type ClosedOutcome = "won" | "lost";
 export type MessageChannel = "whatsapp" | "telegram" | "instagram";
 export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
 export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
@@ -189,6 +190,11 @@ export type Database = {
           payment_steps: string | null;
           status: OfferStatus;
           pdf_storage_path: string | null;
+          actual_total_cost: number | null;
+          actual_revenue: number | null;
+          closed_outcome: ClosedOutcome | null;
+          closed_notes: string | null;
+          closed_at: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;

@@ -7,6 +7,7 @@ import { cardClass } from "@/lib/ui";
 import EditCostForm from "./edit-cost-form";
 import ComplianceChecklist from "../compliance-checklist";
 import ConfirmSentButton from "./confirm-sent-button";
+import CloseOutcomeForm from "./close-outcome-form";
 
 export default async function OfferDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -55,6 +56,7 @@ export default async function OfferDetailPage({ params }: { params: Promise<{ id
       <div className="space-y-6">
         <EditCostForm offer={offer} />
         <ComplianceChecklist offerId={offer.id} compliance={offer.compliance} />
+        <CloseOutcomeForm offer={offer} />
         {offer.compliance.all_clear ? (
           <Link
             href={`/messages/new?lead_id=${offer.lead_id}&offer_id=${offer.id}`}

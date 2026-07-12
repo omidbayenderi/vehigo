@@ -11,6 +11,7 @@ import {
   MessageCircle,
   BellRing,
   ListChecks,
+  BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/messages", label: "Mesajlar", icon: MessageCircle },
   { href: "/alerts", label: "İlan alarmları", icon: BellRing },
   { href: "/shortlist", label: "Kısa liste", icon: ListChecks },
+  { href: "/reports", label: "Kâr raporu", icon: BarChart3 },
 ];
 
 export default function NavLinks({ mobile = false }: { mobile?: boolean }) {

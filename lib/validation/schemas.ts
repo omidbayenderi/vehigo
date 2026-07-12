@@ -72,6 +72,13 @@ export const offerCostSchema = z.object({
   payment_steps: z.string().optional(),
 });
 
+export const offerOutcomeSchema = z.object({
+  closed_outcome: z.enum(["won", "lost"]),
+  actual_total_cost: z.coerce.number().min(0).optional(),
+  actual_revenue: z.coerce.number().min(0).optional(),
+  closed_notes: z.string().optional(),
+});
+
 export const complianceChecklistSchema = z.object({
   offer_id: z.string().uuid(),
   export_legality_checked: z.boolean().default(false),
