@@ -32,6 +32,8 @@ Değeri workflow JSON dosyalarına yazmayın. n8n kurulumunuz expression içinde
 erişimini kapatıyorsa aynı header'ı n8n Credentials içindeki bir Header Auth credential'ı
 ile yönetin ve workflow'lardaki header ifadesini credential ile değiştirin.
 
+Health workflow da diğer iki workflow gibi `x-scanner-secret` header'ını kullanır.
+
 ## Import ve aktivasyon
 
 1. n8n arayüzünde **Workflows > Import from File** seçeneğini açın.

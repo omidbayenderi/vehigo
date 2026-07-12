@@ -26,8 +26,8 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "authorization",
-              "value": "={{ 'Bearer ' + $env.VEHIGO_SCANNER_SECRET }}"
+              "name": "x-scanner-secret",
+              "value": "={{ $env.VEHIGO_SCANNER_SECRET }}"
             },
             {
               "name": "accept",
