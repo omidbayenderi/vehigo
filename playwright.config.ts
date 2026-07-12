@@ -11,6 +11,7 @@ try {
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "**/._*",
   timeout: 30_000,
   fullyParallel: false,
   workers: 1,
