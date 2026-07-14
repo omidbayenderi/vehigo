@@ -34,6 +34,16 @@ export function detailValuesFromKeywords(keywords: string[]): Values {
   return values;
 }
 
+export function detailValuesFromWatchlist(watchlist: Record<string, unknown> & { must_have_keywords?: string[] }): Values {
+  const legacy = detailValuesFromKeywords(watchlist.must_have_keywords ?? []);
+  const keys = ["fuel_type", "transmission", "body_type", "drive_type", "seller_type", "min_power_hp", "max_power_hp", "min_engine_cc", "max_engine_cc", "min_doors", "max_doors", "emission_class", "exterior_color"];
+  for (const key of keys) {
+    const value = watchlist[key];
+    if ((typeof value === "string" || typeof value === "number") && value !== "") legacy[key] = value;
+  }
+  return legacy;
+}
+
 const inputClass = "min-h-11 w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";
 function Field({ label, name, type = "text", value, placeholder }: { label: string; name: string; type?: string; value?: string | number | null; placeholder?: string }) {
   return <label className="text-sm"><span className="mb-1 block text-ink-soft">{label}</span><input className={inputClass} name={name} type={type} defaultValue={value ?? ""} placeholder={placeholder} /></label>;

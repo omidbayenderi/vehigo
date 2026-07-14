@@ -135,8 +135,11 @@ export async function getOffer(supabase: Client, id: string) {
     .select("*")
     .eq("offer_id", id)
     .maybeSingle();
+  const { data: exportScenarioResult } = data.export_scenario_result_id
+    ? await supabase.from("export_scenario_results").select("*").eq("id", data.export_scenario_result_id).maybeSingle()
+    : { data: null };
 
-  return { ...data, lead, vehicle, compliance };
+  return { ...data, lead, vehicle, compliance, exportScenarioResult };
 }
 
 export async function listOffers(supabase: Client) {

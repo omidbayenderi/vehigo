@@ -27,7 +27,7 @@ export default async function VehicleDetailPage({
     <div className="max-w-2xl">
       <PageHeader eyebrow="Araç" title={`${vehicle.brand} ${vehicle.model}`} actions={<DeleteEntityButton label={`${vehicle.brand} ${vehicle.model}`} action={deleteVehicleAction.bind(null, vehicle.id)} />} />
       <EditVehicleForm vehicle={vehicle} />
-      <ImageGallery vehicleId={vehicle.id} images={vehicle.vehicle_images} />
+      <ImageGallery organizationId={vehicle.organization_id} vehicleId={vehicle.id} images={vehicle.vehicle_images} />
     </div>
   );
 }

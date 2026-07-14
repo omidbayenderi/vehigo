@@ -9,3 +9,7 @@ rm -rf .next/cache .next/dev/cache
 if [ -d test-results ]; then
   rm -rf test-results 2>/dev/null || mv test-results ".test-results-stale-$(date +%s)"
 fi
+
+npm run e2e:safety
+npm run db:verify:test-schema
+npm run e2e:context:provision

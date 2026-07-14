@@ -1,6 +1,7 @@
-import type { MarketListingInput } from "@/lib/services/market-alerts";
+import type { MarketListingInput } from "@/lib/domain/listings";
 import type { VehicleCondition } from "@/lib/supabase/types";
 import type { ScanAdapter, ScannerWatchlist } from "./types";
+import { geographySearchTerms } from "@/lib/search/geography";
 
 const ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const REQUEST_TIMEOUT_MS = 12_000;
@@ -91,6 +92,20 @@ type QueryPlan = {
 
 export const braveWebAdapter: ScanAdapter = {
   key: "brave_web",
+  manifest: {
+    key: "brave_web",
+    version: "1.0.0",
+    displayName: "Europe Deep Search",
+    countries: ["EU", "GB", "CH", "NO"],
+    acquisitionModes: ["web_index"],
+    vehicleTypes: ["car", "van", "truck", "trailer", "construction", "spare_part", "bus", "other"],
+    fieldCoverage: [
+      "source_key", "source_listing_id", "listing_url", "title", "seller_name",
+      "brand", "model", "vehicle_type", "seat_count", "condition", "raw",
+    ],
+    supportsDirectSearch: true,
+    supportsIncrementalSync: false,
+  },
   async fetchListings({ watchlists }): Promise<MarketListingInput[]> {
     const token = process.env.BRAVE_SEARCH_API_KEY;
     if (!token) throw new Error("BRAVE_SEARCH_API_KEY tanımlı değil");
@@ -184,7 +199,12 @@ export function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
     const brandModel = watchlist ? [watchlist.brand, watchlist.model].filter(Boolean).join(" ") : "";
     const vehicleType = watchlist?.vehicle_type ?? "truck";
     const vehicleTerms = VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck;
-    const location = [watchlist?.city, watchlist?.country].filter(Boolean).join(" ");
+    const countryTerms = watchlist ? geographySearchTerms(watchlist) : [];
+    const regionTerm = watchlist?.region_preset === "balkans" ? "Balkans"
+      : watchlist?.region_preset === "schengen" ? "Schengen Europe"
+      : watchlist?.region_preset ? "Europe"
+      : countryTerms.slice(0, 8).join(" OR ");
+    const location = [watchlist?.city, regionTerm || watchlist?.country].filter(Boolean).join(" ");
     const keywords = watchlist?.keywords.join(" ") ?? "";
     const baseParts = [
       location || "Europe",

@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOpportunityDigest } from "@/lib/services/opportunity-digest";
+import { isScannerRequestAuthorized } from "@/lib/scanner/request-auth";
 
 export async function POST(request: NextRequest) {
-  const secret = process.env.SCANNER_INGEST_SECRET;
-  if (!secret || request.headers.get("x-scanner-secret") !== secret) {
+  if (!isScannerRequestAuthorized(request, ["ingest"])) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -12,9 +12,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  const authorization = request.headers.get("authorization");
-  if (!secret || authorization !== `Bearer ${secret}`) {
+  if (!isScannerRequestAuthorized(request, ["cron"])) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

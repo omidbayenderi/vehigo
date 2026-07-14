@@ -7,9 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 type VehicleImage = { id: string; storage_path: string; is_primary: boolean };
 
 export default function ImageGallery({
+  organizationId,
   vehicleId,
   images,
 }: {
+  organizationId: string;
   vehicleId: string;
   images: VehicleImage[];
 }) {
@@ -49,7 +51,7 @@ export default function ImageGallery({
     setError(null);
 
     for (const file of Array.from(files)) {
-      const path = `${vehicleId}/${crypto.randomUUID()}-${file.name}`;
+      const path = `${organizationId}/${vehicleId}/${crypto.randomUUID()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from("vehicle-images")
         .upload(path, file);

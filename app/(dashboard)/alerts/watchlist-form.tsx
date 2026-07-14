@@ -4,17 +4,12 @@ import { useActionState, useState } from "react";
 import { createWatchlistAction, type FormState } from "./actions";
 import type { Database } from "@/lib/supabase/types";
 import DetailedVehicleFilters from "./detailed-vehicle-filters";
+import NaturalLanguagePlanner from "./natural-language-planner";
+import GeographyFields from "./geography-fields";
 
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
 
 const initialState: FormState = {};
-const EUROPEAN_COUNTRIES = [
-  "Almanya", "Avusturya", "Belçika", "Bulgaristan", "Çekya", "Danimarka", "Estonya",
-  "Finlandiya", "Fransa", "Hırvatistan", "Hollanda", "İrlanda", "İspanya", "İsveç",
-  "İtalya", "Kıbrıs", "Letonya", "Litvanya", "Lüksemburg", "Macaristan", "Malta",
-  "Norveç", "Polonya", "Portekiz", "Romanya", "Slovakya", "Slovenya", "Yunanistan",
-];
-
 export default function WatchlistForm({ sources }: { sources: Source[] }) {
   const [state, formAction, pending] = useActionState(createWatchlistAction, initialState);
   const [vehicleType, setVehicleType] = useState("");
@@ -44,20 +39,11 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <span className="w-fit rounded-full bg-success/10 px-3 py-1 text-xs font-medium text-success">40+ pazar alan adı</span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <NaturalLanguagePlanner />
+      <GeographyFields />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
         <Field label="Alarm adı" name="name" required placeholder="Actros Almanya" />
-        <label className="text-sm">
-          <span className="mb-1 block text-ink-soft">Ülke</span>
-          <input
-            name="country"
-            list="european-countries"
-            placeholder="Tüm Avrupa"
-            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
-          />
-          <datalist id="european-countries">
-            {EUROPEAN_COUNTRIES.map((country) => <option key={country} value={country} />)}
-          </datalist>
-        </label>
         <Field label="Şehir" name="city" placeholder="Berlin" />
         <Field label="Marka" name="brand" placeholder="Mercedes-Benz" />
         <Field label="Model" name="model" placeholder="Actros" />
@@ -102,6 +88,17 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
       </div>
 
       <DetailedVehicleFilters />
+
+      <details className="mt-4 rounded-lg border border-line-soft bg-surface-sunken/40 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-brand">Arama davranışı ve sıralama</summary>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <label className="text-sm"><span className="mb-1 block text-ink-soft">Eşleşme modu</span><select name="search_mode" defaultValue="discovery" className={inputClass}><option value="discovery">Discovery · eksikleri doğrula</option><option value="strict">Strict · eksik alanı ele</option></select></label>
+          <Field label="Tazelik (saat)" name="freshness_hours" type="number" defaultValue="168" />
+          <label className="text-sm"><span className="mb-1 block text-ink-soft">Sıralama</span><select name="sort_by" defaultValue="relevance" className={inputClass}><option value="relevance">Uygunluk</option><option value="newest">En yeni</option><option value="price">Fiyat</option><option value="mileage">Kilometre</option><option value="year">Model yılı</option></select></label>
+          <label className="text-sm"><span className="mb-1 block text-ink-soft">Yön</span><select name="sort_direction" defaultValue="desc" className={inputClass}><option value="desc">Azalan</option><option value="asc">Artan</option></select></label>
+          <Field label="Sayfa boyutu" name="page_size" type="number" defaultValue="25" />
+        </div>
+      </details>
 
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <fieldset className="text-sm">
@@ -216,3 +213,5 @@ function Field({
     </label>
   );
 }
+
+const inputClass = "min-h-11 w-full rounded-md border border-line bg-surface px-3 py-2 text-base text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15";

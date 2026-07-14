@@ -1,14 +1,11 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkScannerHealth } from "@/lib/services/scanner-health";
+import { isScannerRequestAuthorized } from "@/lib/scanner/request-auth";
+import { syncRuntimeConnectorCatalog } from "@/lib/services/source-catalog";
 
 function authorized(request: NextRequest) {
-  const ingest = process.env.SCANNER_INGEST_SECRET;
-  const cron = process.env.CRON_SECRET;
-  return Boolean(
-    (ingest && request.headers.get("x-scanner-secret") === ingest) ||
-    (cron && request.headers.get("authorization") === `Bearer ${cron}`),
-  );
+  return isScannerRequestAuthorized(request, ["ingest", "cron"]);
 }
 
 export async function GET(request: NextRequest) {
@@ -17,4 +14,12 @@ export async function GET(request: NextRequest) {
   return Response.json({ ok: issues.length === 0, checked_at: new Date().toISOString(), issues }, { status: issues.length === 0 ? 200 : 503 });
 }
 
-export const POST = GET;
+export async function POST(request: NextRequest) {
+  if (!isScannerRequestAuthorized(request, ["ingest"])) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const supabase = createAdminClient();
+  const synced = await syncRuntimeConnectorCatalog(supabase);
+  const issues = await checkScannerHealth(supabase);
+  return Response.json({ ok: issues.length === 0, checked_at: new Date().toISOString(), synced, issues }, { status: issues.length === 0 ? 200 : 503 });
+}

@@ -1,4 +1,5 @@
-import type { MarketListingInput } from "@/lib/services/market-alerts";
+import type { MarketListingInput } from "@/lib/domain/listings";
+import { z } from "zod";
 
 const URL_PATTERN = /https?:\/\/[^\s<>"')]+/gi;
 
@@ -9,6 +10,18 @@ export type EmailAlertPayload = {
   html?: string;
   received_at?: string;
 };
+
+export const emailAlertPayloadSchema = z.object({
+  source_key: z.string().trim().min(1),
+  subject: z.string().max(500).optional(),
+  text: z.string().max(500_000).optional(),
+  html: z.string().max(500_000).optional(),
+  received_at: z.string().datetime({ offset: true }).optional(),
+}).strict().superRefine((payload, context) => {
+  if (!payload.subject && !payload.text && !payload.html) {
+    context.addIssue({ code: "custom", message: "Email içeriği gerekli" });
+  }
+});
 
 export function parseEmailAlertListings(payload: EmailAlertPayload): MarketListingInput[] {
   const body = [payload.subject, payload.text, payload.html].filter(Boolean).join("\n");

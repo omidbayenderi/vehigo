@@ -12,6 +12,8 @@ import WatchlistEditor from "./watchlist-editor";
 import ManualTriggerButtons from "./manual-trigger-buttons";
 import { startOfferFromAlertAction } from "./actions";
 import OpportunityDecisionForm from "./opportunity-decision-form";
+import MarketIntelligenceCard from "./market-intelligence-card";
+import { listLatestIntelligenceByListingIds } from "@/lib/services/market-intelligence";
 
 export default async function AlertsPage() {
   const supabase = await createClient();
@@ -29,6 +31,19 @@ export default async function AlertsPage() {
     listRecentAlerts(supabase, user.id),
   ]);
   const activeLeads = (leads ?? []).filter((lead) => lead.status !== "closed_won" && lead.status !== "closed_lost");
+  const intelligenceByListingId = await listLatestIntelligenceByListingIds(
+    supabase,
+    [...new Set(alerts.map((alert) => alert.listing_id))],
+  );
+  const alertGroups = new Map<string, typeof alerts>();
+  for (const alert of alerts) {
+    const listing = alert.market_listings;
+    const clusterKey = listing?.duplicate_cluster_id ?? listing?.canonical_fingerprint ?? listing?.id ?? alert.id;
+    const group = alertGroups.get(clusterKey) ?? [];
+    group.push(alert);
+    alertGroups.set(clusterKey, group);
+  }
+  const groupedAlerts = [...alertGroups.values()].map((group) => ({ alert: group[0], alternatives: group.slice(1) }));
 
   return (
     <div>
@@ -86,12 +101,15 @@ export default async function AlertsPage() {
               <div>
                 <p className="font-medium text-ink">{watchlist.name}</p>
                 <p className="mt-1 text-sm text-ink-faint">
-                  {[watchlist.brand, watchlist.model, watchlist.country, watchlist.city]
+                  {[watchlist.brand, watchlist.model, watchlist.region_preset?.toUpperCase(), ...(watchlist.country_codes ?? []), watchlist.country, watchlist.city]
                     .filter(Boolean)
                     .join(" / ") || "Geniş filtre"}
                 </p>
                 <p className="mt-1 text-xs text-ink-faint">
                   Kaynaklar: {watchlist.source_keys.length > 0 ? watchlist.source_keys.join(", ") : "tümü"}
+                </p>
+                <p className="mt-1 text-xs text-ink-faint">
+                  Mod: {watchlist.search_mode === "strict" ? "Strict" : "Discovery"} · Tazelik: {watchlist.freshness_hours ?? 168} saat
                 </p>
                 {readSeatFilter(watchlist) || readConditionFilter(watchlist) ? (
                   <p className="mt-1 text-xs text-ink-faint">
@@ -125,7 +143,7 @@ export default async function AlertsPage() {
           </p>
         </div>
         <div className="divide-y divide-line-soft">
-          {alerts.map((alert) => {
+          {groupedAlerts.map(({ alert, alternatives }) => {
             const listing = alert.market_listings;
             if (!listing) return null;
             const decision = describeOpportunity(listing, alert.watchlists);
@@ -192,11 +210,26 @@ export default async function AlertsPage() {
                       <p className="mt-2 text-xs text-ink-faint">{decision.riskNotes.join(" · ")}</p>
                     </div>
                   </div>
+                  <MarketIntelligenceCard listingId={listing.id} snapshot={intelligenceByListingId.get(listing.id)} />
                   <OpportunityDecisionForm
                     alertId={alert.id}
                     status={alert.decision_status}
                     reason={alert.decision_reason}
                   />
+                  {alternatives.length > 0 ? (
+                    <div className="mt-4 rounded-md border border-line-soft bg-surface-sunken/50 p-3">
+                      <p className="text-xs font-medium text-ink">Aynı araca ait {alternatives.length} alternatif kaynak</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {alternatives.map((alternative) => alternative.market_listings ? (
+                          <a key={alternative.id} href={alternative.market_listings.listing_url} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-line bg-surface px-3 text-xs font-medium text-brand hover:border-brand">
+                            {alternative.market_listings.source_key}
+                            {alternative.market_listings.price !== null ? ` · ${alternative.market_listings.price.toLocaleString("tr-TR")} ${alternative.market_listings.currency}` : ""}
+                            <ExternalLink size={13} aria-hidden="true" />
+                          </a>
+                        ) : null)}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="rounded-md border border-line-soft bg-paper p-3">
@@ -239,7 +272,7 @@ export default async function AlertsPage() {
               </article>
             );
           })}
-          {alerts.length === 0 ? (
+          {groupedAlerts.length === 0 ? (
             <EmptyState icon={BellRing} title="Henüz eşleşen ilan yakalanmadı" description="Kaynaklar tarandıkça eşleşen ilanlar burada görünecek." />
           ) : null}
         </div>

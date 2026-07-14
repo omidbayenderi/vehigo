@@ -96,6 +96,16 @@ export type OfferPdfData = {
   finalCustomerPrice: number | null;
   deliveryTerms: string | null;
   paymentSteps: string | null;
+  landedCostSnapshot: {
+    evidenceHash: string;
+    calculationVersion: string;
+    originCountryCode: string;
+    destinationCountryCode: string;
+    landedCost: number;
+    currency: string;
+    ruleSet: string;
+    exchangeRates: string[];
+  } | null;
 };
 
 const conditionLabel: Record<string, string> = {
@@ -181,6 +191,18 @@ export function OfferPdfDocument({ data }: { data: OfferPdfData }) {
           <Text style={styles.totalLabel}>مجموع نهایی</Text>
           <Text style={styles.totalValue}>{money(data.finalCustomerPrice, data.currency)}</Text>
         </View>
+
+        {data.landedCostSnapshot ? (
+          <>
+            <Text style={styles.sectionTitle}>تصویر ثابت محاسبه هزینه واردات</Text>
+            <View style={styles.row}><Text style={styles.rowLabel}>مسیر</Text><Text style={styles.rowValue}>{data.landedCostSnapshot.originCountryCode} → {data.landedCostSnapshot.destinationCountryCode}</Text></View>
+            <View style={styles.row}><Text style={styles.rowLabel}>مجموع هزینه تحویل‌شده</Text><Text style={styles.rowValue}>{money(data.landedCostSnapshot.landedCost, data.landedCostSnapshot.currency)}</Text></View>
+            <View style={styles.row}><Text style={styles.rowLabel}>نسخه قوانین</Text><Text style={styles.rowValue}>{data.landedCostSnapshot.ruleSet}</Text></View>
+            <View style={styles.row}><Text style={styles.rowLabel}>نرخ‌های ارز</Text><Text style={styles.rowValue}>{data.landedCostSnapshot.exchangeRates.join(" · ") || "-"}</Text></View>
+            <View style={styles.row}><Text style={styles.rowLabel}>نسخه محاسبه</Text><Text style={styles.rowValue}>{data.landedCostSnapshot.calculationVersion}</Text></View>
+            <Text style={styles.paragraph}>شناسه مدرک: {data.landedCostSnapshot.evidenceHash}</Text>
+          </>
+        ) : null}
 
         {data.deliveryTerms ? (
           <>

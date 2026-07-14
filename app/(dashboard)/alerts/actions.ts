@@ -12,6 +12,8 @@ import { listingDecisionSchema, telegramSettingsSchema } from "@/lib/validation/
 import { formDataToObject } from "@/lib/utils";
 import { runScannerOnce } from "@/lib/scanner/runner";
 import { sendOpportunityDigest } from "@/lib/services/opportunity-digest";
+import { analyzeMarketListing } from "@/lib/services/market-intelligence";
+import { runAiMarketReview } from "@/lib/services/ai-evaluation-ledger";
 
 export type FormState = { error?: string; ok?: string };
 type MarketListing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -23,6 +25,7 @@ export async function updateTelegramSettingsAction(
   _prevState: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  void _prevState;
   const supabase = await createClient();
   const {
     data: { user },
@@ -287,6 +290,41 @@ export async function startOfferFromAlertAction(alertId: string, leadId: string)
   revalidatePath("/alerts");
   revalidatePath("/vehicles");
   redirect(`/offers/new?lead_id=${leadId}&vehicle_id=${vehicleId}`);
+}
+
+export async function analyzeListingIntelligenceAction(
+  listingId: string,
+  includeAi: boolean,
+  _prevState: FormState,
+): Promise<FormState> {
+  void _prevState;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  try {
+    const admin = createAdminClient();
+    const snapshot = await analyzeMarketListing(admin, listingId);
+    let message = `Piyasa analizi hazır: ${snapshot.comparable_count} uygun ilan, örneklem ${sampleQualityLabel(snapshot.sample_quality)}.`;
+    if (includeAi) {
+      const evaluation = await runAiMarketReview(admin, user.id, snapshot);
+      message += evaluation.status === "completed"
+        ? " AI kanıt incelemesi kaydedildi ve insan onayına bırakıldı."
+        : ` AI incelemesi ${evaluation.status === "skipped" ? "atlanarak" : "hata kaydıyla"} deftere işlendi.`;
+    }
+    await logAudit(supabase, user.id, includeAi ? "market_intelligence_with_ai" : "market_intelligence", "market_listing", listingId, { snapshot_id: snapshot.id, evidence_hash: snapshot.evidence_hash });
+    revalidatePath("/alerts");
+    return { ok: message };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Piyasa analizi oluşturulamadı." };
+  }
+}
+
+function sampleQualityLabel(value: string) {
+  if (value === "high") return "yüksek";
+  if (value === "medium") return "orta";
+  if (value === "low") return "düşük";
+  return "yetersiz";
 }
 
 async function createVehicleFromListing(

@@ -175,6 +175,22 @@ describe("braveWebAdapter", () => {
     expect(queries[0].query).toContain("site:kleinanzeigen.de");
   });
 
+  it("compiles multi-country watchlists into the remote discovery query", () => {
+    const watchlist = {
+      id: "multi-country-watch",
+      brand: "Volkswagen",
+      model: "Golf",
+      vehicle_type: "car",
+      country: null,
+      country_codes: ["DE", "NL"],
+      city: null,
+      keywords: [],
+      source_keys: ["brave_web"],
+    } as unknown as ScannerWatchlist;
+    const queries = buildQueries([watchlist]);
+    expect(queries[0].query).toContain("Almanya OR Hollanda");
+  });
+
   it("maps marketplace and public-social hostnames to canonical catalog source keys", () => {
     expect(sourceKeyForUrl("https://www.kleinanzeigen.de/s-anzeige/example/123")).toBe("kleinanzeigen");
     expect(sourceKeyForUrl("https://m.olx.pt/d/anuncio/example")).toBe("olx_pt");

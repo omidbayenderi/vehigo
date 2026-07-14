@@ -17,7 +17,7 @@ const baseListing: Listing = {
 };
 
 const baseWatchlist: Watchlist = {
-  id: "watch-1", user_id: "user-1", name: "Golf Almanya", active: true,
+  id: "watch-1", organization_id: "00000000-0000-4000-8000-000000000001", user_id: "user-1", name: "Golf Almanya", active: true,
   source_keys: ["brave_web"], country: "Germany", city: null, brand: "Volkswagen", model: "Golf",
   vehicle_type: "car", min_year: 2020, max_year: null, max_mileage_km: 80000,
   min_price: null, max_price: 22000, currency: "EUR", keywords: [], target_price: 21000,
@@ -95,5 +95,27 @@ describe("listingMatchesWatchlist", () => {
     expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf diesel automatic 150 PS" }, watchlist)).toBe(true);
     expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf diesel manual 150 PS" }, watchlist)).toBe(false);
     expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf diesel automatic 220 PS" }, watchlist)).toBe(false);
+  });
+
+  it("prefers canonical structured fields over ambiguous listing text", () => {
+    const watchlist = {
+      ...baseWatchlist,
+      must_have_keywords: [
+        "__vehigo_filter:fuel_type:diesel",
+        "__vehigo_filter:transmission:automatic",
+        "__vehigo_filter:min_power_hp:140",
+        "__vehigo_filter:max_power_hp:200",
+      ],
+    };
+    const structured = {
+      ...baseListing,
+      title: "Volkswagen Golf fuel details in description",
+      fuel_type: "diesel" as const,
+      transmission: "automatic" as const,
+      power_hp: 150,
+    };
+
+    expect(listingMatchesWatchlist(structured, watchlist)).toBe(true);
+    expect(listingMatchesWatchlist({ ...structured, transmission: "manual" }, watchlist)).toBe(false);
   });
 });

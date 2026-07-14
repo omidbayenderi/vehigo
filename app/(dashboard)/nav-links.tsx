@@ -12,6 +12,8 @@ import {
   BellRing,
   ListChecks,
   BarChart3,
+  Ship,
+  ServerCog,
 } from "lucide-react";
 
 const navItems = [
@@ -24,14 +26,18 @@ const navItems = [
   { href: "/alerts", label: "İlan alarmları", icon: BellRing },
   { href: "/shortlist", label: "Kısa liste", icon: ListChecks },
   { href: "/reports", label: "Kâr raporu", icon: BarChart3 },
+  { href: "/exports", label: "İhracat senaryoları", icon: Ship },
 ];
 
-export default function NavLinks({ mobile = false }: { mobile?: boolean }) {
+const ownerItems = [{ href: "/operations", label: "Sistem operasyonları", icon: ServerCog }];
+
+export default function NavLinks({ mobile = false, isOwner = false }: { mobile?: boolean; isOwner?: boolean }) {
   const pathname = usePathname();
+  const items = isOwner ? [...navItems, ...ownerItems] : navItems;
 
   return (
     <nav className={mobile ? "grid gap-1 p-3" : "flex flex-1 flex-col gap-1 p-3"} aria-label="Ana navigasyon">
-      {navItems.map((item) => {
+      {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
         return (

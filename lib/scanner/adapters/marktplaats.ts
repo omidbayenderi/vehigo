@@ -1,7 +1,8 @@
-import type { MarketListingInput } from "@/lib/services/market-alerts";
+import type { MarketListingInput } from "@/lib/domain/listings";
 import type { VehicleCondition, VehicleType } from "@/lib/supabase/types";
 import { inferModel } from "@/lib/services/opportunity-flow";
 import type { ScanAdapter, ScannerWatchlist } from "./types";
+import { resolveCountryCodes } from "@/lib/search/geography";
 
 /**
  * "/l/auto-s/" is Marktplaats' whole car/van/truck tree — vrachtwagens (trucks) and
@@ -150,6 +151,21 @@ async function fetchCategory(url: string): Promise<MarktplaatsListing[]> {
 
 export const marktplaatsAdapter: ScanAdapter = {
   key: "marktplaats",
+  manifest: {
+    key: "marktplaats",
+    version: "1.0.0",
+    displayName: "Marktplaats",
+    countries: ["NL"],
+    acquisitionModes: ["permitted_html"],
+    vehicleTypes: ["car", "van", "truck", "trailer", "bus", "other"],
+    fieldCoverage: [
+      "source_key", "source_listing_id", "listing_url", "title", "seller_name",
+      "seller_country", "seller_city", "brand", "model", "year", "mileage_km",
+      "price", "currency", "vehicle_type", "seat_count", "condition", "raw",
+    ],
+    supportsDirectSearch: true,
+    supportsIncrementalSync: false,
+  },
   async fetchListings({ watchlists }): Promise<MarketListingInput[]> {
     const byItemId = new Map<string, MarktplaatsListing>();
     for (const url of buildSearchUrls(watchlists)) {
@@ -198,6 +214,8 @@ function buildSearchUrls(watchlists: ScannerWatchlist[]) {
     ) {
       continue;
     }
+    const countryCodes = resolveCountryCodes(watchlist);
+    if (countryCodes.length > 0 && !countryCodes.includes("NL")) continue;
 
     const query = [watchlist.brand, watchlist.model, ...watchlist.keywords]
       .map((part) => part?.trim())

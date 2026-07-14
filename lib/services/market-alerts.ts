@@ -1,10 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json, VehicleCondition, VehicleType } from "@/lib/supabase/types";
-import { marketListingInputSchema, watchlistSchema } from "@/lib/validation/schemas";
+import type { Database, Json, VehicleCondition } from "@/lib/supabase/types";
+import type { MarketListingInput } from "@/lib/domain/listings";
+import { normalizeMarketListing } from "@/lib/normalization/normalize-listing";
+import { canonicalMarketListingInputSchema, marketListingInputSchema, watchlistSchema } from "@/lib/validation/schemas";
 import { partialUpdateFields } from "@/lib/utils";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import { assessOpportunity, opportunityReasonsToJson } from "@/lib/services/opportunity-agents";
 import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
+import { evaluateListingForWatchlist } from "@/lib/search/matcher";
+import { isSearchPlanV1, SEARCH_PLAN_VERSION } from "@/lib/search/search-plan";
 
 type Client = SupabaseClient<Database>;
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
@@ -15,8 +19,6 @@ type MarketListingInsert = Database["public"]["Tables"]["market_listings"]["Inse
 type WatchlistInsert = Database["public"]["Tables"]["watchlists"]["Insert"];
 const SEAT_FILTER_PREFIX = "__vehigo_seat:";
 const CONDITION_FILTER_PREFIX = "__vehigo_condition:";
-const DETAIL_FILTER_PREFIX = "__vehigo_filter:";
-const DETAIL_FILTER_KEYS = ["fuel_type", "transmission", "body_type", "drive_type", "seller_type", "min_power_hp", "max_power_hp", "min_engine_cc", "max_engine_cc", "min_doors", "max_doors", "emission_class", "exterior_color"] as const;
 export type AlertWithListing = Alert & { market_listings: Listing | null; watchlists: Watchlist | null };
 type PendingAlert = Alert & {
   market_listings: Listing | null;
@@ -24,25 +26,7 @@ type PendingAlert = Alert & {
   users_profile: UserProfile | null;
 };
 
-export type MarketListingInput = {
-  source_key: string;
-  source_listing_id?: string;
-  listing_url: string;
-  title?: string;
-  seller_name?: string;
-  seller_country?: string;
-  seller_city?: string;
-  brand?: string;
-  model?: string;
-  year?: number;
-  mileage_km?: number;
-  price?: number;
-  currency?: string;
-  vehicle_type?: VehicleType;
-  seat_count?: number;
-  condition?: VehicleCondition;
-  raw?: Record<string, unknown>;
-};
+export type { MarketListingInput } from "@/lib/domain/listings";
 
 export type ProcessListingsResult = {
   fetched: number;
@@ -192,24 +176,75 @@ export async function listWatchlists(supabase: Client, userId: string) {
   return data ?? [];
 }
 
+function prepareWatchlistFields(input: Record<string, unknown>, requirePlanConfirmation: boolean) {
+  const clean = { ...input };
+  const confirmedSearchPlan = typeof clean.confirmed_search_plan === "string"
+    ? clean.confirmed_search_plan
+    : null;
+  delete clean.confirmed_search_plan;
+  const originalNaturalLanguageQuery = typeof clean.original_natural_language_query === "string"
+    ? clean.original_natural_language_query
+    : null;
+  delete clean.original_natural_language_query;
+  delete clean.active;
+
+  if (
+    clean.natural_language_query
+    && !confirmedSearchPlan
+    && (requirePlanConfirmation || clean.natural_language_query !== originalNaturalLanguageQuery)
+  ) {
+    throw new Error("Doğal dil arama planını önizleyip onaylamalısınız.");
+  }
+  if (confirmedSearchPlan) {
+    let plan: unknown;
+    try {
+      plan = JSON.parse(confirmedSearchPlan);
+    } catch {
+      throw new Error("Onaylanan arama planı geçerli JSON değil.");
+    }
+    if (!isSearchPlanV1(plan)) throw new Error("Onaylanan arama planı sürümü desteklenmiyor.");
+    if (clean.natural_language_query !== plan.originalQuery) {
+      throw new Error("Arama tarifi değişti. Planı yeniden önizleyip onaylayın.");
+    }
+    Object.assign(clean, plan.filters, {
+      natural_language_query: plan.originalQuery,
+      search_plan: JSON.parse(JSON.stringify(plan)) as Json,
+      search_plan_version: SEARCH_PLAN_VERSION,
+      search_plan_confirmed_at: new Date().toISOString(),
+    });
+  }
+
+  const coordinates = [clean.center_latitude, clean.center_longitude, clean.radius_km];
+  const coordinateCount = coordinates.filter((value) => value !== undefined && value !== null).length;
+  if (coordinateCount !== 0 && coordinateCount !== 3) {
+    throw new Error("Yarıçap araması için merkez enlem, boylam ve mesafe birlikte girilmelidir.");
+  }
+  for (const [minKey, maxKey, label] of [
+    ["min_year", "max_year", "Yıl"], ["min_price", "max_price", "Fiyat"],
+    ["min_power_hp", "max_power_hp", "Güç"], ["min_engine_cc", "max_engine_cc", "Motor hacmi"],
+    ["min_doors", "max_doors", "Kapı sayısı"],
+  ] as const) {
+    const min = clean[minKey];
+    const max = clean[maxKey];
+    if (typeof min === "number" && typeof max === "number" && min > max) {
+      throw new Error(`${label} alt sınırı üst sınırdan büyük olamaz.`);
+    }
+  }
+  return clean as Database["public"]["Tables"]["watchlists"]["Update"];
+}
+
 export async function createWatchlist(
   supabase: Client,
   input: Record<string, unknown>,
   userId: string,
 ) {
   const parsed = watchlistSchema.parse(input);
-  const { active: _active, seat_count, condition, ...watchlist } = parsed;
+  const { active: _active, ...watchlist } = parsed;
   void _active; // Editing criteria must preserve the separate pause/resume state.
-  const detailMetadata = extractDetailMetadata(watchlist);
-  const metadata = [
-    seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
-    condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
-    ...detailMetadata.tokens,
-  ].filter((value): value is string => Boolean(value));
   const row: WatchlistInsert = {
-    ...detailMetadata.watchlist,
-    must_have_keywords: [...watchlist.must_have_keywords, ...metadata],
+    ...prepareWatchlistFields(watchlist, true),
     user_id: userId,
+    name: parsed.name,
   };
   const { data, error } = await supabase.from("watchlists").insert(row).select().single();
   if (error) throw new Error(error.message);
@@ -223,7 +258,7 @@ export async function updateWatchlist(
 ) {
   const parsed = partialUpdateFields(watchlistSchema, input);
   const update = Object.fromEntries(
-    Object.entries(parsed).filter(([key]) => key !== "seat_count" && key !== "condition"),
+    Object.entries(parsed).filter(([key]) => key !== "confirmed_search_plan" && key !== "original_natural_language_query"),
   ) as Database["public"]["Tables"]["watchlists"]["Update"];
   const { data, error } = await supabase.from("watchlists").update(update).eq("id", id).select().single();
   if (error) throw new Error(error.message);
@@ -236,25 +271,22 @@ export async function replaceWatchlist(
   input: Record<string, unknown>,
 ) {
   const parsed = watchlistSchema.parse(input);
-  const { seat_count, condition, ...watchlist } = parsed;
-  const visibleMustHaves = watchlist.must_have_keywords.filter(
-    (keyword) => !keyword.startsWith("__vehigo_"),
-  );
-  const detailMetadata = extractDetailMetadata(watchlist);
-  const metadata = [
-    seat_count ? `${SEAT_FILTER_PREFIX}${seat_count}` : null,
-    condition ? `${CONDITION_FILTER_PREFIX}${condition}` : null,
-  ].filter((value): value is string => Boolean(value));
+  const preserveExistingPlan = Boolean(parsed.natural_language_query && !parsed.confirmed_search_plan);
+  const watchlist = prepareWatchlistFields(parsed, false);
   const nullableKeys = [
     "country", "city", "brand", "model", "vehicle_type", "min_year", "max_year",
-    "max_mileage_km", "min_price", "max_price", "target_price",
+    "max_mileage_km", "min_price", "max_price", "target_price", "region_preset",
+    "center_latitude", "center_longitude", "radius_km", "natural_language_query",
+    "search_plan", "search_plan_confirmed_at", "seat_count", "condition", "fuel_type",
+    "transmission", "body_type", "drive_type", "seller_type", "min_power_hp",
+    "max_power_hp", "min_engine_cc", "max_engine_cc", "min_doors", "max_doors",
+    "emission_class", "exterior_color",
   ] as const;
-  metadata.push(...detailMetadata.tokens);
   const update: Database["public"]["Tables"]["watchlists"]["Update"] = {
-    ...detailMetadata.watchlist,
-    must_have_keywords: [...visibleMustHaves, ...metadata],
+    ...watchlist,
   };
   for (const key of nullableKeys) {
+    if (preserveExistingPlan && ["search_plan", "search_plan_confirmed_at"].includes(key)) continue;
     if (!(key in input)) (update as Record<string, unknown>)[key] = null;
   }
   const { data, error } = await supabase.from("watchlists").update(update).eq("id", id).select().single();
@@ -368,7 +400,8 @@ export async function markStaleListingsAsDelisted(supabase: Client, staleDays = 
 }
 
 async function upsertMarketListing(supabase: Client, input: MarketListingInput) {
-  const parsed = marketListingInputSchema.parse(input);
+  const validated = marketListingInputSchema.parse(input);
+  const parsed = canonicalMarketListingInputSchema.parse(normalizeMarketListing(validated));
   const sourceListingId = parsed.source_listing_id ?? parsed.listing_url;
   const now = new Date().toISOString();
 
@@ -394,14 +427,43 @@ async function upsertMarketListing(supabase: Client, input: MarketListingInput) 
     title: parsed.title,
     seller_name: parsed.seller_name,
     seller_country: parsed.seller_country,
+    seller_country_code: parsed.seller_country_code,
     seller_city: parsed.seller_city,
+    seller_postal_code: parsed.seller_postal_code,
+    seller_type: parsed.seller_type,
+    latitude: parsed.latitude,
+    longitude: parsed.longitude,
     brand: parsed.brand,
     model: parsed.model,
+    variant: parsed.variant,
     year: parsed.year,
+    first_registration_date: parsed.first_registration_date,
     mileage_km: parsed.mileage_km,
     price: parsed.price,
     currency: parsed.currency,
+    vat_deductible: parsed.vat_deductible,
     vehicle_type: parsed.vehicle_type,
+    body_type: parsed.body_type,
+    fuel_type: parsed.fuel_type,
+    transmission: parsed.transmission,
+    drive_type: parsed.drive_type,
+    power_hp: parsed.power_hp,
+    engine_cc: parsed.engine_cc,
+    emission_class: parsed.emission_class,
+    exterior_color: parsed.exterior_color,
+    vin: parsed.vin,
+    seat_count: parsed.seat_count,
+    door_count: parsed.door_count,
+    condition: parsed.condition,
+    description: parsed.description,
+    image_urls: parsed.images?.map((image) => image.url) ?? [],
+    published_at: parsed.published_at,
+    canonical_schema_version: parsed.canonical_schema_version,
+    normalization_confidence: parsed.normalization_confidence,
+    normalization_warnings: parsed.normalization_warnings,
+    canonical_fingerprint: parsed.canonical_fingerprint,
+    normalized_at: parsed.normalized_at,
+    normalization_evidence: parsed.normalization_evidence as Json,
     raw: {
       ...(parsed.raw ?? {}),
       ...(parsed.seat_count ? { vehigo_seat_count: parsed.seat_count } : {}),
@@ -439,147 +501,7 @@ async function recordPriceHistory(supabase: Client, listingId: string, price: nu
 }
 
 export function listingMatchesWatchlist(listing: Listing, watchlist: Watchlist) {
-  const discoveredBySelectedWebSearch =
-    watchlist.source_keys.includes("brave_web") && readRawString(listing.raw, "discovery_channel") === "brave_web";
-  if (
-    watchlist.source_keys.length > 0 &&
-    !watchlist.source_keys.includes(listing.source_key) &&
-    !discoveredBySelectedWebSearch
-  ) return false;
-  if (!textMatchesListing(watchlist.country, listing.seller_country, listing)) return false;
-  if (!textMatchesListing(watchlist.city, listing.seller_city, listing)) return false;
-  if (!textMatchesListing(watchlist.brand, listing.brand, listing, true)) return false;
-  if (!textMatchesListing(watchlist.model, listing.model, listing, true)) return false;
-  if (watchlist.vehicle_type && !vehicleTypeMatches(watchlist.vehicle_type, listing)) return false;
-  const seatFilter = readSeatFilter(watchlist);
-  const listingSeatCount = readRawNumber(listing.raw, "vehigo_seat_count");
-  if (seatFilter !== null && listingSeatCount !== null && listingSeatCount !== seatFilter) return false;
-  const conditionFilter = readConditionFilter(watchlist);
-  const listingCondition = readRawCondition(listing.raw);
-  if (conditionFilter !== null && listingCondition !== null && listingCondition !== conditionFilter) return false;
-  if (watchlist.min_year !== null && (listing.year === null || listing.year < watchlist.min_year)) return false;
-  if (watchlist.max_year !== null && (listing.year === null || listing.year > watchlist.max_year)) return false;
-  if (watchlist.max_mileage_km !== null && listing.mileage_km !== null && listing.mileage_km > watchlist.max_mileage_km) return false;
-  if (watchlist.min_price !== null && listing.price !== null && listing.price < watchlist.min_price) return false;
-  if (watchlist.max_price !== null && listing.price !== null && listing.price > watchlist.max_price) return false;
-  if (watchlist.keywords.length > 0) {
-    const haystack = listingSearchText(listing);
-    if (!watchlist.keywords.every((keyword) => haystack.includes(keyword.toLowerCase()))) return false;
-  }
-  const visibleMustHaves = watchlist.must_have_keywords.filter((keyword) => !keyword.startsWith("__vehigo_"));
-  if (visibleMustHaves.length > 0) {
-    const haystack = listingSearchText(listing);
-    if (!visibleMustHaves.some((keyword) => haystack.includes(keyword.toLowerCase()))) return false;
-  }
-  if (!matchesDetailFilters(listing, watchlist)) return false;
-  return true;
-}
-
-function extractDetailMetadata<T extends Record<string, unknown>>(watchlist: T) {
-  const clean = { ...watchlist };
-  const tokens: string[] = [];
-  for (const key of DETAIL_FILTER_KEYS) {
-    const value = clean[key];
-    delete clean[key];
-    if (value !== undefined && value !== null && value !== "") tokens.push(`${DETAIL_FILTER_PREFIX}${key}:${String(value)}`);
-  }
-  return { watchlist: clean as T, tokens };
-}
-
-function readDetailFilters(watchlist: Watchlist) {
-  const result: Record<string, string> = {};
-  for (const token of watchlist.must_have_keywords) {
-    if (!token.startsWith(DETAIL_FILTER_PREFIX)) continue;
-    const [key, ...rest] = token.slice(DETAIL_FILTER_PREFIX.length).split(":");
-    if (key && rest.length) result[key] = rest.join(":");
-  }
-  return result;
-}
-
-function matchesDetailFilters(listing: Listing, watchlist: Watchlist) {
-  const filters = readDetailFilters(watchlist);
-  const text = listingSearchText(listing);
-  const categorical: Record<string, Record<string, string[]>> = {
-    fuel_type: { gasoline: ["gasoline", "petrol", "benzin"], diesel: ["diesel"], electric: ["electric", "elektro", "ev"], hybrid: ["hybrid", "phev"], lpg: ["lpg", "autogas"], hydrogen: ["hydrogen", "wasserstoff"], other: [] },
-    transmission: { automatic: ["automatic", "automatik"], manual: ["manual", "schaltgetriebe", "handschaltung"], semi_automatic: ["semi-automatic", "halbautomatik"] },
-    body_type: { sedan: ["sedan", "limousine"], suv: ["suv", "geländewagen"], station_wagon: ["station wagon", "kombi", "estate"], hatchback: ["hatchback"], coupe: ["coupe", "coupé"], convertible: ["convertible", "cabrio"], pickup: ["pickup", "pick-up"], van: ["van", "transporter"] },
-    drive_type: { fwd: ["front wheel drive", "frontantrieb", "fwd"], rwd: ["rear wheel drive", "heckantrieb", "rwd"], awd: ["all wheel drive", "allrad", "4x4", "awd"] },
-    seller_type: { private: ["private seller", "privatanbieter", "privat"], dealer: ["dealer", "händler", "gewerblich"] },
-  };
-  for (const [key, options] of Object.entries(categorical)) {
-    const expected = filters[key];
-    if (!expected) continue;
-    const allKnownTerms = Object.values(options).flat();
-    const detected = allKnownTerms.some((term) => text.includes(term));
-    if (detected && !(options[expected] ?? []).some((term) => text.includes(term))) return false;
-  }
-  const power = firstNumber(text, /(\d{2,4})\s*(?:hp|ps|bhp|cv|pk)\b/i);
-  const engineCc = inferEngineCc(text);
-  const doors = firstNumber(text, /(\d)\s*(?:doors?|türen|tuerig)/i);
-  if (!numberWithin(power, filters.min_power_hp, filters.max_power_hp)) return false;
-  if (!numberWithin(engineCc, filters.min_engine_cc, filters.max_engine_cc)) return false;
-  if (!numberWithin(doors, filters.min_doors, filters.max_doors)) return false;
-  const expectedEmission = filters.emission_class?.toLowerCase();
-  const detectedEmission = text.match(/\beuro\s*[1-6]\b/i)?.[0]?.toLowerCase();
-  if (expectedEmission && detectedEmission && detectedEmission.replace(/\s+/g, "") !== expectedEmission.replace(/\s+/g, "")) return false;
-  const expectedColor = filters.exterior_color?.toLowerCase();
-  const knownColors = ["black", "white", "silver", "grey", "gray", "blue", "red", "green", "brown", "beige", "yellow", "orange", "purple", "siyah", "beyaz", "gri", "mavi", "kırmızı"];
-  const detectedColor = knownColors.find((color) => text.includes(color));
-  if (expectedColor && detectedColor && !text.includes(expectedColor)) return false;
-  return true;
-}
-
-function firstNumber(text: string, pattern: RegExp) { const match = text.match(pattern); return match ? Number.parseInt(match[1], 10) : null; }
-function inferEngineCc(text: string) {
-  const cc = firstNumber(text, /(\d{3,5})\s*(?:cc|cm3|cm³)\b/i);
-  if (cc) return cc;
-  const liters = text.match(/\b(\d(?:[.,]\d))\s*(?:l|liter)\b/i);
-  return liters ? Math.round(Number.parseFloat(liters[1].replace(",", ".")) * 1000) : null;
-}
-function numberWithin(value: number | null, min?: string, max?: string) {
-  if (value === null) return true;
-  if (min && value < Number(min)) return false;
-  if (max && value > Number(max)) return false;
-  return true;
-}
-
-function textMatchesListing(
-  expected: string | null,
-  actual: string | null,
-  listing: Listing,
-  allowTitleFallback = false,
-) {
-  if (!expected) return true;
-  if (actual?.toLowerCase().includes(expected.toLowerCase())) return true;
-  return (allowTitleFallback || isUnstructuredListing(listing)) &&
-    listingSearchText(listing).includes(expected.toLowerCase());
-}
-
-function vehicleTypeMatches(expected: VehicleType, listing: Listing) {
-  if (listing.vehicle_type === expected) return true;
-  if (!isUnstructuredListing(listing)) return false;
-  return inferVehicleType(listingSearchText(listing)) === expected;
-}
-
-function isUnstructuredListing(listing: Listing) {
-  return listing.source_key === "brave_web" ||
-    readRawString(listing.raw, "discovery_channel") === "brave_web" ||
-    Boolean(readRawString(listing.raw, "source") === "email_alert");
-}
-
-function listingSearchText(listing: Listing) {
-  return [
-    listing.title,
-    listing.brand,
-    listing.model,
-    listing.seller_city,
-    listing.seller_country,
-    readRawString(listing.raw, "description"),
-    readRawString(listing.raw, "subject"),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+  return evaluateListingForWatchlist(listing, watchlist).matches;
 }
 
 function readRawString(raw: Json | null, key: string) {
@@ -602,14 +524,15 @@ function readRawCondition(raw: Json | null): VehicleCondition | null {
 }
 
 export function readListingSeatCount(listing: Listing) {
-  return readRawNumber(listing.raw, "vehigo_seat_count");
+  return listing.seat_count ?? readRawNumber(listing.raw, "vehigo_seat_count");
 }
 
 export function readListingCondition(listing: Listing) {
-  return readRawCondition(listing.raw);
+  return listing.condition ?? readRawCondition(listing.raw);
 }
 
 export function readSeatFilter(watchlist: Watchlist) {
+  if (watchlist.seat_count != null) return watchlist.seat_count;
   const token = watchlist.must_have_keywords.find((keyword) => keyword.startsWith(SEAT_FILTER_PREFIX));
   if (!token) return null;
   const value = Number.parseInt(token.slice(SEAT_FILTER_PREFIX.length), 10);
@@ -617,6 +540,7 @@ export function readSeatFilter(watchlist: Watchlist) {
 }
 
 export function readConditionFilter(watchlist: Watchlist): VehicleCondition | null {
+  if (watchlist.condition) return watchlist.condition;
   const token = watchlist.must_have_keywords.find((keyword) => keyword.startsWith(CONDITION_FILTER_PREFIX));
   const value = token?.slice(CONDITION_FILTER_PREFIX.length);
   return value && ["new", "used_excellent", "used_good", "used_fair", "damaged"].includes(value)
@@ -624,16 +548,6 @@ export function readConditionFilter(watchlist: Watchlist): VehicleCondition | nu
     : null;
 }
 
-function inferVehicleType(text: string): VehicleType | null {
-  if (["trailer", "semi trailer", "auflieger", "remorque", "dorse"].some((term) => text.includes(term))) return "trailer";
-  if (["excavator", "wheel loader", "construction machine", "baumaschine", "iş makinesi"].some((term) => text.includes(term))) return "construction";
-  if (["spare parts", "truck parts", "ersatzteile", "yedek parça"].some((term) => text.includes(term))) return "spare_part";
-  if (["bus", "coach", "reisebus", "otobüs"].some((term) => text.includes(term))) return "bus";
-  if (["van", "transporter", "camionnette", "bestelwagen", "hafif ticari"].some((term) => text.includes(term))) return "van";
-  if (["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon"].some((term) => text.includes(term))) return "truck";
-  if (["car", "passenger car", "personenwagen", "voiture", "automobile", "otomobil"].some((term) => text.includes(term))) return "car";
-  return null;
-}
 
 async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist: Watchlist) {
   const { data: existing, error: existingError } = await supabase

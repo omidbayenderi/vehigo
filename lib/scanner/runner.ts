@@ -7,16 +7,11 @@ import {
   processIncomingListings,
   recordScannerRun,
 } from "@/lib/services/market-alerts";
-import { braveWebAdapter } from "@/lib/scanner/adapters/brave-web";
-import { marktplaatsAdapter } from "@/lib/scanner/adapters/marktplaats";
-import type { ScanAdapter } from "@/lib/scanner/adapters/types";
+import { getConnector } from "@/lib/scanner/registry";
+import { syncRuntimeConnectorCatalog } from "@/lib/services/source-catalog";
+import { replayDueIngestEvents } from "@/lib/services/scanner-ingest";
 
 type Client = SupabaseClient<Database>;
-
-const ADAPTERS: Record<string, ScanAdapter> = {
-  [marktplaatsAdapter.key]: marktplaatsAdapter,
-  [braveWebAdapter.key]: braveWebAdapter,
-};
 
 export type ScannerRunOptions = {
   force?: boolean;
@@ -33,6 +28,9 @@ export type ScannerRunSummary = {
   alertsSent: number;
   alertsFailed: number;
   delisted: number;
+  ingestReplayed: number;
+  ingestReplayFailed: number;
+  expiredPayloadsPurged: number;
   skipped: string[];
   failed: { sourceKey: string; error: string }[];
 };
@@ -42,6 +40,12 @@ export async function runScannerOnce(
   options: ScannerRunOptions = {},
 ): Promise<ScannerRunSummary> {
   const logger = options.logger ?? console;
+  await syncRuntimeConnectorCatalog(supabase);
+  const [{ replayed, failed: replayFailed }, { data: purgedPayloads, error: purgeError }] = await Promise.all([
+    replayDueIngestEvents(supabase),
+    supabase.rpc("purge_expired_scanner_ingest_payloads", {}),
+  ]);
+  if (purgeError) logger.warn(`Süresi dolan ingest payload'ları temizlenemedi: ${purgeError.message}`);
   const dueSources = await listDueScannerSources(supabase, {
     force: options.force,
     sourceKey: options.sourceKey,
@@ -58,12 +62,15 @@ export async function runScannerOnce(
     alertsSent: 0,
     alertsFailed: 0,
     delisted: 0,
+    ingestReplayed: replayed,
+    ingestReplayFailed: replayFailed,
+    expiredPayloadsPurged: purgeError ? 0 : (purgedPayloads ?? 0),
     skipped: [],
     failed: [],
   };
 
   for (const source of dueSources) {
-    const adapter = ADAPTERS[source.key];
+    const adapter = getConnector(source.key);
     const startedAt = new Date();
 
     if (!adapter) {

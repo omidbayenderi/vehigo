@@ -145,7 +145,7 @@ function listingText(listing: Listing) {
       ? [raw.description, raw.subject].filter((value) => typeof value === "string").join(" ")
       : "";
 
-  return [listing.title, listing.brand, listing.model, listing.seller_city, listing.seller_country, rawText]
+  return [listing.title, listing.description, listing.brand, listing.model, listing.seller_city, listing.seller_country, rawText]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();

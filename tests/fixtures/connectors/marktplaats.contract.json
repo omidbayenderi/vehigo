@@ -1,0 +1,7 @@
+{
+  "key": "marktplaats",
+  "version": "1.0.0",
+  "countries": ["NL"],
+  "acquisitionModes": ["permitted_html"],
+  "requiredFields": ["source_key", "source_listing_id", "listing_url", "title", "price", "currency"]
+}

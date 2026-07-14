@@ -1,0 +1,3 @@
+-- Intentionally contains no commercial, customs, rate, permission, or user data.
+-- Deterministic two-tenant acceptance fixtures will be introduced with the
+-- tenant-isolation migration and its dedicated test harness.

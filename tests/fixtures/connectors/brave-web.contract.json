@@ -1,0 +1,7 @@
+{
+  "key": "brave_web",
+  "version": "1.0.0",
+  "countries": ["EU", "GB", "CH", "NO"],
+  "acquisitionModes": ["web_index"],
+  "requiredFields": ["source_key", "source_listing_id", "listing_url", "title", "raw"]
+}

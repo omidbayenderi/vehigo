@@ -10,6 +10,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { data: ownerMembership } = user ? await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .eq("role", "owner")
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle() : { data: null };
+  const isOwner = Boolean(ownerMembership);
   const initial = user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
@@ -24,7 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <Menu className="h-5 w-5" />
             </summary>
             <div className="absolute right-0 top-13 w-[min(19rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">
-              <NavLinks mobile />
+              <NavLinks mobile isOwner={isOwner} />
               <div className="border-t border-line-soft p-3">
                 <p className="mb-2 truncate px-3 text-xs text-ink-faint">{user?.email}</p>
                 <form action={logout}><LogoutButton /></form>
@@ -38,7 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <div className="border-b border-line-soft px-4 py-4">
           <Brand />
         </div>
-        <NavLinks />
+        <NavLinks isOwner={isOwner} />
         <div className="border-t border-line-soft p-3">
           <LanguageToggle />
           <ThemeToggle />

@@ -4,7 +4,9 @@ import { useActionState, useState, useTransition } from "react";
 import { Pencil, Trash2, X } from "lucide-react";
 import type { Database, VehicleCondition } from "@/lib/supabase/types";
 import { deleteWatchlistAction, editWatchlistAction, type FormState } from "./actions";
-import DetailedVehicleFilters, { detailValuesFromKeywords } from "./detailed-vehicle-filters";
+import DetailedVehicleFilters, { detailValuesFromWatchlist } from "./detailed-vehicle-filters";
+import NaturalLanguagePlanner from "./natural-language-planner";
+import GeographyFields from "./geography-fields";
 
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
@@ -61,9 +63,17 @@ export default function WatchlistEditor({
         <button type="button" onClick={() => setOpen(false)} aria-label="Düzenlemeyi kapat" className="grid size-11 place-items-center rounded-md text-ink-faint hover:bg-surface-sunken hover:text-ink"><X size={18} /></button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <NaturalLanguagePlanner defaultQuery={watchlist.natural_language_query} defaultPlan={watchlist.search_plan} />
+      <GeographyFields
+        countryCodes={watchlist.country_codes}
+        regionPreset={watchlist.region_preset}
+        centerLatitude={watchlist.center_latitude}
+        centerLongitude={watchlist.center_longitude}
+        radiusKm={watchlist.radius_km}
+      />
+
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
         <Field label="Alarm adı" name="name" required value={watchlist.name} />
-        <Field label="Ülke" name="country" value={watchlist.country} />
         <Field label="Şehir" name="city" value={watchlist.city} />
         <Field label="Marka" name="brand" value={watchlist.brand} />
         <Field label="Model" name="model" value={watchlist.model} />
@@ -81,9 +91,14 @@ export default function WatchlistEditor({
         <label className="text-sm"><span className="mb-1 block text-ink-soft">Durum</span><select name="condition" defaultValue={condition ?? ""} className={inputClass}>
           <option value="">Farketmez</option><option value="new">Sıfır</option><option value="used_excellent">İkinci el - çok iyi</option><option value="used_good">İkinci el - iyi</option><option value="used_fair">İkinci el - normal</option><option value="damaged">Kazalı / hasarlı</option>
         </select></label>
+        <label className="text-sm"><span className="mb-1 block text-ink-soft">Eşleşme modu</span><select name="search_mode" defaultValue={watchlist.search_mode ?? "discovery"} className={inputClass}><option value="discovery">Discovery · eksikleri doğrula</option><option value="strict">Strict · eksik alanı ele</option></select></label>
+        <Field label="Tazelik (saat)" name="freshness_hours" type="number" value={watchlist.freshness_hours ?? 168} />
+        <label className="text-sm"><span className="mb-1 block text-ink-soft">Sıralama</span><select name="sort_by" defaultValue={watchlist.sort_by ?? "relevance"} className={inputClass}><option value="relevance">Uygunluk</option><option value="newest">En yeni</option><option value="price">Fiyat</option><option value="mileage">Kilometre</option><option value="year">Model yılı</option></select></label>
+        <label className="text-sm"><span className="mb-1 block text-ink-soft">Yön</span><select name="sort_direction" defaultValue={watchlist.sort_direction ?? "desc"} className={inputClass}><option value="desc">Azalan</option><option value="asc">Artan</option></select></label>
+        <Field label="Sayfa boyutu" name="page_size" type="number" value={watchlist.page_size ?? 25} />
       </div>
 
-      <DetailedVehicleFilters values={detailValuesFromKeywords(watchlist.must_have_keywords)} />
+      <DetailedVehicleFilters values={detailValuesFromWatchlist(watchlist)} />
 
       <div className="mt-3 grid gap-3 md:grid-cols-3">
         <Field label="Anahtar kelimeler" name="keywords" value={watchlist.keywords.join(", ")} />
