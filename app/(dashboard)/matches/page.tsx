@@ -24,7 +24,7 @@ export default async function MatchesPage({
       .neq("status", "closed_lost")
       .order("created_at", { ascending: false }), supabase
       .from("matches")
-      .select("id,match_score,created_at,leads(company_or_name),vehicles(brand,model,year)")
+      .select("id,match_score,created_at,leads!lead_id(company_or_name),vehicles!vehicle_id(brand,model,year)")
       .order("created_at", { ascending: false })]);
 
     return (

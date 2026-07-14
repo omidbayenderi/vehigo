@@ -324,7 +324,7 @@ export async function matchStoredListingsForWatchlist(supabase: Client, watchlis
 export async function listRecentAlerts(supabase: Client, userId: string, limit = 30) {
   const { data, error } = await supabase
     .from("listing_alerts")
-    .select("*, market_listings(*), watchlists(*)")
+    .select("*, market_listings(*), watchlists!watchlist_id(*)")
     .eq("user_id", userId)
     .order("opportunity_score", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
@@ -336,7 +336,7 @@ export async function listRecentAlerts(supabase: Client, userId: string, limit =
 export async function listShortlistedAlerts(supabase: Client, userId: string) {
   const { data, error } = await supabase
     .from("listing_alerts")
-    .select("*, market_listings(*), watchlists(*)")
+    .select("*, market_listings(*), watchlists!watchlist_id(*)")
     .eq("user_id", userId)
     .eq("decision_status", "shortlisted")
     .order("decided_at", { ascending: false });
@@ -626,14 +626,14 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
   const now = new Date().toISOString();
   let { data: alerts, error } = await supabase
     .from("listing_alerts")
-    .select("*, market_listings(*), watchlists(*), users_profile(*)")
+    .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
     .or(`status.eq.pending,and(status.eq.failed,next_attempt_at.lte.${now})`)
     .order("created_at", { ascending: true })
     .limit(limit * 4);
   if (error) {
     const fallback = await supabase
       .from("listing_alerts")
-      .select("*, market_listings(*), watchlists(*), users_profile(*)")
+      .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
       .limit(limit * 4);

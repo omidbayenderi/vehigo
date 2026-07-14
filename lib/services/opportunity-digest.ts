@@ -25,7 +25,7 @@ export async function sendOpportunityDigest(
 
   let pendingQuery = supabase
     .from("listing_alerts")
-    .select("*, market_listings(*), watchlists(*), users_profile(*)")
+    .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
     .eq("status", "pending")
     .order("opportunity_score", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: true })
