@@ -565,6 +565,9 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
     listing_id: listing.id,
     watchlist_id: watchlist.id,
     user_id: watchlist.user_id,
+    // The scanner runs with the service-role client, where the column default
+    // current_organization_id() resolves to null; carry the tenant explicitly.
+    organization_id: watchlist.organization_id,
     alert_type: "new_match",
     opportunity_score: opportunity.score,
     opportunity_label: opportunity.label,
@@ -583,7 +586,7 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
 async function createPriceDropAlerts(supabase: Client, listing: Listing) {
   const { data: priorAlerts, error } = await supabase
     .from("listing_alerts")
-    .select("watchlist_id, user_id")
+    .select("watchlist_id, user_id, organization_id")
     .eq("listing_id", listing.id)
     .eq("alert_type", "new_match");
   if (error) throw new Error(error.message);
@@ -614,6 +617,7 @@ async function createPriceDropAlerts(supabase: Client, listing: Listing) {
       listing_id: listing.id,
       watchlist_id: prior.watchlist_id,
       user_id: prior.user_id,
+      organization_id: prior.organization_id,
       alert_type: "price_drop",
     });
     if (insertError) throw new Error(insertError.message);
