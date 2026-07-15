@@ -100,5 +100,5 @@ set country_codes = array['EU','GB','CH','NO'],
     vehicle_types = array['car','van','truck','trailer','construction','spare_part','bus','other'],
     acquisition_modes = array['web_index'],
     connector_version = '1.0.0',
-    connector_capabilities = tam'{"direct_search":true,"incremental_sync":false}'::jsonb
+    connector_capabilities = '{"direct_search":true,"incremental_sync":false}'::jsonb
 where key = 'brave_web';

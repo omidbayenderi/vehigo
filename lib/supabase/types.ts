@@ -58,6 +58,8 @@ export type OperationAlertStatus = "open" | "acknowledged" | "resolved";
 export type ProviderObservationOutcome = "success" | "failure" | "timeout" | "rejected";
 export type RecoveryDrillType = "backup_restore" | "provider_outage" | "queue_recovery" | "credential_rotation" | "data_retention";
 export type RecoveryDrillStatus = "planned" | "running" | "passed" | "failed" | "cancelled";
+export type SiteSearchAgentStatus = "pending_activation" | "active" | "paused" | "blocked" | "retired";
+export type SiteSearchRunStatus = "running" | "ok" | "partial" | "failed" | "blocked" | "skipped";
 export type SearchMode = "strict" | "discovery";
 export type SearchSort = "relevance" | "newest" | "price" | "mileage" | "year";
 export type SortDirection = "asc" | "desc";
@@ -312,6 +314,24 @@ export type Database = {
         Row: { user_id: string; granted_by: string | null; reason: string; created_at: string };
         Insert: { user_id: string; granted_by?: string | null; reason: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["platform_admins"]["Insert"]>;
+        Relationships: [];
+      };
+      provider_storage_rights_evidence: {
+        Row: { id: string; provider_key: string; contract_reference: string; evidence_sha256: string; permitted_data_classes: string[]; permitted_territories: string[]; retention_days: number; effective_at: string; expires_at: string; approved_by: string; approved_at: string; revoked_at: string | null; created_at: string };
+        Insert: Partial<Database["public"]["Tables"]["provider_storage_rights_evidence"]["Row"]> & { provider_key: string; contract_reference: string; evidence_sha256: string; permitted_data_classes: string[]; permitted_territories: string[]; retention_days: number; effective_at: string; expires_at: string; approved_by: string };
+        Update: Partial<Database["public"]["Tables"]["provider_storage_rights_evidence"]["Row"]>;
+        Relationships: [];
+      };
+      site_search_agents: {
+        Row: { id: string; source_key: string; host: string; provider_key: "brave_web"; acquisition_mode: "web_index"; egress_policy: "provider_managed"; status: SiteSearchAgentStatus; interval_minutes: number; jitter_percent: number; max_queries_per_run: number; max_pages_per_query: number; daily_query_limit: number; daily_request_count: number; daily_budget_date: string; reserved_request_count: number; query_cursor: number; next_run_at: string; locked_until: string | null; locked_by: string | null; lease_token: string | null; last_started_at: string | null; last_completed_at: string | null; last_success_at: string | null; last_status: Exclude<SiteSearchRunStatus, "running"> | null; last_error_code: string | null; last_error_message: string | null; consecutive_failures: number; created_at: string; updated_at: string };
+        Insert: Partial<Database["public"]["Tables"]["site_search_agents"]["Row"]> & { source_key: string; host: string };
+        Update: Partial<Database["public"]["Tables"]["site_search_agents"]["Row"]>;
+        Relationships: [];
+      };
+      site_search_agent_runs: {
+        Row: { id: string; agent_id: string; source_key: string; correlation_id: string; worker_id: string; lease_token: string; status: SiteSearchRunStatus; reserved_request_count: number; request_count: number; query_count: number; page_count: number; fetched_count: number; inserted_count: number; alerts_created: number; cursor_before: number; cursor_after: number; error_code: string | null; error_message: string | null; started_at: string; completed_at: string | null; created_at: string };
+        Insert: Partial<Database["public"]["Tables"]["site_search_agent_runs"]["Row"]> & { agent_id: string; source_key: string; status: SiteSearchRunStatus };
+        Update: Partial<Database["public"]["Tables"]["site_search_agent_runs"]["Row"]>;
         Relationships: [];
       };
       operation_jobs: {
@@ -714,6 +734,8 @@ export type Database = {
           sent_at: string | null;
           delivery_attempts: number;
           next_attempt_at: string | null;
+          digest_claim_token: string | null;
+          digest_claimed_until: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["listing_alerts"]["Row"]> & {
@@ -807,7 +829,7 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: {
+      Functions: {
       claim_due_market_sources: {
         Args: {
           p_force?: boolean;
@@ -825,6 +847,13 @@ export type Database = {
       current_organization_id: { Args: Record<string, never>; Returns: string | null };
       set_active_organization: { Args: { p_organization_id: string }; Returns: string };
       is_platform_admin: { Args: Record<string, never>; Returns: boolean };
+      activate_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
+      claim_due_site_search_agents: { Args: { p_worker_id: string; p_limit?: number; p_lease_seconds?: number; p_source_key?: string | null }; Returns: Database["public"]["Tables"]["site_search_agents"]["Row"][] };
+      start_site_search_agent_run: { Args: { p_agent_id: string; p_worker_id: string; p_lease_token: string; p_correlation_id: string }; Returns: string };
+      finish_site_search_agent_run: { Args: { p_run_id: string; p_agent_id: string; p_worker_id: string; p_lease_token: string; p_status: Exclude<SiteSearchRunStatus, "running">; p_request_count: number; p_query_count: number; p_page_count: number; p_fetched_count: number; p_inserted_count: number; p_alerts_created: number; p_cursor_after: number; p_next_run_at: string; p_error_code?: string | null; p_error_message?: string | null; p_block_agent?: boolean }; Returns: boolean };
+      claim_opportunity_digest_alerts: { Args: { p_claim_token: string; p_limit?: number; p_user_id?: string | null; p_lease_seconds?: number }; Returns: Database["public"]["Tables"]["listing_alerts"]["Row"][] };
+      finish_opportunity_digest_alerts: { Args: { p_claim_token: string; p_alert_ids: string[]; p_sent: boolean; p_error?: string | null }; Returns: number };
+      mark_opportunity_digest_uncertain: { Args: { p_claim_token: string; p_alert_ids: string[]; p_error?: string | null }; Returns: number };
       set_organization_member_role: { Args: { p_organization_id: string; p_target_user_id: string; p_new_role: UserRole }; Returns: Database["public"]["Tables"]["organization_members"]["Row"] };
       claim_operation_jobs: { Args: { p_worker_id: string; p_queues: string[]; p_limit?: number; p_lease_seconds?: number }; Returns: Database["public"]["Tables"]["operation_jobs"]["Row"][] };
       recover_expired_operation_leases: { Args: Record<string, never>; Returns: number };

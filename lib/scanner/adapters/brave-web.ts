@@ -1,13 +1,13 @@
 import type { MarketListingInput } from "@/lib/domain/listings";
 import type { VehicleCondition } from "@/lib/supabase/types";
 import type { ScanAdapter, ScannerWatchlist } from "./types";
-import { geographySearchTerms } from "@/lib/search/geography";
+import { geographySearchTerms, resolveCountryCodes } from "@/lib/search/geography";
 
 const ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const REQUEST_TIMEOUT_MS = 12_000;
 export const MAX_QUERIES_PER_RUN = 30;
 export const EUROPE_MARKETPLACE_HOSTS = [
-  "mobile.de", "autoscout24.com", "truckscout24.com", "autoline.info",
+  "mobile.de", "autoscout24.com", "truckscout24.com", "autoline.info", "marktplaats.nl",
   "truck1.eu", "leboncoin.fr", "autotrader.co.uk", "machineryline.com",
   "machineseeker.com", "wallapop.com", "trucksnl.com", "mascus.com",
   "agriaffaires.com", "europe-camions.com", "kleyntrucks.com", "basworld.com",
@@ -21,11 +21,12 @@ export const EUROPE_MARKETPLACE_HOSTS = [
   "donedeal.ie", "adverts.ie", "njuskalo.hr", "bolha.com", "bazos.sk",
   "hasznaltauto.hu", "kupujemprodajem.com", "pazar3.mk", "mobile.bg",
 ];
-const MARKETPLACE_SOURCE_BY_HOST: Record<string, string> = {
+export const MARKETPLACE_SOURCE_BY_HOST: Record<string, string> = {
   "mobile.de": "mobile_de",
   "autoscout24.com": "autoscout24",
   "truckscout24.com": "truckscout24",
   "autoline.info": "autoline",
+  "marktplaats.nl": "marktplaats",
   "truck1.eu": "truck1",
   "leboncoin.fr": "leboncoin",
   "autotrader.co.uk": "autotrader_uk",
@@ -71,6 +72,64 @@ const VEHICLE_TERMS: Record<string, string[]> = {
   other: ["commercial vehicle", "utility vehicle"],
 };
 
+type LocalSearchProfile = {
+  sale: string;
+  vehicles: Partial<Record<string, string>>;
+  filters?: Record<string, string>;
+};
+
+const ENGLISH_SEARCH_PROFILE: LocalSearchProfile = {
+  sale: "(for sale OR used)",
+  vehicles: { car: "car", van: "van", truck: "truck", trailer: "trailer", construction: "construction machine", spare_part: "spare parts", bus: "bus", other: "vehicle" },
+  filters: { automatic: "automatic", manual: "manual", semi_automatic: "semi automatic", gasoline: "petrol", diesel: "diesel", electric: "electric", hybrid: "hybrid", new: "new", used_excellent: "like new", used_good: "used", used_fair: "used", damaged: "damaged", sedan: "saloon", suv: "SUV", station_wagon: "estate", hatchback: "hatchback", coupe: "coupe", convertible: "convertible", pickup: "pickup", van: "van", fwd: "front wheel drive", rwd: "rear wheel drive", awd: "4x4", private: "private seller", dealer: "dealer" },
+};
+
+const LOCAL_SEARCH_PROFILES: Record<string, LocalSearchProfile> = {
+  DE: { sale: "(zu verkaufen OR gebraucht)", vehicles: { car: "Auto", van: "Transporter", truck: "LKW", trailer: "Auflieger", construction: "Baumaschine", spare_part: "Ersatzteile", bus: "Bus" }, filters: { automatic: "Automatik", manual: "Schaltgetriebe", semi_automatic: "Halbautomatik", gasoline: "Benzin", diesel: "Diesel", electric: "Elektro", hybrid: "Hybrid", new: "Neuwagen", used_excellent: "Topzustand", used_good: "Gebrauchtwagen", used_fair: "fahrbereit", damaged: "Unfallwagen", sedan: "Limousine", suv: "SUV", station_wagon: "Kombi", hatchback: "Schrägheck", coupe: "Coupé", convertible: "Cabrio", pickup: "Pickup", van: "Transporter", fwd: "Frontantrieb", rwd: "Heckantrieb", awd: "Allrad", private: "Privatanbieter", dealer: "Händler" } },
+  NL: { sale: "(te koop OR tweedehands)", vehicles: { car: "auto", van: "bestelwagen", truck: "vrachtwagen", trailer: "oplegger", construction: "bouwmachine", spare_part: "onderdelen", bus: "bus" }, filters: { automatic: "automaat", manual: "handgeschakeld", semi_automatic: "halfautomaat", gasoline: "benzine", diesel: "diesel", electric: "elektrisch", hybrid: "hybride", new: "nieuw", used_excellent: "zo goed als nieuw", used_good: "gebruikt", used_fair: "rijdbaar", damaged: "schadeauto", sedan: "sedan", suv: "SUV", station_wagon: "stationwagen", hatchback: "hatchback", coupe: "coupé", convertible: "cabrio", pickup: "pickup", van: "bestelwagen", fwd: "voorwielaandrijving", rwd: "achterwielaandrijving", awd: "vierwielaandrijving", private: "particulier", dealer: "autobedrijf" } },
+  FR: { sale: "(à vendre OR occasion)", vehicles: { car: "voiture", van: "utilitaire", truck: "camion", trailer: "remorque", construction: "engin de chantier", spare_part: "pièces détachées", bus: "autobus" }, filters: { automatic: "automatique", manual: "manuelle", semi_automatic: "semi-automatique", gasoline: "essence", diesel: "diesel", electric: "électrique", hybrid: "hybride", new: "neuf", used_excellent: "comme neuf", used_good: "occasion", used_fair: "roulant", damaged: "accidenté", sedan: "berline", suv: "SUV", station_wagon: "break", hatchback: "hayon", coupe: "coupé", convertible: "cabriolet", pickup: "pick-up", van: "utilitaire", fwd: "traction", rwd: "propulsion", awd: "4x4", private: "particulier", dealer: "professionnel" } },
+  IT: { sale: "(in vendita OR usato)", vehicles: { car: "auto", van: "furgone", truck: "camion", trailer: "rimorchio", construction: "macchina edile", spare_part: "ricambi", bus: "autobus" }, filters: { automatic: "automatico", manual: "manuale", semi_automatic: "semiautomatico", gasoline: "benzina", diesel: "diesel", electric: "elettrica", hybrid: "ibrida", new: "nuovo", used_good: "usato", damaged: "incidentato", sedan: "berlina", suv: "SUV", station_wagon: "familiare", hatchback: "due volumi", coupe: "coupé", convertible: "cabrio", pickup: "pick-up", van: "furgone", awd: "4x4", private: "privato", dealer: "concessionario" } },
+  ES: { sale: "(en venta OR segunda mano)", vehicles: { car: "coche", van: "furgoneta", truck: "camión", trailer: "remolque", construction: "maquinaria de construcción", spare_part: "recambios", bus: "autobús" }, filters: { automatic: "automático", manual: "manual", semi_automatic: "semiautomático", gasoline: "gasolina", diesel: "diésel", electric: "eléctrico", hybrid: "híbrido", new: "nuevo", used_good: "segunda mano", damaged: "accidentado", sedan: "berlina", suv: "SUV", station_wagon: "familiar", hatchback: "compacto", coupe: "cupé", convertible: "descapotable", pickup: "pickup", van: "furgoneta", awd: "4x4", private: "particular", dealer: "profesional" } },
+  PL: { sale: "(na sprzedaż OR używany)", vehicles: { car: "samochód", van: "furgon", truck: "ciężarówka", trailer: "naczepa", construction: "maszyna budowlana", spare_part: "części", bus: "autobus" }, filters: { automatic: "automat", manual: "manualna", gasoline: "benzyna", diesel: "diesel", electric: "elektryczny", hybrid: "hybryda", new: "nowy", used_good: "używany", damaged: "uszkodzony", station_wagon: "kombi", awd: "4x4", private: "prywatny", dealer: "dealer" } },
+  PT: { sale: "(à venda OR usado)", vehicles: { car: "carro", van: "carrinha", truck: "camião", trailer: "reboque", construction: "máquina de construção", spare_part: "peças", bus: "autocarro" }, filters: { automatic: "automático", manual: "manual", gasoline: "gasolina", diesel: "gasóleo", electric: "elétrico", hybrid: "híbrido", new: "novo", used_good: "usado", damaged: "acidentado", station_wagon: "carrinha", awd: "4x4", private: "particular", dealer: "profissional" } },
+  RO: { sale: "(de vânzare OR second hand)", vehicles: { car: "mașină", van: "dubă", truck: "camion", trailer: "semiremorcă", construction: "utilaj", spare_part: "piese", bus: "autobuz" }, filters: { automatic: "automată", manual: "manuală", gasoline: "benzină", diesel: "diesel", electric: "electrică", hybrid: "hibrid", new: "nou", used_good: "second hand", damaged: "avariat", station_wagon: "break", awd: "4x4", private: "persoană fizică", dealer: "dealer" } },
+  CZ: { sale: "(na prodej OR ojeté)", vehicles: { car: "auto", van: "dodávka", truck: "nákladní auto", trailer: "návěs", construction: "stavební stroj", spare_part: "náhradní díly", bus: "autobus" }, filters: { automatic: "automat", manual: "manuál", gasoline: "benzín", diesel: "nafta", electric: "elektrické", hybrid: "hybrid", new: "nové", used_good: "ojeté", damaged: "havarované", station_wagon: "kombi", awd: "4x4", private: "soukromý", dealer: "prodejce" } },
+  SE: { sale: "(till salu OR begagnad)", vehicles: { car: "bil", van: "skåpbil", truck: "lastbil", trailer: "släp", construction: "entreprenadmaskin", spare_part: "reservdelar", bus: "buss" }, filters: { automatic: "automat", manual: "manuell", gasoline: "bensin", diesel: "diesel", electric: "elbil", hybrid: "hybrid", new: "ny", used_good: "begagnad", damaged: "krockskadad", station_wagon: "kombi", awd: "fyrhjulsdrift", private: "privat", dealer: "handlare" } },
+  NO: { sale: "(til salgs OR brukt)", vehicles: { car: "bil", van: "varebil", truck: "lastebil", trailer: "tilhenger", construction: "anleggsmaskin", spare_part: "reservedeler", bus: "buss" }, filters: { automatic: "automat", manual: "manuell", gasoline: "bensin", diesel: "diesel", electric: "elbil", hybrid: "hybrid", new: "ny", used_good: "brukt", damaged: "skadet", station_wagon: "stasjonsvogn", awd: "firehjulsdrift", private: "privat", dealer: "forhandler" } },
+  DK: { sale: "(til salg OR brugt)", vehicles: { car: "bil", van: "varevogn", truck: "lastbil", trailer: "anhænger", construction: "entreprenørmaskine", spare_part: "reservedele", bus: "bus" }, filters: { automatic: "automatgear", manual: "manuel", gasoline: "benzin", diesel: "diesel", electric: "elbil", hybrid: "hybrid", new: "ny", used_good: "brugt", damaged: "skadet", station_wagon: "stationcar", awd: "firehjulstræk", private: "privat", dealer: "forhandler" } },
+  FI: { sale: "(myydään OR käytetty)", vehicles: { car: "auto", van: "pakettiauto", truck: "kuorma-auto", trailer: "perävaunu", construction: "työkone", spare_part: "varaosat", bus: "linja-auto" }, filters: { automatic: "automaatti", manual: "manuaali", gasoline: "bensiini", diesel: "diesel", electric: "sähköauto", hybrid: "hybridi", new: "uusi", used_good: "käytetty", damaged: "kolaroitu", station_wagon: "farmari", awd: "neliveto", private: "yksityinen", dealer: "liike" } },
+  GR: { sale: "(πωλείται OR μεταχειρισμένο)", vehicles: { car: "αυτοκίνητο", van: "βαν", truck: "φορτηγό", trailer: "ρυμουλκούμενο", construction: "μηχάνημα έργου", spare_part: "ανταλλακτικά", bus: "λεωφορείο" }, filters: { automatic: "αυτόματο", manual: "χειροκίνητο", gasoline: "βενζίνη", diesel: "πετρέλαιο", electric: "ηλεκτρικό", hybrid: "υβριδικό", new: "καινούριο", used_good: "μεταχειρισμένο", damaged: "τρακαρισμένο", awd: "4x4", private: "ιδιώτης", dealer: "έμπορος" } },
+  BG: { sale: "(продава OR втора употреба)", vehicles: { car: "автомобил", van: "бус", truck: "камион", trailer: "ремарке", construction: "строителна машина", spare_part: "части", bus: "автобус" } },
+  SK: { sale: "(na predaj OR jazdené)", vehicles: { car: "auto", van: "dodávka", truck: "nákladné auto", trailer: "náves", construction: "stavebný stroj", spare_part: "náhradné diely", bus: "autobus" } },
+  HU: { sale: "(eladó OR használt)", vehicles: { car: "autó", van: "furgon", truck: "teherautó", trailer: "pótkocsi", construction: "munkagép", spare_part: "alkatrész", bus: "busz" } },
+  HR: { sale: "(na prodaju OR rabljeno)", vehicles: { car: "automobil", van: "kombi", truck: "kamion", trailer: "prikolica", construction: "građevinski stroj", spare_part: "dijelovi", bus: "autobus" } },
+  SI: { sale: "(naprodaj OR rabljeno)", vehicles: { car: "avto", van: "kombi", truck: "tovornjak", trailer: "prikolica", construction: "gradbeni stroj", spare_part: "deli", bus: "avtobus" } },
+  RS: { sale: "(na prodaju OR polovno)", vehicles: { car: "automobil", van: "kombi", truck: "kamion", trailer: "prikolica", construction: "građevinska mašina", spare_part: "delovi", bus: "autobus" } },
+  MK: { sale: "(се продава OR половно)", vehicles: { car: "автомобил", van: "комбе", truck: "камион", trailer: "приколка", construction: "градежна машина", spare_part: "делови", bus: "автобус" } },
+  EE: { sale: "(müüa OR kasutatud)", vehicles: { car: "auto", van: "kaubik", truck: "veoauto", trailer: "haagis", construction: "ehitusmasin", spare_part: "varuosad", bus: "buss" } },
+  LV: { sale: "(pārdod OR lietots)", vehicles: { car: "auto", van: "furgons", truck: "kravas auto", trailer: "piekabe", construction: "būvtehnika", spare_part: "rezerves daļas", bus: "autobuss" } },
+  LT: { sale: "(parduodamas OR naudotas)", vehicles: { car: "automobilis", van: "furgonas", truck: "sunkvežimis", trailer: "priekaba", construction: "statybinė technika", spare_part: "dalys", bus: "autobusas" } },
+};
+
+const HOST_MARKET_COUNTRY: Record<string, string> = {
+  "mobile.de": "DE", "truckscout24.com": "DE", "machineseeker.com": "DE", "kleinanzeigen.de": "DE",
+  "marktplaats.nl": "NL", "trucksnl.com": "NL", "kleyntrucks.com": "NL", "basworld.com": "NL",
+  "leboncoin.fr": "FR", "agriaffaires.com": "FR", "subito.it": "IT", "wallapop.com": "ES", "coches.net": "ES", "milanuncios.com": "ES",
+  "olx.pt": "PT", "olx.pl": "PL", "otomoto.pl": "PL", "olx.ro": "RO", "olx.bg": "BG", "mobile.bg": "BG",
+  "bazos.cz": "CZ", "sbazar.cz": "CZ", "bazos.sk": "SK", "willhaben.at": "AT", "2dehands.be": "BE", "2ememain.be": "BE",
+  "blocket.se": "SE", "finn.no": "NO", "dba.dk": "DK", "nettiauto.com": "FI", "car.gr": "GR", "carandmotor.gr": "GR",
+  "ss.com": "LV", "autoplius.lt": "LT", "auto24.ee": "EE", "bazaraki.com": "CY", "donedeal.ie": "IE", "adverts.ie": "IE",
+  "njuskalo.hr": "HR", "bolha.com": "SI", "hasznaltauto.hu": "HU", "kupujemprodajem.com": "RS", "pazar3.mk": "MK",
+  "autotrader.co.uk": "GB",
+};
+
+const HOST_QUERY_PROFILE: Record<string, string> = {
+  ...HOST_MARKET_COUNTRY,
+  "2dehands.be": "NL",
+  "2ememain.be": "FR",
+  "willhaben.at": "DE",
+};
+
 type BraveResult = {
   title?: string;
   url?: string;
@@ -80,6 +139,9 @@ type BraveResult = {
 };
 
 type BraveResponse = {
+  query?: {
+    more_results_available?: boolean;
+  };
   web?: {
     results?: BraveResult[];
   };
@@ -88,6 +150,15 @@ type BraveResponse = {
 type QueryPlan = {
   query: string;
   watchlist: ScannerWatchlist | null;
+};
+
+export type SiteAgentSearchResult = {
+  listings: MarketListingInput[];
+  requestCount: number;
+  queryCount: number;
+  pageCount: number;
+  nextCursor: number;
+  partial: boolean;
 };
 
 export const braveWebAdapter: ScanAdapter = {
@@ -107,8 +178,7 @@ export const braveWebAdapter: ScanAdapter = {
     supportsIncrementalSync: false,
   },
   async fetchListings({ watchlists }): Promise<MarketListingInput[]> {
-    const token = process.env.BRAVE_SEARCH_API_KEY;
-    if (!token) throw new Error("BRAVE_SEARCH_API_KEY tanımlı değil");
+    const token = requireBraveSearchConfiguration();
 
     const plans = buildQueries(watchlists).slice(0, MAX_QUERIES_PER_RUN);
     const listings: MarketListingInput[] = [];
@@ -135,12 +205,142 @@ export const braveWebAdapter: ScanAdapter = {
   },
 };
 
+export async function fetchSiteSearchAgentListings(input: {
+  sourceKey: string;
+  host: string;
+  watchlists: ScannerWatchlist[];
+  queryCursor: number;
+  maxQueries: number;
+  maxPages: number;
+  maxRequests?: number;
+  onRequestAttempt?: () => void;
+}): Promise<SiteAgentSearchResult> {
+  const token = requireBraveSearchConfiguration();
+  const host = input.host.trim().toLowerCase().replace(/^www\./, "");
+  if (!/^[a-z0-9.-]+$/.test(host)) throw new Error("site_agent: geçersiz host");
+
+  const { plans, startCursor, candidateCount } = buildSiteAgentQueries({
+    sourceKey: input.sourceKey,
+    host,
+    watchlists: input.watchlists,
+    cursor: input.queryCursor,
+    limit: Math.max(1, Math.min(input.maxQueries, 30)),
+  });
+  const listings: MarketListingInput[] = [];
+  const requestLimit = Math.max(1, Math.min(input.maxRequests ?? input.maxQueries * input.maxPages, 300));
+  let requestCount = 0;
+  let queryCount = 0;
+  let pageCount = 0;
+  let partial = false;
+
+  agentQueries: for (const plan of plans) {
+    let attemptedQuery = false;
+    for (let offset = 0; offset < Math.max(1, Math.min(input.maxPages, 10)); offset += 1) {
+      if (requestCount >= requestLimit) {
+        partial = partial || offset > 0 || queryCount < plans.length;
+        break agentQueries;
+      }
+      try {
+        requestCount += 1;
+        input.onRequestAttempt?.();
+        if (!attemptedQuery) {
+          queryCount += 1;
+          attemptedQuery = true;
+        }
+        const page = await fetchQueryPage(plan, token, offset, { sourceKey: input.sourceKey, host });
+        listings.push(...page.listings);
+        pageCount += 1;
+        if (!page.moreResultsAvailable) break;
+      } catch (error) {
+        partial = listings.length > 0;
+        if (!partial) throw error;
+        break;
+      }
+    }
+  }
+
+  return {
+    listings: dedupeByUrl(listings),
+    requestCount,
+    queryCount,
+    pageCount,
+    nextCursor: (startCursor + queryCount) % candidateCount,
+    partial,
+  };
+}
+
+export function buildSiteAgentQueries(input: {
+  sourceKey: string;
+  host: string;
+  watchlists: ScannerWatchlist[];
+  cursor: number;
+  limit: number;
+}) {
+  const eligible = input.watchlists.filter((watchlist) =>
+    watchlist.source_keys.length === 0
+    || watchlist.source_keys.includes("brave_web")
+    || watchlist.source_keys.includes(input.sourceKey),
+  );
+  const candidates = eligible.length > 0 ? eligible : [null];
+  const plans: QueryPlan[] = [];
+  const limit = Math.max(1, Math.min(input.limit, 30));
+  const start = input.cursor % candidates.length;
+
+  for (let index = 0; index < Math.min(limit, candidates.length); index += 1) {
+    const watchlist = candidates[(start + index) % candidates.length];
+    const vehicleType = watchlist?.vehicle_type ?? "truck";
+    const profileCode = mappedHostValue(input.host, HOST_QUERY_PROFILE) ?? resolveCountryCodes(watchlist ?? {})[0];
+    const profile = localSearchProfile(profileCode);
+    const vehicleTerm = profile.vehicles[vehicleType] ?? (VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck)[0];
+    const brandModel = [watchlist?.brand, watchlist?.model].filter(Boolean).join(" ");
+    const geography = watchlist ? geographySearchTerms(watchlist).slice(0, 4).join(" OR ") : "";
+    const keywords = watchlist?.keywords.slice(0, 6).join(" ") ?? "";
+    const criteria = watchlist ? watchlistQueryCriteria(watchlist, profile) : [];
+    const query = [
+      `site:${input.host}`,
+      brandModel,
+      vehicleTerm,
+      geography,
+      keywords,
+      ...criteria,
+      profile.sale,
+    ].filter(Boolean).join(" ");
+    plans.push({ query, watchlist });
+  }
+
+  return {
+    plans,
+    nextCursor: (start + plans.length) % candidates.length,
+    startCursor: start,
+    candidateCount: candidates.length,
+  };
+}
+
+function requireBraveSearchConfiguration() {
+  const token = process.env.BRAVE_SEARCH_API_KEY;
+  if (!token) throw new Error("BRAVE_SEARCH_API_KEY tanımlı değil");
+  if (process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
+    throw new Error("Brave Search sonuçlarını saklama hakkı doğrulanmadı; BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true gerekli");
+  }
+  return token;
+}
+
 async function fetchQuery(plan: QueryPlan, token: string): Promise<MarketListingInput[]> {
+  return (await fetchQueryPage(plan, token, 0)).listings;
+}
+
+async function fetchQueryPage(
+  plan: QueryPlan,
+  token: string,
+  offset: number,
+  expected?: { sourceKey: string; host: string },
+) {
   const url = new URL(ENDPOINT);
   url.searchParams.set("q", plan.query);
   url.searchParams.set("count", "20");
   url.searchParams.set("safesearch", "off");
   url.searchParams.set("extra_snippets", "true");
+  url.searchParams.set("offset", String(Math.max(0, Math.min(offset, 9))));
 
   const response = await fetch(url, {
     headers: {
@@ -157,17 +357,29 @@ async function fetchQuery(plan: QueryPlan, token: string): Promise<MarketListing
   const data = (await response.json()) as BraveResponse;
   const listings: MarketListingInput[] = [];
   for (const result of data.web?.results ?? []) {
-    if (!result.url || !isLikelyVehicleListing(result.url, result.title, result.description)) continue;
-    const inferredText = `${result.title ?? ""} ${result.description ?? ""} ${result.url}`;
-    const sourceKey = sourceKeyForUrl(result.url);
+    const listingUrl = result.url ? validatedListingUrl(result.url, expected?.host) : null;
+    if (!listingUrl || !isLikelyVehicleListing(listingUrl, result.title, result.description)) continue;
+    const inferredText = `${result.title ?? ""} ${result.description ?? ""} ${listingUrl}`;
+    const sourceKey = expected?.sourceKey ?? sourceKeyForUrl(listingUrl);
+    const inferred = inferIndexedListingFields(inferredText, plan.watchlist);
+    const marketplaceHost = new URL(listingUrl).hostname.replace(/^www\./, "");
     listings.push({
       source_key: sourceKey,
-      source_listing_id: result.url,
-      listing_url: result.url,
+      source_listing_id: listingUrl,
+      listing_url: listingUrl,
       title: result.title,
+      description: result.description,
       seller_name: result.profile?.name,
+      seller_country_code: mappedHostValue(marketplaceHost, HOST_MARKET_COUNTRY),
       brand: plan.watchlist?.brand && textIncludes(inferredText, plan.watchlist.brand) ? plan.watchlist.brand : undefined,
       model: plan.watchlist?.model && textIncludes(inferredText, plan.watchlist.model) ? plan.watchlist.model : undefined,
+      year: inferred.year,
+      mileage_km: inferred.mileageKm,
+      price: inferred.price,
+      currency: inferred.price === undefined ? undefined : "EUR",
+      power_hp: inferred.powerHp,
+      engine_cc: inferred.engineCc,
+      door_count: inferred.doorCount,
       vehicle_type: inferVehicleType(inferredText),
       seat_count: inferSeatCount(inferredText),
       condition: inferCondition(inferredText),
@@ -177,11 +389,33 @@ async function fetchQuery(plan: QueryPlan, token: string): Promise<MarketListing
         age: result.age,
         source: "brave_web",
         discovery_channel: "brave_web",
-        marketplace_host: new URL(result.url).hostname.replace(/^www\./, ""),
+        marketplace_host: marketplaceHost,
       },
     });
   }
-  return listings;
+  return { listings, moreResultsAvailable: data.query?.more_results_available === true };
+}
+
+function validatedListingUrl(value: string, expectedHost?: string) {
+  try {
+    const parsed = new URL(value);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, "");
+    if (expectedHost && host !== expectedHost && !host.endsWith(`.${expectedHost}`)) return null;
+    parsed.protocol = "https:";
+    parsed.hostname = host;
+    parsed.hash = "";
+    parsed.pathname = parsed.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "") || "/";
+    for (const key of Array.from(parsed.searchParams.keys())) {
+      if (/^(utm_.+|fbclid|gclid|msclkid|ref|referrer|source|campaign)$/i.test(key)) {
+        parsed.searchParams.delete(key);
+      }
+    }
+    parsed.searchParams.sort();
+    return parsed.toString();
+  } catch {
+    return null;
+  }
 }
 
 export function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
@@ -198,7 +432,8 @@ export function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
   for (const watchlist of active) {
     const brandModel = watchlist ? [watchlist.brand, watchlist.model].filter(Boolean).join(" ") : "";
     const vehicleType = watchlist?.vehicle_type ?? "truck";
-    const vehicleTerms = VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck;
+    const profile = localSearchProfile(resolveCountryCodes(watchlist ?? {})[0]);
+    const vehicleTerm = profile.vehicles[vehicleType] ?? (VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck)[0];
     const countryTerms = watchlist ? geographySearchTerms(watchlist) : [];
     const regionTerm = watchlist?.region_preset === "balkans" ? "Balkans"
       : watchlist?.region_preset === "schengen" ? "Schengen Europe"
@@ -209,10 +444,11 @@ export function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
     const baseParts = [
       location || "Europe",
       keywords,
-      "(for sale OR kaufen OR te koop OR vendre OR occasion OR gebraucht OR used)",
+      ...(watchlist ? watchlistQueryCriteria(watchlist, profile) : []),
+      profile.sale,
     ].filter(Boolean);
 
-    for (const term of vehicleTerms.slice(0, 1)) {
+    for (const term of [vehicleTerm]) {
       const vehicleParts = brandModel ? [brandModel, term, ...baseParts] : [term, ...baseParts];
       const selectedSourceKeys = new Set(watchlist?.source_keys ?? []);
       const deepSearch = selectedSourceKeys.size === 0 || selectedSourceKeys.has("brave_web");
@@ -268,6 +504,92 @@ export function sourceKeyForUrl(url: string) {
   } catch {
     return "brave_web";
   }
+}
+
+function localSearchProfile(countryCode?: string) {
+  const aliases: Record<string, string> = { AT: "DE", CH: "DE", BE: "NL", CY: "GR" };
+  return LOCAL_SEARCH_PROFILES[aliases[countryCode ?? ""] ?? countryCode ?? ""] ?? ENGLISH_SEARCH_PROFILE;
+}
+
+function watchlistQueryCriteria(watchlist: ScannerWatchlist, profile: LocalSearchProfile) {
+  const criteria: string[] = [];
+  const fields = [
+    watchlist.fuel_type,
+    watchlist.transmission,
+    watchlist.body_type,
+    watchlist.drive_type,
+    watchlist.seller_type,
+    watchlist.condition,
+  ];
+  for (const value of fields) {
+    if (!value) continue;
+    const localized = profile.filters?.[value] ?? ENGLISH_SEARCH_PROFILE.filters?.[value] ?? value;
+    criteria.push(queryToken(localized));
+  }
+
+  if (watchlist.emission_class) criteria.push(queryToken(watchlist.emission_class));
+  if (watchlist.exterior_color) criteria.push(queryToken(watchlist.exterior_color));
+
+  const startYear = watchlist.min_year ?? watchlist.max_year;
+  const endYear = watchlist.max_year ?? (watchlist.min_year ? new Date().getUTCFullYear() + 1 : null);
+  if (startYear && endYear && endYear >= startYear && endYear - startYear <= 8) {
+    criteria.push(`(${Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index).join(" OR ")})`);
+  }
+
+  const required = (watchlist.must_have_keywords ?? [])
+    .filter((keyword) => !keyword.startsWith("__vehigo_"))
+    .slice(0, 5);
+  if (required.length > 0) criteria.push(`(${required.map(queryToken).join(" OR ")})`);
+  for (const excluded of (watchlist.excluded_keywords ?? []).slice(0, 5)) criteria.push(`-${queryToken(excluded)}`);
+  return criteria;
+}
+
+function queryToken(value: string) {
+  const clean = value.trim().replace(/"/g, "");
+  return /\s/.test(clean) ? `"${clean}"` : clean;
+}
+
+function inferIndexedListingFields(text: string, watchlist: ScannerWatchlist | null) {
+  const years = [...text.matchAll(/\b(19[5-9]\d|20[0-3]\d)\b/g)].map((match) => Number(match[1]));
+  const year = years.find((value) =>
+    (watchlist?.min_year == null || value >= watchlist.min_year)
+    && (watchlist?.max_year == null || value <= watchlist.max_year),
+  ) ?? years[0];
+  const mileageMatch = text.match(/(\d{1,3}(?:[.\s,'’]\d{3})+|\d{3,7})\s*(?:km|kilomet(?:er|re|ri|ro|rów|rov)?)/i);
+  const priceMatch = text.match(/(?:€|EUR)\s*(\d[\d.\s,'’]*(?:[.,]\d{2})?)/i)
+    ?? text.match(/(\d[\d.\s,'’]*(?:[.,]\d{2})?)\s*(?:€|EUR)/i);
+  const powerMatch = text.match(/(\d{2,4})\s*(?:hp|ps|bhp|cv|pk|ch)\b/i);
+  const engineCcMatch = text.match(/(\d{3,5})\s*(?:cc|cm3|cm³)\b/i);
+  const engineLiterMatch = text.match(/\b(\d(?:[.,]\d))\s*(?:l|liter|litre|litri)\b/i);
+  const doorMatch = text.match(/(\d)\s*(?:doors?|türen|tuerig|portes?|deuren|puertas?|porte|drzwi)\b/i);
+  return {
+    year,
+    mileageKm: mileageMatch ? parseIndexedNumber(mileageMatch[1]) : undefined,
+    price: priceMatch ? parseIndexedPrice(priceMatch[1]) : undefined,
+    powerHp: powerMatch ? Number.parseInt(powerMatch[1], 10) : undefined,
+    engineCc: engineCcMatch
+      ? Number.parseInt(engineCcMatch[1], 10)
+      : engineLiterMatch
+        ? Math.round(Number.parseFloat(engineLiterMatch[1].replace(",", ".")) * 1000)
+        : undefined,
+    doorCount: doorMatch ? Number.parseInt(doorMatch[1], 10) : undefined,
+  };
+}
+
+function parseIndexedNumber(value: string) {
+  const parsed = Number.parseInt(value.replace(/\D/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function parseIndexedPrice(value: string) {
+  const withoutDecimal = value.trim().replace(/[.,]\d{2}\s*$/, "");
+  return parseIndexedNumber(withoutDecimal);
+}
+
+function mappedHostValue(host: string, values: Record<string, string>) {
+  const normalized = host.toLowerCase().replace(/^www\./, "");
+  const key = Object.keys(values).find((candidate) => normalized === candidate || normalized.endsWith(`.${candidate}`));
+  return key ? values[key] : undefined;
 }
 
 function isLikelyVehicleListing(url: string, title?: string, description?: string) {

@@ -60,6 +60,26 @@ npm run acceptance:e2e:controls
 npm run acceptance:e2e:maintenance
 ```
 
+Site-agent fleet migration `0027` sonrasında önce atomik lease, fencing token ve
+provider-request bütçesi doğrulaması çalıştırılır:
+
+```bash
+npm run acceptance:e2e:site-agents
+```
+
+Gerçek Brave çağrısı yapan doğrulama yalnızca E2E projesinde, `BRAVE_SEARCH_API_KEY`
+tanımlıyken ve kullanılan sözleşme sonuç saklamaya açıkça izin veriyorsa çalıştırılmalıdır:
+
+```bash
+BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true npm run acceptance:e2e:site-agents:live
+```
+
+Bu filo proxy rotasyonu yapmaz. Her katalog sitesi bağımsız `web_index` agentıdır;
+egress Brave tarafından yönetilir, sorgu/page/günlük bütçeleri veritabanında sınırlıdır.
+Standart Brave Search API şartları kalıcı sonuç saklamaya izin vermediğinden özel
+storage-rights sözleşmesi yoksa production filosu paused kalır; scanner bu kaynağı
+başarısız olmak yerine açık bir `skipped` kaydıyla fail-closed atlar.
+
 Bu komutlar `--e2e` olmadığı sürece mevcut canlı acceptance davranışını değiştirmez. E2E modu yalnız açık disposable-project izniyle çalışır ve test kayıtlarını kendi suffix/kimlikleriyle temizler.
 
 Environment sözleşmesini değerleri yazdırmadan kontrol etmek için:

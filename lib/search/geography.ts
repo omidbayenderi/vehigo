@@ -23,6 +23,20 @@ export const COUNTRY_OPTIONS = [
 
 const COUNTRY_NAME_BY_CODE = Object.fromEntries(COUNTRY_OPTIONS);
 
+// Search providers perform better when the location is written the way sellers
+// write it in that market. UI labels stay Turkish; remote queries use native
+// country names.
+const COUNTRY_SEARCH_NAME_BY_CODE: Record<string, string> = {
+  AL: "Shqipëri", AT: "Österreich", BA: "Bosna i Hercegovina", BE: "België Belgique",
+  BG: "България", CH: "Schweiz Suisse Svizzera", CY: "Κύπρος", CZ: "Česko",
+  DE: "Deutschland", DK: "Danmark", EE: "Eesti", ES: "España", FI: "Suomi",
+  FR: "France", GB: "United Kingdom", GR: "Ελλάδα", HR: "Hrvatska", HU: "Magyarország",
+  IE: "Ireland", IS: "Ísland", IT: "Italia", LI: "Liechtenstein", LT: "Lietuva",
+  LU: "Lëtzebuerg Luxembourg", LV: "Latvija", ME: "Crna Gora", MK: "Северна Македонија",
+  NL: "Nederland", NO: "Norge", PL: "Polska", PT: "Portugal", RO: "România",
+  RS: "Srbija", SE: "Sverige", SI: "Slovenija", SK: "Slovensko", XK: "Kosovë",
+};
+
 export function resolveCountryCodes(input: {
   country_codes?: string[] | null;
   region_preset?: string | null;
@@ -39,7 +53,7 @@ export function resolveCountryCodes(input: {
 }
 
 export function geographySearchTerms(input: Parameters<typeof resolveCountryCodes>[0]) {
-  return resolveCountryCodes(input).map((code) => COUNTRY_NAME_BY_CODE[code] ?? code);
+  return resolveCountryCodes(input).map((code) => COUNTRY_SEARCH_NAME_BY_CODE[code] ?? COUNTRY_NAME_BY_CODE[code] ?? code);
 }
 
 export function distanceKm(

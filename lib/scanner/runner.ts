@@ -10,6 +10,12 @@ import {
 import { getConnector } from "@/lib/scanner/registry";
 import { syncRuntimeConnectorCatalog } from "@/lib/services/source-catalog";
 import { replayDueIngestEvents } from "@/lib/services/scanner-ingest";
+import {
+  createEmptySiteAgentFleetSummary,
+  prepareSiteSearchAgentFleet,
+  runDueSiteSearchAgents,
+  type SiteAgentFleetSummary,
+} from "@/lib/scanner/site-search-agents";
 
 type Client = SupabaseClient<Database>;
 
@@ -31,6 +37,8 @@ export type ScannerRunSummary = {
   ingestReplayed: number;
   ingestReplayFailed: number;
   expiredPayloadsPurged: number;
+  maintenanceFailed: boolean;
+  siteAgents: SiteAgentFleetSummary;
   skipped: string[];
   failed: { sourceKey: string; error: string }[];
 };
@@ -41,6 +49,7 @@ export async function runScannerOnce(
 ): Promise<ScannerRunSummary> {
   const logger = options.logger ?? console;
   await syncRuntimeConnectorCatalog(supabase);
+  const siteAgentFleetReady = await prepareSiteSearchAgentFleet(supabase, logger);
   const [{ replayed, failed: replayFailed }, { data: purgedPayloads, error: purgeError }] = await Promise.all([
     replayDueIngestEvents(supabase),
     supabase.rpc("purge_expired_scanner_ingest_payloads", {}),
@@ -65,14 +74,26 @@ export async function runScannerOnce(
     ingestReplayed: replayed,
     ingestReplayFailed: replayFailed,
     expiredPayloadsPurged: purgeError ? 0 : (purgedPayloads ?? 0),
+    maintenanceFailed: Boolean(purgeError),
+    siteAgents: createEmptySiteAgentFleetSummary(),
     skipped: [],
     failed: [],
   };
 
   for (const source of dueSources) {
-    const adapter = getConnector(source.key);
     const startedAt = new Date();
 
+    if (source.key === "brave_web" && !siteAgentFleetReady) {
+      logger.warn("[brave_web] sonuç saklama hakkı doğrulanmadığı için tarama güvenli biçimde atlandı");
+      summary.skipped.push(source.key);
+      await recordScannerRun(supabase, source.key, startedAt, {
+        status: "skipped",
+        error: "Brave Search storage rights are not verified",
+      });
+      continue;
+    }
+
+    const adapter = getConnector(source.key);
     if (!adapter) {
       logger.warn(`[${source.key}] adaptör yok, atlanıyor`);
       summary.skipped.push(source.key);
@@ -112,7 +133,27 @@ export async function runScannerOnce(
     }
   }
 
-  summary.delisted = await markStaleListingsAsDelisted(supabase);
+  try {
+    if (!siteAgentFleetReady) return finalizeScannerRun(supabase, summary);
+    summary.siteAgents = await runDueSiteSearchAgents(supabase, watchlists, {
+      workerId: `scanner-${crypto.randomUUID()}`,
+      limit: 1,
+      sourceKey: options.sourceKey,
+      logger,
+    });
+    summary.fetched += summary.siteAgents.fetched;
+    summary.inserted += summary.siteAgents.inserted;
+    summary.alertsCreated += summary.siteAgents.alertsCreated;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Bilinmeyen site-agent filo hatası";
+    logger.error(`[site-agent-fleet] HATA: ${message}`);
+    summary.failed.push({ sourceKey: "site_agent_fleet", error: message });
+  }
 
+  return finalizeScannerRun(supabase, summary);
+}
+
+async function finalizeScannerRun(supabase: Client, summary: ScannerRunSummary) {
+  summary.delisted = await markStaleListingsAsDelisted(supabase);
   return summary;
 }

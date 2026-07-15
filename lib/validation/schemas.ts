@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+const publicHttpUrlSchema = z.string().url().refine((value) => {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}, "Yalnızca kimlik bilgisi içermeyen HTTP(S) URL kabul edilir");
+
 export const loginSchema = z.object({
   email: z.string().email("Geçerli bir e-posta girin"),
   password: z.string().min(6, "Şifre en az 6 karakter olmalı"),
@@ -7,7 +16,7 @@ export const loginSchema = z.object({
 
 export const vehicleSchema = z.object({
   source_site: z.string().optional(),
-  listing_url: z.string().url().optional().or(z.literal("")),
+  listing_url: publicHttpUrlSchema.optional().or(z.literal("")),
   seller_name: z.string().optional(),
   seller_country: z.string().optional(),
   brand: z.string().min(1, "Marka zorunlu"),
@@ -240,7 +249,7 @@ export const searchListingsRequestSchema = z.object({
 export const marketListingInputSchema = z.object({
   source_key: z.string().min(1),
   source_listing_id: z.string().min(1).optional(),
-  listing_url: z.string().url(),
+  listing_url: publicHttpUrlSchema,
   title: z.string().optional(),
   description: z.string().optional(),
   seller_name: z.string().optional(),
@@ -273,7 +282,7 @@ export const marketListingInputSchema = z.object({
   seat_count: z.coerce.number().int().min(1).max(100).optional(),
   door_count: z.coerce.number().int().min(1).max(20).optional(),
   condition: z.enum(["new", "used_excellent", "used_good", "used_fair", "damaged"]).optional(),
-  images: z.array(z.object({ url: z.string().url(), position: z.number().int().min(0).optional() })).max(100).optional(),
+  images: z.array(z.object({ url: publicHttpUrlSchema, position: z.number().int().min(0).optional() })).max(100).optional(),
   published_at: z.string().datetime({ offset: true }).optional(),
   raw: z.record(z.string(), z.unknown()).optional(),
 });

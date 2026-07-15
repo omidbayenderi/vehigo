@@ -36,6 +36,10 @@ const capabilities: Array<{ migration: string; table: string; columns: string; r
   { migration: "0026f", table: "ai_evaluations", columns: "id,organization_id" },
   { migration: "0026g", table: "export_scenarios", columns: "id,organization_id" },
   { migration: "0026h", table: "platform_admins", columns: "user_id,created_at" },
+  { migration: "0027a", table: "site_search_agents", columns: "id,source_key,host,status,next_run_at,lease_token,reserved_request_count,daily_request_count,daily_budget_date" },
+  { migration: "0027b", table: "site_search_agent_runs", columns: "id,agent_id,source_key,status,correlation_id,worker_id,lease_token,reserved_request_count,request_count" },
+  { migration: "0027c", table: "provider_storage_rights_evidence", columns: "id,provider_key,evidence_sha256,permitted_data_classes,expires_at,revoked_at" },
+  { migration: "0027d", table: "listing_alerts", columns: "id,digest_claim_token,digest_claimed_until" },
 ];
 
 async function main() {

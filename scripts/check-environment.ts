@@ -41,6 +41,9 @@ if (requestedMode !== "development") {
   validateMinimumLength("SCANNER_INGEST_SECRET", 24);
   validateMinimumLength("CRON_SECRET", 24);
 }
+if (process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED && !["true", "false"].includes(process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED)) {
+  problems.push("BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED must be true or false");
+}
 
 if (problems.length) {
   console.error(`Environment check failed for ${requestedMode}:`);

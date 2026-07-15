@@ -4,6 +4,7 @@ import type { MarketListingInput } from "@/lib/domain/listings";
 import { normalizeMarketListing } from "@/lib/normalization/normalize-listing";
 import { canonicalMarketListingInputSchema, marketListingInputSchema, watchlistSchema } from "@/lib/validation/schemas";
 import { partialUpdateFields } from "@/lib/utils";
+import { ZodError } from "zod";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import { assessOpportunity, opportunityReasonsToJson } from "@/lib/services/opportunity-agents";
 import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
@@ -34,6 +35,8 @@ export type ProcessListingsResult = {
   alertsCreated: number;
   alertsSent: number;
   alertsFailed: number;
+  rejected?: number;
+  deferred?: number;
 };
 
 export function calculateNextRunAt(
@@ -347,6 +350,7 @@ export async function listShortlistedAlerts(supabase: Client, userId: string) {
 export async function processIncomingListings(
   supabase: Client,
   listings: MarketListingInput[],
+  options: { deadlineAt?: number } = {},
 ): Promise<ProcessListingsResult> {
   const result: ProcessListingsResult = {
     fetched: listings.length,
@@ -354,6 +358,8 @@ export async function processIncomingListings(
     alertsCreated: 0,
     alertsSent: 0,
     alertsFailed: 0,
+    rejected: 0,
+    deferred: 0,
   };
 
   const { data: watchlists, error: watchlistError } = await supabase
@@ -362,27 +368,50 @@ export async function processIncomingListings(
     .eq("active", true);
   if (watchlistError) throw new Error(watchlistError.message);
 
-  for (const input of listings) {
-    const listing = await upsertMarketListing(supabase, input);
-    if (listing.isNew) result.inserted++;
-
-    const matchingWatchlists = (watchlists ?? []).filter((watchlist) =>
-      listingMatchesWatchlist(listing.row, watchlist),
-    );
-
-    for (const watchlist of matchingWatchlists) {
-      const created = await createAlertIfNeeded(supabase, listing.row, watchlist);
-      if (created) result.alertsCreated++;
+  listingLoop: for (const [index, input] of listings.entries()) {
+    if (options.deadlineAt && Date.now() >= options.deadlineAt) {
+      result.deferred = listings.length - index;
+      break;
     }
+    try {
+      const listing = await upsertMarketListing(supabase, input);
+      if (listing.isNew) result.inserted++;
 
-    if (listing.priceDropped) {
-      result.alertsCreated += await createPriceDropAlerts(supabase, listing.row);
+      const matchingWatchlists = (watchlists ?? []).filter((watchlist) =>
+        listingMatchesWatchlist(listing.row, watchlist),
+      );
+
+      for (const watchlist of matchingWatchlists) {
+        if (options.deadlineAt && Date.now() >= options.deadlineAt) {
+          result.deferred = listings.length - index;
+          break listingLoop;
+        }
+        const created = await createAlertIfNeeded(supabase, listing.row, watchlist);
+        if (created) result.alertsCreated++;
+      }
+
+      if (listing.priceDropped) {
+        if (options.deadlineAt && Date.now() >= options.deadlineAt) {
+          result.deferred = listings.length - index;
+          break listingLoop;
+        }
+        const priceDropResult = await createPriceDropAlerts(supabase, listing.row, options.deadlineAt);
+        result.alertsCreated += priceDropResult.created;
+        if (priceDropResult.deferred) {
+          result.deferred = listings.length - index;
+          break listingLoop;
+        }
+      }
+    } catch (error) {
+      // Provider records are isolated: one malformed indexed result must not
+      // replay and poison every valid listing in the same batch.
+      if (error instanceof ZodError) {
+        result.rejected = (result.rejected ?? 0) + 1;
+        continue;
+      }
+      throw error;
     }
   }
-
-  const delivery = await dispatchPendingTelegramAlerts(supabase);
-  result.alertsSent = delivery.sent;
-  result.alertsFailed = delivery.failed;
 
   return result;
 }
@@ -583,17 +612,18 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
  * (listing_id, watchlist_id, user_id, alert_type) constraint to stay idempotent —
  * a second drop for the same listing/user won't insert a duplicate 'price_drop' row.
  */
-async function createPriceDropAlerts(supabase: Client, listing: Listing) {
+async function createPriceDropAlerts(supabase: Client, listing: Listing, deadlineAt?: number) {
   const { data: priorAlerts, error } = await supabase
     .from("listing_alerts")
     .select("watchlist_id, user_id, organization_id")
     .eq("listing_id", listing.id)
     .eq("alert_type", "new_match");
   if (error) throw new Error(error.message);
-  if (!priorAlerts || priorAlerts.length === 0) return 0;
+  if (!priorAlerts || priorAlerts.length === 0) return { created: 0, deferred: false };
 
   let created = 0;
   for (const prior of priorAlerts) {
+    if (deadlineAt && Date.now() >= deadlineAt) return { created, deferred: true };
     const { data: existing, error: existingCheckError } = await supabase
       .from("listing_alerts")
       .select("id")
@@ -623,7 +653,7 @@ async function createPriceDropAlerts(supabase: Client, listing: Listing) {
     if (insertError) throw new Error(insertError.message);
     created++;
   }
-  return created;
+  return { created, deferred: false };
 }
 
 export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50) {

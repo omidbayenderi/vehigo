@@ -9,13 +9,17 @@ import braveWebContract from "@/tests/fixtures/connectors/brave-web.contract.jso
 describe("connector registry", () => {
   it("publishes versioned capability manifests for every runtime connector", () => {
     const manifests = listConnectorManifests();
-    expect(manifests.map((manifest) => manifest.key).sort()).toEqual(["brave_web", "marktplaats"]);
+    expect(manifests.map((manifest) => manifest.key).sort()).toEqual(["brave_web"]);
     for (const manifest of manifests) {
       expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(manifest.acquisitionModes.length).toBeGreaterThan(0);
       expect(manifest.vehicleTypes.length).toBeGreaterThan(0);
       expect(manifest.fieldCoverage).toEqual(expect.arrayContaining(["source_key", "listing_url"]));
     }
+  });
+
+  it("keeps an unverified direct HTML adapter out of the runtime registry", () => {
+    expect(listConnectorManifests().some((manifest) => manifest.key === marktplaatsAdapter.key)).toBe(false);
   });
 
   it("rejects duplicate connector keys and manifest mismatches at startup", () => {

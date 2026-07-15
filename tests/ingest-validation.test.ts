@@ -31,6 +31,18 @@ describe("scanner ingest payload validation", () => {
       listings: Array.from({ length: MAX_INGEST_BATCH_SIZE + 1 }, () => listing),
     })).toThrow();
   });
+
+  it.each([
+    "javascript://mobile.de/%0Aalert(1)",
+    "data:text/html,vehicle",
+    "file://mobile.de/tmp/listing",
+    "https://user:password@mobile.de/listing/1",
+  ])("rejects unsafe listing URL %s at the shared ingestion boundary", (listingUrl) => {
+    expect(() => ingestPayloadSchema.parse({
+      source_key: "mobile_de",
+      listings: [{ listing_url: listingUrl }],
+    })).toThrow(/HTTP\(S\)/);
+  });
 });
 
 describe("scanner ingest source URL validation", () => {
