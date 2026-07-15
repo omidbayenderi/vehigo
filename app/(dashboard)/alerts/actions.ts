@@ -333,7 +333,7 @@ export async function deleteAlertsAction(alertIds: string[]): Promise<FormState>
       .select("id");
     if (error) throw new Error(error.message);
 
-    await logAudit(supabase, user.id, "delete", "listing_alert", alertIds.join(","), { count: data?.length ?? 0 });
+    await logAudit(supabase, user.id, "delete", "listing_alert", null, { alertIds, count: data?.length ?? 0 });
     revalidatePath("/alerts");
     revalidatePath("/dashboard");
     return { ok: `${data?.length ?? 0} ilan fırsat akışından kaldırıldı.` };
@@ -357,7 +357,7 @@ export async function clearAllAlertsAction(): Promise<FormState> {
       .select("id");
     if (error) throw new Error(error.message);
 
-    await logAudit(supabase, user.id, "delete", "listing_alert", "all", { count: data?.length ?? 0 });
+    await logAudit(supabase, user.id, "delete", "listing_alert", null, { scope: "all", count: data?.length ?? 0 });
     revalidatePath("/alerts");
     revalidatePath("/dashboard");
     return { ok: `Fırsat akışı temizlendi (${data?.length ?? 0} ilan).` };
