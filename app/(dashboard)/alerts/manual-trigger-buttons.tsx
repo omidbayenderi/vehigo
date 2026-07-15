@@ -11,7 +11,7 @@ export default function ManualTriggerButtons({ canRunScanner }: { canRunScanner:
   const [digestState, digestAction, digestPending] = useActionState(sendDigestNowAction, initialState);
 
   return (
-    <div className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
+    <div className="p-5">
       <h2 className="mb-1 text-sm font-medium text-ink">Manuel çalıştırma</h2>
       <p className="mb-4 text-sm text-ink-faint">
         {canRunScanner
