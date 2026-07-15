@@ -316,6 +316,56 @@ export async function analyzeListingIntelligenceAction(
   }
 }
 
+export async function deleteAlertsAction(alertIds: string[]): Promise<FormState> {
+  if (alertIds.length === 0) return { error: "Silinecek ilan seçilmedi." };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  try {
+    const { data, error } = await supabase
+      .from("listing_alerts")
+      .delete()
+      .eq("user_id", user.id)
+      .in("id", alertIds)
+      .select("id");
+    if (error) throw new Error(error.message);
+
+    await logAudit(supabase, user.id, "delete", "listing_alert", alertIds.join(","), { count: data?.length ?? 0 });
+    revalidatePath("/alerts");
+    revalidatePath("/dashboard");
+    return { ok: `${data?.length ?? 0} ilan fırsat akışından kaldırıldı.` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "İlanlar silinemedi" };
+  }
+}
+
+export async function clearAllAlertsAction(): Promise<FormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  try {
+    const { data, error } = await supabase
+      .from("listing_alerts")
+      .delete()
+      .eq("user_id", user.id)
+      .select("id");
+    if (error) throw new Error(error.message);
+
+    await logAudit(supabase, user.id, "delete", "listing_alert", "all", { count: data?.length ?? 0 });
+    revalidatePath("/alerts");
+    revalidatePath("/dashboard");
+    return { ok: `Fırsat akışı temizlendi (${data?.length ?? 0} ilan).` };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Fırsat akışı temizlenemedi" };
+  }
+}
+
 function sampleQualityLabel(value: string) {
   if (value === "high") return "yüksek";
   if (value === "medium") return "orta";
