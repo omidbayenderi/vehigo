@@ -14,6 +14,7 @@ import { startOfferFromAlertAction } from "./actions";
 import OpportunityDecisionForm from "./opportunity-decision-form";
 import MarketIntelligenceCard from "./market-intelligence-card";
 import { listLatestIntelligenceByListingIds } from "@/lib/services/market-intelligence";
+import { AlertCheckbox, SelectionProvider, SelectionToolbar } from "./opportunity-flow-selection";
 
 export const maxDuration = 240;
 
@@ -138,11 +139,15 @@ export default async function AlertsPage() {
       </div>
 
       <div className={cardClass}>
-        <div className="border-b border-line-soft px-5 py-4">
-          <h2 className="text-sm font-medium text-ink">Fırsat akışı</h2>
-          <p className="mt-1 text-xs text-ink-faint">
-            En yüksek skorlu ilanlardan başlayın; uygun müşteri seçildiğinde teklif formu hazır açılır.
-          </p>
+        <SelectionProvider>
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line-soft px-5 py-4">
+          <div>
+            <h2 className="text-sm font-medium text-ink">Fırsat akışı</h2>
+            <p className="mt-1 text-xs text-ink-faint">
+              En yüksek skorlu ilanlardan başlayın; uygun müşteri seçildiğinde teklif formu hazır açılır.
+            </p>
+          </div>
+          <SelectionToolbar allIds={groupedAlerts.map(({ alert }) => alert.id)} />
         </div>
         <div className="divide-y divide-line-soft">
           {groupedAlerts.map(({ alert, alternatives }) => {
@@ -158,6 +163,7 @@ export default async function AlertsPage() {
               <article key={alert.id} className="grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_320px]">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <AlertCheckbox alertId={alert.id} />
                     <span className={pillClasses(scoreTone)}>
                       {labelText(alert.opportunity_label)} · {alert.opportunity_score ?? "-"}
                     </span>
@@ -278,6 +284,7 @@ export default async function AlertsPage() {
             <EmptyState icon={BellRing} title="Henüz eşleşen ilan yakalanmadı" description="Kaynaklar tarandıkça eşleşen ilanlar burada görünecek." />
           ) : null}
         </div>
+        </SelectionProvider>
       </div>
     </div>
   );
