@@ -1,11 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { marktplaatsAdapter } from "@/lib/scanner/adapters/marktplaats";
-import { braveWebAdapter, buildQueries, EUROPE_MARKETPLACE_HOSTS, sourceKeyForUrl } from "@/lib/scanner/adapters/brave-web";
+import { braveWebAdapter, buildQueries, buildSiteAgentQueries, EUROPE_MARKETPLACE_HOSTS, fetchSiteSearchAgentListings, sourceKeyForUrl } from "@/lib/scanner/adapters/brave-web";
 import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
+
+beforeEach(() => {
+  process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED = "true";
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.BRAVE_SEARCH_API_KEY;
+  delete process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED;
 });
 
 function marktplaatsHtml(listings: unknown[]) {
@@ -153,9 +158,11 @@ describe("braveWebAdapter", () => {
     expect(firstRound.map((plan) => plan.watchlist?.id)).toEqual(watchlists.map((watchlist) => watchlist.id));
   });
 
-  it("does not spend web-search quota on a watchlist that opted out of Brave", () => {
+  it("routes a Marktplaats-only watchlist through its compliant web-index query", () => {
     const watchlist = { source_keys: ["marktplaats"], keywords: [] } as unknown as ScannerWatchlist;
-    expect(buildQueries([watchlist])).toEqual([]);
+    const queries = buildQueries([watchlist]);
+    expect(queries).toHaveLength(1);
+    expect(queries[0].query).toContain("site:marktplaats.nl");
   });
 
   it("builds a targeted Brave query for a specifically selected marketplace source", () => {
@@ -188,7 +195,35 @@ describe("braveWebAdapter", () => {
       source_keys: ["brave_web"],
     } as unknown as ScannerWatchlist;
     const queries = buildQueries([watchlist]);
-    expect(queries[0].query).toContain("Almanya OR Hollanda");
+    expect(queries[0].query).toContain("Deutschland OR Nederland");
+  });
+
+  it("translates site-agent vehicle and detailed criteria into the marketplace language", () => {
+    const watchlist = {
+      id: "localized-watch",
+      brand: "Volkswagen",
+      model: "Golf",
+      vehicle_type: "car",
+      country: null,
+      country_codes: ["DE"],
+      region_preset: null,
+      city: null,
+      keywords: [],
+      must_have_keywords: [],
+      excluded_keywords: [],
+      min_year: 2021,
+      max_year: 2023,
+      fuel_type: "diesel",
+      transmission: "automatic",
+      body_type: "station_wagon",
+      source_keys: ["mobile_de"],
+    } as unknown as ScannerWatchlist;
+
+    const german = buildSiteAgentQueries({ sourceKey: "mobile_de", host: "mobile.de", watchlists: [watchlist], cursor: 0, limit: 1 });
+    const dutch = buildSiteAgentQueries({ sourceKey: "marktplaats", host: "marktplaats.nl", watchlists: [{ ...watchlist, country_codes: ["NL"], source_keys: ["marktplaats"] }], cursor: 0, limit: 1 });
+
+    expect(german.plans[0].query).toContain("site:mobile.de Volkswagen Golf Auto Deutschland Diesel Automatik Kombi (2021 OR 2022 OR 2023) (zu verkaufen OR gebraucht)");
+    expect(dutch.plans[0].query).toContain("site:marktplaats.nl Volkswagen Golf auto Nederland diesel automaat stationwagen (2021 OR 2022 OR 2023) (te koop OR tweedehands)");
   });
 
   it("maps marketplace and public-social hostnames to canonical catalog source keys", () => {
@@ -198,6 +233,246 @@ describe("braveWebAdapter", () => {
     expect(sourceKeyForUrl("https://dealer.example/car/123")).toBe("brave_web");
   });
 
+  it("builds isolated per-site queries and rotates the watchlist cursor", () => {
+    const watchlists = ["Volvo", "Scania", "MAN"].map((brand, index) => ({
+      id: `watch-${index}`,
+      brand,
+      model: null,
+      vehicle_type: "truck",
+      country: "Germany",
+      country_codes: ["DE"],
+      city: null,
+      keywords: [],
+      source_keys: ["mobile_de"],
+    })) as unknown as ScannerWatchlist[];
+
+    const result = buildSiteAgentQueries({ sourceKey: "mobile_de", host: "mobile.de", watchlists, cursor: 1, limit: 2 });
+    expect(result.plans).toHaveLength(2);
+    expect(result.plans.every((plan) => plan.query.includes("site:mobile.de"))).toBe(true);
+    expect(result.plans[0].query).toContain("Scania");
+    expect(result.nextCursor).toBe(0);
+  });
+
+  it("falls back to a generic site query when no watchlist targets the agent", () => {
+    const unrelated = {
+      vehicle_type: "car",
+      keywords: [],
+      source_keys: ["marktplaats"],
+    } as unknown as ScannerWatchlist;
+
+    const result = buildSiteAgentQueries({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [unrelated],
+      cursor: 0,
+      limit: 4,
+    });
+
+    expect(result.plans).toHaveLength(1);
+    expect(result.plans[0]).toMatchObject({ watchlist: null });
+    expect(result.plans[0].query).toContain("site:mobile.de LKW");
+  });
+
+  it("paginates one site agent only while Brave reports more results", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const page = (id: string, more: boolean) => ({
+      query: { more_results_available: more },
+      web: { results: [{ title: `MAN truck ${id} for sale`, url: `https://mobile.de/vehicle/${id}` }] },
+    });
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(page("1", true)), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(page("2", false)), { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 3,
+    });
+    expect(result.pageCount).toBe(2);
+    expect(result.listings.map((listing) => listing.source_listing_id)).toEqual([
+      "https://mobile.de/vehicle/1",
+      "https://mobile.de/vehicle/2",
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the first page and marks the run partial when a later page fails", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const firstPage = {
+      query: { more_results_available: true },
+      web: { results: [{ title: "MAN truck for sale", url: "https://mobile.de/vehicle/partial-1" }] },
+    };
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify(firstPage), { status: 200 }))
+      .mockResolvedValueOnce(new Response("", { status: 503 })));
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 2,
+    });
+
+    expect(result.partial).toBe(true);
+    expect(result.pageCount).toBe(1);
+    expect(result.listings[0].listing_url).toBe("https://mobile.de/vehicle/partial-1");
+  });
+
+  it("rejects an invalid agent host before calling Brave", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de/path",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 1,
+    })).rejects.toThrow("geçersiz host");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not persist a Brave result from outside the agent's assigned host", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const body = {
+      web: { results: [{ title: "MAN truck for sale", url: "https://dealer.example/vehicle/1" }] },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })));
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 1,
+    });
+
+    expect(result.listings).toEqual([]);
+  });
+
+  it("rejects non-HTTP and credential-bearing URLs even when the hostname matches", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const body = {
+      web: {
+        results: [
+          { title: "MAN truck for sale", url: "javascript://mobile.de/%0Aalert(1)" },
+          { title: "MAN truck for sale", url: "https://user:password@mobile.de/vehicle/1" },
+        ],
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })));
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 1,
+    });
+
+    expect(result.listings).toEqual([]);
+  });
+
+  it("canonicalizes tracking variants to one listing identity", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const body = {
+      web: { results: [
+        { title: "MAN truck for sale", url: "http://WWW.mobile.de/vehicle/42/?utm_source=x&b=2&a=1#photo" },
+        { title: "MAN truck for sale", url: "https://mobile.de/vehicle/42?a=1&b=2" },
+      ] },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })));
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de", host: "mobile.de", watchlists: [], queryCursor: 0, maxQueries: 1, maxPages: 1,
+    });
+
+    expect(result.listings).toHaveLength(1);
+    expect(result.listings[0].source_listing_id).toBe("https://mobile.de/vehicle/42?a=1&b=2");
+  });
+
+  it("never exceeds the atomically reserved provider-request budget", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const page = {
+      query: { more_results_available: true },
+      web: { results: [{ title: "MAN truck for sale", url: "https://mobile.de/vehicle/budget" }] },
+    };
+    const fetchSpy = vi.fn().mockImplementation(
+      () => Promise.resolve(new Response(JSON.stringify(page), { status: 200 })),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 4,
+      maxPages: 10,
+      maxRequests: 2,
+    });
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ requestCount: 2, queryCount: 1, pageCount: 2, partial: true });
+  });
+
+  it("extracts indexed year, mileage, price and market country so detailed filters can reject mismatches", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const braveBody = {
+      web: {
+        results: [{
+          title: "Volkswagen Golf Variant 2022",
+          url: "https://www.mobile.de/vehicle/criteria-1",
+          description: "48.000 km · € 19.500 · Diesel · Automatik · 150 PS · 1968 cm3 · 5 Türen",
+        }],
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(braveBody), { status: 200 })));
+    const watchlist = {
+      brand: "Volkswagen",
+      model: "Golf",
+      vehicle_type: "car",
+      country: null,
+      country_codes: ["DE"],
+      region_preset: null,
+      city: null,
+      keywords: [],
+      must_have_keywords: [],
+      excluded_keywords: [],
+      source_keys: ["mobile_de"],
+    } as unknown as ScannerWatchlist;
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [watchlist],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 1,
+    });
+
+    expect(result.listings[0]).toMatchObject({
+      year: 2022,
+      mileage_km: 48_000,
+      price: 19_500,
+      currency: "EUR",
+      seller_country_code: "DE",
+      power_hp: 150,
+      engine_cc: 1968,
+      door_count: 5,
+    });
+  });
+
   it("throws without hitting the network when BRAVE_SEARCH_API_KEY is unset", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -205,6 +480,16 @@ describe("braveWebAdapter", () => {
     await expect(braveWebAdapter.fetchListings({ watchlists: [] })).rejects.toThrow(
       "BRAVE_SEARCH_API_KEY tanımlı değil",
     );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("refuses persistence-oriented search when contractual storage rights are not confirmed", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED = "false";
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(braveWebAdapter.fetchListings({ watchlists: [] })).rejects.toThrow("saklama hakkı doğrulanmadı");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

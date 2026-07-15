@@ -15,6 +15,8 @@ import OpportunityDecisionForm from "./opportunity-decision-form";
 import MarketIntelligenceCard from "./market-intelligence-card";
 import { listLatestIntelligenceByListingIds } from "@/lib/services/market-intelligence";
 
+export const maxDuration = 240;
+
 export default async function AlertsPage() {
   const supabase = await createClient();
   const {

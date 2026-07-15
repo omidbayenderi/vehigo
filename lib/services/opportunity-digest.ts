@@ -27,6 +27,7 @@ export async function sendOpportunityDigest(
     .from("listing_alerts")
     .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
     .eq("status", "pending")
+    .is("sent_at", null)
     .order("opportunity_score", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: true })
     .limit(1000);
@@ -35,44 +36,41 @@ export async function sendOpportunityDigest(
   const { data, error } = await pendingQuery;
   if (error) throw new Error(error.message);
 
-  const grouped = new Map<string, DigestAlert[]>();
+  const candidateUsers = new Map<string, string>();
   for (const alert of (data ?? []) as unknown as DigestAlert[]) {
+    if (!isUnsentDigestAlert(alert)) continue;
     if (!alert.users_profile?.telegram_chat_id || !alert.market_listings) continue;
-    const bucket = grouped.get(alert.user_id) ?? [];
-    if (bucket.length < limitPerUser) bucket.push(alert);
-    grouped.set(alert.user_id, bucket);
+    candidateUsers.set(alert.user_id, alert.users_profile.telegram_chat_id);
   }
 
   const healthIssues = await checkScannerHealth(supabase);
-  const recipients = new Map<string, { chatId: string; alerts: DigestAlert[] }>();
-  for (const [userId, alerts] of grouped) {
-    const chatId = alerts[0]?.users_profile?.telegram_chat_id;
-    if (chatId) recipients.set(userId, { chatId, alerts });
-  }
-
-  if (healthIssues.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from("users_profile")
-      .select("id,telegram_chat_id")
-      .not("telegram_chat_id", "is", null);
-    if (profilesError) throw new Error(profilesError.message);
-    for (const profile of profiles ?? []) {
-      if (!profile.telegram_chat_id) continue;
-      if (options.userId && profile.id !== options.userId) continue;
-      if (!recipients.has(profile.id)) {
-        recipients.set(profile.id, {
-          chatId: profile.telegram_chat_id,
-          alerts: [],
-        });
-      }
-    }
-  }
-
+  let users = 0;
   let sent = 0;
   let skipped = 0;
   let failed = 0;
+  let pendingAlerts = 0;
 
-  for (const { chatId, alerts } of recipients.values()) {
+  for (const [userId, chatId] of candidateUsers) {
+    const claimToken = crypto.randomUUID();
+    const { data: claimed, error: claimError } = await supabase.rpc("claim_opportunity_digest_alerts", {
+      p_claim_token: claimToken,
+      p_limit: limitPerUser,
+      p_user_id: userId,
+      p_lease_seconds: 900,
+    });
+    if (claimError) throw new Error(`digest_claim_failed: ${claimError.message}`);
+    const claimedIds = (claimed ?? []).map((alert) => alert.id);
+    if (claimedIds.length === 0) continue;
+    const { data: claimedAlerts, error: claimedError } = await supabase
+      .from("listing_alerts")
+      .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
+      .in("id", claimedIds)
+      .eq("digest_claim_token", claimToken);
+    if (claimedError) throw new Error(claimedError.message);
+    const alerts = (claimedAlerts ?? []) as unknown as DigestAlert[];
+    if (alerts.length === 0) continue;
+    users++;
+    pendingAlerts += alerts.length;
     const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, "fa") : null;
     const messageParts = [
       alerts.length > 0 ? formatDigest(alerts, hours, "fa") : null,
@@ -85,29 +83,58 @@ export async function sendOpportunityDigest(
     }
 
     const result = await sendTelegramMessage(chatId, messageParts.join("\n\n"));
+    const alertIds = alerts.map((alert) => alert.id);
     if (result.ok) {
-      sent++;
-      const alertIds = alerts.map((alert) => alert.id);
-      if (alertIds.length > 0) {
-        const { error: updateError } = await supabase
-          .from("listing_alerts")
-          .update({ status: "sent", sent_at: new Date().toISOString(), error: null })
-          .in("id", alertIds);
-        if (updateError) throw new Error(updateError.message);
+      const { data: finished, error: finishError } = await supabase.rpc("finish_opportunity_digest_alerts", {
+        p_claim_token: claimToken,
+        p_alert_ids: alertIds,
+        p_sent: true,
+        p_error: null,
+      });
+      if (finishError || finished !== alertIds.length) {
+        await markDigestDeliveryUncertain(supabase, claimToken, alertIds, finishError?.message ?? "claim fence changed after Telegram success");
+        failed++;
+        continue;
       }
+      sent++;
     } else {
+      const { error: finishError } = await supabase.rpc("finish_opportunity_digest_alerts", {
+        p_claim_token: claimToken,
+        p_alert_ids: alertIds,
+        p_sent: false,
+        p_error: result.error ?? "Telegram digest delivery failed",
+      });
+      if (finishError) throw new Error(`digest_failure_record_failed: ${finishError.message}`);
       failed++;
     }
   }
 
   return {
-    users: recipients.size,
+    users,
     sent,
     skipped,
     failed,
     healthIssues: healthIssues.length,
-    pendingAlerts: grouped.values().reduce((total, alerts) => total + alerts.length, 0),
+    pendingAlerts,
   };
+}
+
+async function markDigestDeliveryUncertain(
+  supabase: Client,
+  claimToken: string,
+  alertIds: string[],
+  reason: string,
+) {
+  const { error } = await supabase.rpc("mark_opportunity_digest_uncertain", {
+    p_claim_token: claimToken,
+    p_alert_ids: alertIds,
+    p_error: reason,
+  });
+  if (error) throw new Error(`digest_delivery_uncertain_record_failed: ${error.message}`);
+}
+
+export function isUnsentDigestAlert(alert: Pick<Alert, "status" | "sent_at">) {
+  return alert.status === "pending" && alert.sent_at === null;
 }
 
 export function formatDigest(alerts: DigestAlert[], hours: number, locale: "tr" | "fa" = "tr") {

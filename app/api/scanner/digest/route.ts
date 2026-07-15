@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendOpportunityDigest } from "@/lib/services/opportunity-digest";
 import { isScannerRequestAuthorized } from "@/lib/scanner/request-auth";
 
+export const maxDuration = 240;
+
 export async function POST(request: NextRequest) {
   if (!isScannerRequestAuthorized(request, ["ingest"])) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });

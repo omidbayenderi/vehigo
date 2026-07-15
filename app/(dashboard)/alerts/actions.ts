@@ -143,19 +143,15 @@ export async function runScannerNowAction(): Promise<FormState> {
   if (!user) redirect("/login");
 
   try {
-    const { data: profile, error: profileError } = await supabase
-      .from("users_profile")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (profileError) throw new Error(profileError.message);
-    if (profile.role !== "owner") {
-      return { error: "Manuel pazar taraması yalnızca hesap yöneticisi tarafından çalıştırılabilir." };
+    const { data: isPlatformAdmin, error: adminError } = await supabase.rpc("is_platform_admin", {});
+    if (adminError) throw new Error(adminError.message);
+    if (!isPlatformAdmin) {
+      return { error: "Manuel pazar taraması yalnızca platform yöneticisi tarafından çalıştırılabilir." };
     }
 
     const admin = createAdminClient();
     const summary = await runScannerOnce(admin, { force: true });
-    await logAudit(supabase, user.id, "manual_run", "scanner", "run");
+    await logAudit(supabase, user.id, "manual_run", "scanner", null, { command: "run" });
     revalidatePath("/alerts");
     return {
       ok: `Tarama tamamlandı: ${summary.scannedSources} otomatik kaynak, ${summary.fetched} ilan çekildi, ${summary.inserted} yeni ilan, ${summary.alertsCreated} yeni eşleşme oluşturuldu. Telegram bildirimleri sabah/akşam özetinde veya “Özet gönder” ile iletilir. ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
@@ -175,7 +171,7 @@ export async function sendDigestNowAction(): Promise<FormState> {
   try {
     const admin = createAdminClient();
     const result = await sendOpportunityDigest(admin, { hours: 12, userId: user.id });
-    await logAudit(supabase, user.id, "manual_run", "digest", "send");
+    await logAudit(supabase, user.id, "manual_run", "digest", null, { command: "send" });
     revalidatePath("/alerts");
     return {
       ok:
