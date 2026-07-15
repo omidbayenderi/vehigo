@@ -15,6 +15,21 @@ import OpportunityDecisionForm from "./opportunity-decision-form";
 import MarketIntelligenceCard from "./market-intelligence-card";
 import { listLatestIntelligenceByListingIds } from "@/lib/services/market-intelligence";
 import { AlertCheckbox, SelectionProvider, SelectionToolbar } from "./opportunity-flow-selection";
+import type { MarketSourceVehicleCategory } from "@/lib/supabase/types";
+
+const sourceCategoryOrder: MarketSourceVehicleCategory[] = [
+  "car_light_commercial",
+  "heavy_commercial",
+  "construction_agri",
+  "general",
+];
+
+function sourceCategoryLabel(category: MarketSourceVehicleCategory) {
+  if (category === "car_light_commercial") return "Binek & Hafif Ticari";
+  if (category === "heavy_commercial") return "Ağır Ticari (TIR / Kamyon)";
+  if (category === "construction_agri") return "İş Makineleri & Tarım";
+  return "Genel";
+}
 
 export const maxDuration = 240;
 
@@ -72,19 +87,32 @@ export default async function AlertsPage() {
           </span>
         </summary>
         <div className="border-t border-line-soft px-5 py-4">
-          <div className="space-y-2 text-sm text-ink-soft">
-            {sources.map((source) => (
-              <div key={source.id} className="flex items-center justify-between gap-3">
-                <span>{source.name}</span>
-                <span className="text-right text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {source.method === "email_alert"
-                    ? "Deep Search · ek bağlantı isteğe bağlı"
-                    : `${source.min_interval_minutes} dk ± %${source.jitter_percent} · otomatik`}
-                </span>
-              </div>
-            ))}
+          <div className="space-y-5">
+            {sourceCategoryOrder.map((category) => {
+              const categorySources = sources.filter((source) => (source.vehicle_category ?? "general") === category);
+              if (categorySources.length === 0) return null;
+              return (
+                <div key={category}>
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                    {sourceCategoryLabel(category)}
+                  </h3>
+                  <div className="space-y-2 text-sm text-ink-soft">
+                    {categorySources.map((source) => (
+                      <div key={source.id} className="flex items-center justify-between gap-3">
+                        <span>{source.name}</span>
+                        <span className="text-right text-xs" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {source.method === "email_alert"
+                            ? "Deep Search · ek bağlantı isteğe bağlı"
+                            : `${source.min_interval_minutes} dk ± %${source.jitter_percent} · otomatik`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="mt-3 text-xs text-ink-faint">
+          <p className="mt-4 text-xs text-ink-faint">
             Merkezi Scout agent Marktplaats ve Avrupa Deep Search ağını yaklaşık 8 saatte bir, jitter ile günde 3-4 kez tarar. Deep Search kaynakları e-posta olmadan keşfeder; korumalı sitelerde e-posta/API/n8n bağlantısı yalnız hız ve veri tamlığı için isteğe bağlı ek kanaldır. DB yalnız aranabilir ilan özeti ve kaynak linkini tutar.
           </p>
         </div>
