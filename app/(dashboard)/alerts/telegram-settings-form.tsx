@@ -17,7 +17,7 @@ export default function TelegramSettingsForm({
   const [state, formAction, pending] = useActionState(updateTelegramSettingsAction, initialState);
 
   return (
-    <form action={formAction} className="rounded-lg border border-line-soft bg-surface p-5 shadow-[0_1px_2px_rgba(23,24,43,0.04)]">
+    <form action={formAction} className="border-t border-line-soft p-5">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-medium text-ink">Telegram bağlantısı</h2>

@@ -1,4 +1,4 @@
-import { BellRing, ExternalLink, FileText, TrendingUp } from "lucide-react";
+import { BellRing, ChevronRight, ExternalLink, FileText, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { listMarketSources, listRecentAlerts, listWatchlists, readConditionFilter, readSeatFilter } from "@/lib/services/market-alerts";
 import { describeOpportunity, recommendLeadsForListing } from "@/lib/services/opportunity-flow";
@@ -56,17 +56,22 @@ export default async function AlertsPage() {
         description="Otomobilden ağır vasıtaya kadar aradığınız aracı Avrupa genelinde izleyin. Yeni eşleşmeler her gün sabah ve akşam 12 saatlik Telegram özetiyle gelir."
       />
 
-      <div className="mb-6">
+      <div className={`mb-6 ${cardClass}`}>
         <ManualTriggerButtons canRunScanner={profile?.role === "owner"} />
-      </div>
-
-      <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <TelegramSettingsForm
           username={profile?.telegram_username ?? null}
           verified={Boolean(profile?.telegram_chat_id && profile.telegram_verified_at)}
         />
-        <div className={`${cardClass} p-5`}>
-          <h2 className="mb-3 text-sm font-medium text-ink">Kaynak tarama politikası</h2>
+      </div>
+
+      <details className={`group mb-6 ${cardClass}`}>
+        <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-ink marker:content-none">
+          <span className="inline-flex items-center gap-2">
+            <ChevronRight className="h-4 w-4 text-ink-faint transition-transform group-open:rotate-90" strokeWidth={1.75} />
+            Kaynak tarama politikası
+          </span>
+        </summary>
+        <div className="border-t border-line-soft px-5 py-4">
           <div className="space-y-2 text-sm text-ink-soft">
             {sources.map((source) => (
               <div key={source.id} className="flex items-center justify-between gap-3">
@@ -83,7 +88,7 @@ export default async function AlertsPage() {
             Merkezi Scout agent Marktplaats ve Avrupa Deep Search ağını yaklaşık 8 saatte bir, jitter ile günde 3-4 kez tarar. Deep Search kaynakları e-posta olmadan keşfeder; korumalı sitelerde e-posta/API/n8n bağlantısı yalnız hız ve veri tamlığı için isteğe bağlı ek kanaldır. DB yalnız aranabilir ilan özeti ve kaynak linkini tutar.
           </p>
         </div>
-      </div>
+      </details>
 
       <div className="mb-6">
         <WatchlistForm sources={sources} />
@@ -138,15 +143,18 @@ export default async function AlertsPage() {
         </div>
       </div>
 
-      <div className={cardClass}>
+      <details open className={`group ${cardClass}`}>
+        <summary className="cursor-pointer list-none px-5 py-4 marker:content-none">
+          <span className="inline-flex items-center gap-2 text-sm font-medium text-ink">
+            <ChevronRight className="h-4 w-4 text-ink-faint transition-transform group-open:rotate-90" strokeWidth={1.75} />
+            Fırsat akışı
+          </span>
+          <p className="mt-1 pl-6 text-xs text-ink-faint">
+            En yüksek skorlu ilanlardan başlayın; uygun müşteri seçildiğinde teklif formu hazır açılır.
+          </p>
+        </summary>
         <SelectionProvider>
-        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line-soft px-5 py-4">
-          <div>
-            <h2 className="text-sm font-medium text-ink">Fırsat akışı</h2>
-            <p className="mt-1 text-xs text-ink-faint">
-              En yüksek skorlu ilanlardan başlayın; uygun müşteri seçildiğinde teklif formu hazır açılır.
-            </p>
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line-soft px-5 py-4">
           <SelectionToolbar allIds={groupedAlerts.map(({ alert }) => alert.id)} />
         </div>
         <div className="divide-y divide-line-soft">
@@ -285,7 +293,7 @@ export default async function AlertsPage() {
           ) : null}
         </div>
         </SelectionProvider>
-      </div>
+      </details>
     </div>
   );
 }
