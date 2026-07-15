@@ -28,6 +28,7 @@ export type MessageChannel = "whatsapp" | "telegram" | "instagram";
 export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
 export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
 export type MarketSourceMethod = "scrape" | "email_alert" | "web_search";
+export type MarketSourceVehicleCategory = "car_light_commercial" | "heavy_commercial" | "construction_agri" | "general";
 export type ListingAlertStatus = "pending" | "sent" | "failed" | "skipped";
 export type ListingAlertType = "new_match" | "price_drop";
 export type MarketListingStatus = "active" | "delisted";
@@ -431,6 +432,7 @@ export type Database = {
           data_retention_days?: number;
           terms_url?: string | null;
           robots_url?: string | null;
+          vehicle_category?: MarketSourceVehicleCategory;
           created_at: string;
           updated_at: string;
         };

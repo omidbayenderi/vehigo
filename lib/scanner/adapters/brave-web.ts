@@ -20,7 +20,8 @@ export const EUROPE_MARKETPLACE_HOSTS = [
   "ss.com", "autoplius.lt", "auto24.ee", "bazaraki.com", "carandmotor.gr",
   "donedeal.ie", "adverts.ie", "njuskalo.hr", "bolha.com", "bazos.sk",
   "hasznaltauto.hu", "kupujemprodajem.com", "pazar3.mk", "mobile.bg",
-  "alle-lkw.de",
+  "alle-lkw.de", "truckstore.com", "machinerypark.com", "machinery-portal.com",
+  "traktorpool.de", "rbauction.eu",
 ];
 export const MARKETPLACE_SOURCE_BY_HOST: Record<string, string> = {
   "mobile.de": "mobile_de",
@@ -62,6 +63,11 @@ export const MARKETPLACE_SOURCE_BY_HOST: Record<string, string> = {
   "facebook.com": "facebook_public",
   "t.me": "telegram_public",
   "alle-lkw.de": "alle_lkw_de",
+  "truckstore.com": "truckstore",
+  "machinerypark.com": "machinerypark",
+  "machinery-portal.com": "machinery_portal",
+  "traktorpool.de": "traktorpool",
+  "rbauction.eu": "ritchie_bros",
 };
 const VEHICLE_TERMS: Record<string, string[]> = {
   car: ["car", "passenger car", "auto", "voiture", "personenwagen"],
@@ -115,6 +121,7 @@ const LOCAL_SEARCH_PROFILES: Record<string, LocalSearchProfile> = {
 
 const HOST_MARKET_COUNTRY: Record<string, string> = {
   "mobile.de": "DE", "truckscout24.com": "DE", "machineseeker.com": "DE", "kleinanzeigen.de": "DE", "alle-lkw.de": "DE",
+  "truckstore.com": "DE", "machinery-portal.com": "DE", "traktorpool.de": "DE", "machinerypark.com": "NL",
   "marktplaats.nl": "NL", "trucksnl.com": "NL", "kleyntrucks.com": "NL", "basworld.com": "NL",
   "leboncoin.fr": "FR", "agriaffaires.com": "FR", "subito.it": "IT", "wallapop.com": "ES", "coches.net": "ES", "milanuncios.com": "ES",
   "olx.pt": "PT", "olx.pl": "PL", "otomoto.pl": "PL", "olx.ro": "RO", "olx.bg": "BG", "mobile.bg": "BG",
