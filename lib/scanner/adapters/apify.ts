@@ -43,7 +43,6 @@ function createApifyAdapter(config: {
 }): ScanAdapter {
   return {
     key: config.key,
-    processingMode: "transient",
     manifest: {
       key: config.key,
       version: "1.0.0",
