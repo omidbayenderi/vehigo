@@ -121,7 +121,8 @@ export const BODY_TERMS: Record<Exclude<BodyType, "other">, string[]> = {
 export const VEHICLE_TYPE_TERMS: Record<VehicleType, string[]> = {
   car: ["car", "passenger car", "personenwagen", "voiture", "automobile", "otomobil"],
   van: ["van", "transporter", "bestelwagen", "camionnette", "hafif ticari"],
-  truck: ["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "tractor unit", "kamyon", "çekici"],
+  truck: ["truck", "lorry", "vrachtwagen", "camion", "lastwagen", "kamyon"],
+  tractor_unit: ["tractor unit", "articulated truck", "semi truck", "sattelzugmaschine", "tracteur routier", "trekker", "çekici"],
   trailer: ["trailer", "semi trailer", "auflieger", "remorque", "dorse"],
   construction: ["excavator", "wheel loader", "construction machine", "baumaschine", "iş makinesi"],
   spare_part: ["spare parts", "truck parts", "ersatzteile", "yedek parça"],

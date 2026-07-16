@@ -50,7 +50,7 @@ function createApifyAdapter(config: {
       displayName: config.displayName,
       countries: config.countries,
       acquisitionModes: ["authorized_automation"],
-      vehicleTypes: ["car", "van", "truck", "trailer", "construction", "bus", "other"],
+      vehicleTypes: ["car", "van", "truck", "tractor_unit", "trailer", "construction", "bus", "other"],
       fieldCoverage: [
         "source_key", "source_listing_id", "listing_url", "title", "description", "seller_name",
         "seller_country_code", "seller_city", "brand", "model", "year", "mileage_km", "price",
