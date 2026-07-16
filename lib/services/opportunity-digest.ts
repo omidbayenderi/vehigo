@@ -44,6 +44,17 @@ export async function sendOpportunityDigest(
   }
 
   const healthIssues = await checkScannerHealth(supabase);
+  if (healthIssues.length > 0) {
+    const { data: linkedProfiles, error: profilesError } = await supabase
+      .from("users_profile")
+      .select("id,telegram_chat_id,telegram_verified_at")
+      .not("telegram_chat_id", "is", null)
+      .not("telegram_verified_at", "is", null);
+    if (profilesError) throw new Error(profilesError.message);
+    for (const profile of linkedProfiles ?? []) {
+      if (profile.telegram_chat_id) candidateUsers.set(profile.id, profile.telegram_chat_id);
+    }
+  }
   let users = 0;
   let sent = 0;
   let skipped = 0;
@@ -60,15 +71,17 @@ export async function sendOpportunityDigest(
     });
     if (claimError) throw new Error(`digest_claim_failed: ${claimError.message}`);
     const claimedIds = (claimed ?? []).map((alert) => alert.id);
-    if (claimedIds.length === 0) continue;
-    const { data: claimedAlerts, error: claimedError } = await supabase
-      .from("listing_alerts")
-      .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
-      .in("id", claimedIds)
-      .eq("digest_claim_token", claimToken);
-    if (claimedError) throw new Error(claimedError.message);
-    const alerts = (claimedAlerts ?? []) as unknown as DigestAlert[];
-    if (alerts.length === 0) continue;
+    let alerts: DigestAlert[] = [];
+    if (claimedIds.length > 0) {
+      const { data: claimedAlerts, error: claimedError } = await supabase
+        .from("listing_alerts")
+        .select("*, market_listings(*), watchlists!watchlist_id(*), users_profile(*)")
+        .in("id", claimedIds)
+        .eq("digest_claim_token", claimToken);
+      if (claimedError) throw new Error(claimedError.message);
+      alerts = (claimedAlerts ?? []) as unknown as DigestAlert[];
+    }
+    if (alerts.length === 0 && healthIssues.length === 0) continue;
     users++;
     pendingAlerts += alerts.length;
     const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, "fa") : null;
@@ -85,6 +98,10 @@ export async function sendOpportunityDigest(
     const result = await sendTelegramMessage(chatId, messageParts.join("\n\n"));
     const alertIds = alerts.map((alert) => alert.id);
     if (result.ok) {
+      if (alertIds.length === 0) {
+        sent++;
+        continue;
+      }
       const { data: finished, error: finishError } = await supabase.rpc("finish_opportunity_digest_alerts", {
         p_claim_token: claimToken,
         p_alert_ids: alertIds,
@@ -98,6 +115,10 @@ export async function sendOpportunityDigest(
       }
       sent++;
     } else {
+      if (alertIds.length === 0) {
+        failed++;
+        continue;
+      }
       const { error: finishError } = await supabase.rpc("finish_opportunity_digest_alerts", {
         p_claim_token: claimToken,
         p_alert_ids: alertIds,

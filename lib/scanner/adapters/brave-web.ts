@@ -223,8 +223,9 @@ export async function fetchSiteSearchAgentListings(input: {
   maxPages: number;
   maxRequests?: number;
   onRequestAttempt?: () => void;
+  processingMode?: "transient_search" | "persistent_search";
 }): Promise<SiteAgentSearchResult> {
-  const token = requireBraveSearchConfiguration();
+  const token = requireBraveSearchConfiguration(input.processingMode !== "transient_search");
   const host = input.host.trim().toLowerCase().replace(/^www\./, "");
   if (!/^[a-z0-9.-]+$/.test(host)) throw new Error("site_agent: geçersiz host");
 
@@ -325,10 +326,10 @@ export function buildSiteAgentQueries(input: {
   };
 }
 
-function requireBraveSearchConfiguration() {
+function requireBraveSearchConfiguration(requiresStorageRights = true) {
   const token = process.env.BRAVE_SEARCH_API_KEY;
   if (!token) throw new Error("BRAVE_SEARCH_API_KEY tanımlı değil");
-  if (process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
+  if (requiresStorageRights && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
     throw new Error("Brave Search sonuçlarını saklama hakkı doğrulanmadı; BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true gerekli");
   }
   return token;

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   fetchSiteSearchAgentListings: vi.fn(),
   processIncomingListings: vi.fn(),
+  processTransientListings: vi.fn(),
 }));
 
 vi.mock("@/lib/scanner/adapters/brave-web", () => ({
@@ -11,9 +12,13 @@ vi.mock("@/lib/scanner/adapters/brave-web", () => ({
 vi.mock("@/lib/services/market-alerts", () => ({
   processIncomingListings: mocks.processIncomingListings,
 }));
+vi.mock("@/lib/services/transient-opportunity", () => ({
+  processTransientListings: mocks.processTransientListings,
+}));
 
 import {
   classifySiteAgentError,
+  runAllActiveSiteSearchAgents,
   prepareSiteSearchAgentFleet,
   runDueSiteSearchAgents,
 } from "@/lib/scanner/site-search-agents";
@@ -25,6 +30,7 @@ const agent = {
   provider_key: "brave_web",
   acquisition_mode: "web_index",
   egress_policy: "provider_managed",
+  processing_mode: "persistent_search",
   status: "active",
   interval_minutes: 60,
   jitter_percent: 0,
@@ -56,6 +62,7 @@ function rpcClient(input: {
 } = {}) {
   const finishCalls: unknown[] = [];
   const rpc = vi.fn(async (name: string, args: unknown) => {
+    if (name === "reconcile_site_search_agent_fleet") return { data: 45, error: null };
     if (name === "activate_site_search_agent_fleet") return { data: 3, error: null };
     if (name === "claim_due_site_search_agents") {
       return input.claim ?? { data: [agent], error: null };
@@ -82,17 +89,28 @@ describe("site search agent fleet", () => {
   afterEach(() => {
     delete process.env.BRAVE_SEARCH_API_KEY;
     delete process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED;
+    delete process.env.BRAVE_SEARCH_MODE;
   });
 
   it("does not activate the fleet before provider storage rights are confirmed", async () => {
+    process.env.BRAVE_SEARCH_MODE = "persistent_search";
     process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED = "false";
     const { client, rpc } = rpcClient();
     const logger = { warn: vi.fn() };
 
     await expect(prepareSiteSearchAgentFleet(client as never, logger)).resolves.toBe(false);
 
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("reconcile_site_search_agent_fleet", {});
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("etkinleştirilmedi"));
+  });
+
+  it("allows transient processing without contractual storage rights", async () => {
+    process.env.BRAVE_SEARCH_MODE = "transient_search";
+    process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED = "false";
+    const { client, rpc } = rpcClient();
+
+    await expect(prepareSiteSearchAgentFleet(client as never)).resolves.toBe(true);
+    expect(rpc).toHaveBeenCalledWith("reconcile_site_search_agent_fleet", {});
   });
 
   it("validates provider configuration without auto-resuming paused agents", async () => {
@@ -100,7 +118,7 @@ describe("site search agent fleet", () => {
 
     await expect(prepareSiteSearchAgentFleet(client as never)).resolves.toBe(true);
 
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("reconcile_site_search_agent_fleet", {});
   });
 
   it("degrades safely when migration 0027 is not yet in the schema cache", async () => {
@@ -116,7 +134,7 @@ describe("site search agent fleet", () => {
   });
 
   it("finishes a successful run atomically with its lease token and exact request usage", async () => {
-    const { client, finishCalls } = rpcClient();
+    const { client, rpc, finishCalls } = rpcClient();
     mocks.fetchSiteSearchAgentListings.mockImplementation(async (input) => {
       input.onRequestAttempt();
       input.onRequestAttempt();
@@ -131,10 +149,17 @@ describe("site search agent fleet", () => {
     });
     mocks.processIncomingListings.mockResolvedValue({ fetched: 1, inserted: 1, alertsCreated: 2, alertsSent: 0, alertsFailed: 0 });
 
-    const summary = await runDueSiteSearchAgents(client as never, [], { workerId: "fleet-test", limit: 1 });
+    const summary = await runDueSiteSearchAgents(client as never, [], {
+      workerId: "fleet-test",
+      chefRunId: "00000000-0000-4000-8000-000000000099",
+      limit: 1,
+    });
 
     expect(summary).toMatchObject({ claimed: 1, completed: 1, partial: 0, fetched: 1, inserted: 1, alertsCreated: 2 });
     expect(finishCalls).toHaveLength(1);
+    expect(rpc).toHaveBeenCalledWith("start_site_search_agent_run", expect.objectContaining({
+      p_correlation_id: "00000000-0000-4000-8000-000000000099",
+    }));
     expect(finishCalls[0]).toMatchObject({
       p_worker_id: "fleet-test",
       p_lease_token: agent.lease_token,
@@ -157,6 +182,60 @@ describe("site search agent fleet", () => {
       p_error_code: "storage_rights_unverified",
       p_block_agent: true,
     });
+  });
+
+  it("routes transient agents through the in-memory processor without persistence", async () => {
+    const transientAgent = { ...agent, processing_mode: "transient_search" as const };
+    const { client, rpc, finishCalls } = rpcClient({ claim: { data: [transientAgent], error: null } });
+    mocks.fetchSiteSearchAgentListings.mockResolvedValue({
+      listings: [{ listing_url: "https://mobile.de/vehicle/transient" }],
+      requestCount: 1, queryCount: 1, pageCount: 1, nextCursor: 4, partial: false,
+    });
+    mocks.processTransientListings.mockResolvedValue({
+      fetched: 1, inserted: 0, alertsCreated: 1, alertsSent: 1, alertsFailed: 0, rejected: 0, deferred: 0,
+    });
+
+    const summary = await runDueSiteSearchAgents(client as never, [], { workerId: "fleet-test", force: true });
+
+    expect(summary).toMatchObject({ claimed: 1, completed: 1, fetched: 1, inserted: 0, alertsCreated: 1 });
+    expect(rpc).toHaveBeenCalledWith("claim_due_site_search_agents", expect.objectContaining({ p_force: true }));
+    expect(mocks.fetchSiteSearchAgentListings).toHaveBeenCalledWith(expect.objectContaining({ processingMode: "transient_search" }));
+    expect(mocks.processTransientListings).toHaveBeenCalledOnce();
+    expect(mocks.processIncomingListings).not.toHaveBeenCalled();
+    expect(finishCalls[0]).toMatchObject({ p_inserted_count: 0, p_alerts_created: 1 });
+  });
+
+  it("runs every active marketplace agent exactly once in an Europe-wide manual scan", async () => {
+    const sourceAgents = {
+      mobile_de: { ...agent, source_key: "mobile_de", host: "mobile.de", processing_mode: "transient_search" as const },
+      autoscout24: { ...agent, id: "00000000-0000-4000-8000-000000000030", source_key: "autoscout24", host: "autoscout24.com", processing_mode: "transient_search" as const },
+    };
+    const rpc = vi.fn(async (name: string, args: { p_source_key?: keyof typeof sourceAgents }) => {
+      if (name === "claim_due_site_search_agents") return { data: [sourceAgents[args.p_source_key!]], error: null };
+      if (name === "start_site_search_agent_run") return { data: crypto.randomUUID(), error: null };
+      if (name === "finish_site_search_agent_run") return { data: true, error: null };
+      throw new Error(`Unexpected RPC: ${name}`);
+    });
+    const response = Promise.resolve({ data: [{ source_key: "autoscout24" }, { source_key: "mobile_de" }], error: null });
+    const query = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), then: response.then.bind(response) };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.order.mockReturnValue(query);
+    const client = { rpc, from: vi.fn(() => query) };
+    mocks.fetchSiteSearchAgentListings.mockResolvedValue({
+      listings: [], requestCount: 1, queryCount: 1, pageCount: 1, nextCursor: 1, partial: false,
+    });
+    mocks.processTransientListings.mockResolvedValue({
+      fetched: 0, inserted: 0, alertsCreated: 0, alertsSent: 0, alertsFailed: 0, rejected: 0, deferred: 0,
+    });
+
+    const summary = await runAllActiveSiteSearchAgents(client as never, [], { chefRunId: crypto.randomUUID() });
+
+    expect(summary).toMatchObject({ claimed: 2, completed: 2, transientCompleted: 2, failed: 0 });
+    const claimedSources = rpc.mock.calls
+      .filter(([name]) => name === "claim_due_site_search_agents")
+      .map(([, args]) => args.p_source_key);
+    expect(claimedSources).toEqual(["autoscout24", "mobile_de"]);
   });
 
   it("keeps a partial provider result and advances only the attempted cursor", async () => {

@@ -13,21 +13,25 @@ import { replayDueIngestEvents } from "@/lib/services/scanner-ingest";
 import {
   createEmptySiteAgentFleetSummary,
   prepareSiteSearchAgentFleet,
+  runAllActiveSiteSearchAgents,
   runDueSiteSearchAgents,
   type SiteAgentFleetSummary,
 } from "@/lib/scanner/site-search-agents";
+import { processTransientListings } from "@/lib/services/transient-opportunity";
 
 type Client = SupabaseClient<Database>;
 
 export type ScannerRunOptions = {
   force?: boolean;
   sourceKey?: string;
+  siteAgentScope?: "one" | "all";
   logger?: Pick<Console, "log" | "warn" | "error">;
 };
 
 export type ScannerRunSummary = {
   checkedSources: number;
   scannedSources: number;
+  persistentScannedSources: number;
   fetched: number;
   inserted: number;
   alertsCreated: number;
@@ -48,6 +52,8 @@ export async function runScannerOnce(
   options: ScannerRunOptions = {},
 ): Promise<ScannerRunSummary> {
   const logger = options.logger ?? console;
+  const chefRunId = crypto.randomUUID();
+  logger.log(`[chef-agent:${chefRunId}] kaynak uzlaştırması ve görev dağıtımı başladı`);
   await syncRuntimeConnectorCatalog(supabase);
   const siteAgentFleetReady = await prepareSiteSearchAgentFleet(supabase, logger);
   const [{ replayed, failed: replayFailed }, { data: purgedPayloads, error: purgeError }] = await Promise.all([
@@ -65,6 +71,7 @@ export async function runScannerOnce(
   const summary: ScannerRunSummary = {
     checkedSources: dueSources.length,
     scannedSources: 0,
+    persistentScannedSources: 0,
     fetched: 0,
     inserted: 0,
     alertsCreated: 0,
@@ -107,13 +114,16 @@ export async function runScannerOnce(
     logger.log(`[${source.key}] tarama başladı...`);
     try {
       const listings = await adapter.fetchListings({ watchlists });
-      const result = await processIncomingListings(supabase, listings);
+      const result = adapter.processingMode === "transient"
+        ? await processTransientListings(supabase, listings, watchlists)
+        : await processIncomingListings(supabase, listings);
       const { nextRunAt } = await recordScannerRun(supabase, source.key, startedAt, {
         status: "ok",
         result,
       });
 
       summary.scannedSources++;
+      if (adapter.processingMode !== "transient") summary.persistentScannedSources++;
       summary.fetched += result.fetched;
       summary.inserted += result.inserted;
       summary.alertsCreated += result.alertsCreated;
@@ -134,26 +144,37 @@ export async function runScannerOnce(
   }
 
   try {
-    if (!siteAgentFleetReady) return finalizeScannerRun(supabase, summary);
-    summary.siteAgents = await runDueSiteSearchAgents(supabase, watchlists, {
-      workerId: `scanner-${crypto.randomUUID()}`,
-      limit: 1,
-      sourceKey: options.sourceKey,
-      logger,
-    });
+    if (!siteAgentFleetReady) {
+      logger.log(`[chef-agent:${chefRunId}] filo güvenlik nedeniyle çalıştırılmadı; durum raporu tamamlandı`);
+      return finalizeScannerRun(supabase, summary);
+    }
+    summary.siteAgents = options.siteAgentScope === "all"
+      ? await runAllActiveSiteSearchAgents(supabase, watchlists, { chefRunId, logger })
+      : await runDueSiteSearchAgents(supabase, watchlists, {
+        workerId: `scanner-${crypto.randomUUID()}`,
+        chefRunId,
+        limit: 1,
+        sourceKey: options.sourceKey,
+        force: options.force,
+        logger,
+      });
     summary.fetched += summary.siteAgents.fetched;
     summary.inserted += summary.siteAgents.inserted;
     summary.alertsCreated += summary.siteAgents.alertsCreated;
+    summary.alertsSent += summary.siteAgents.alertsSent;
+    summary.alertsFailed += summary.siteAgents.alertsFailed;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Bilinmeyen site-agent filo hatası";
     logger.error(`[site-agent-fleet] HATA: ${message}`);
     summary.failed.push({ sourceKey: "site_agent_fleet", error: message });
   }
 
+  logger.log(`[chef-agent:${chefRunId}] ajan raporları toplandı`);
   return finalizeScannerRun(supabase, summary);
 }
 
 async function finalizeScannerRun(supabase: Client, summary: ScannerRunSummary) {
-  summary.delisted = await markStaleListingsAsDelisted(supabase);
+  const persistentDiscoveryRan = summary.persistentScannedSources > 0 || summary.siteAgents.persistentCompleted > 0;
+  summary.delisted = persistentDiscoveryRan ? await markStaleListingsAsDelisted(supabase) : 0;
   return summary;
 }

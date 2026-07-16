@@ -493,6 +493,29 @@ describe("braveWebAdapter", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("permits site-agent search in transient mode without storage rights", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED = "false";
+    const braveBody = {
+      web: { results: [{ title: "MAN truck for sale", url: "https://mobile.de/vehicle/transient" }] },
+    };
+    const fetchSpy = vi.fn().mockResolvedValue(new Response(JSON.stringify(braveBody), { status: 200 }));
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "mobile_de",
+      host: "mobile.de",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 1,
+      processingMode: "transient_search",
+    });
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(result.listings).toHaveLength(1);
+  });
+
   it("keeps only results that look like a vehicle listing and dedupes repeated URLs", async () => {
     process.env.BRAVE_SEARCH_API_KEY = "test-key";
     const braveBody = {

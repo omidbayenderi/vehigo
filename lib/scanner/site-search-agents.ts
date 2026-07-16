@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/types";
 import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
 import { fetchSiteSearchAgentListings } from "@/lib/scanner/adapters/brave-web";
 import { processIncomingListings, type ProcessListingsResult } from "@/lib/services/market-alerts";
+import { processTransientListings } from "@/lib/services/transient-opportunity";
 
 type Client = SupabaseClient<Database>;
 type Agent = Database["public"]["Tables"]["site_search_agents"]["Row"];
@@ -16,15 +17,32 @@ export type SiteAgentFleetSummary = {
   fetched: number;
   inserted: number;
   alertsCreated: number;
+  alertsSent: number;
+  alertsFailed: number;
+  transientCompleted: number;
+  persistentCompleted: number;
   sources: Array<{ sourceKey: string; status: "ok" | "partial" | "failed" | "blocked"; errorCode?: string }>;
 };
 
 export async function prepareSiteSearchAgentFleet(
-  _supabase: Client,
+  supabase: Client,
   logger: Pick<Console, "warn"> = console,
 ) {
-  if (!process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
-    logger.warn("Site-agent filosu etkinleştirilmedi: Brave anahtarı ve sonuç saklama hakkı doğrulaması gerekli");
+  const { error: reconcileError } = await supabase.rpc("reconcile_site_search_agent_fleet", {});
+  if (reconcileError && !isMissingFleetSchema(reconcileError)) {
+    throw new Error(`site_agent_reconcile_failed: ${reconcileError.message}`);
+  }
+  if (reconcileError) {
+    logger.warn("Site-agent katalog uzlaştırması henüz uygulanmadı; mevcut filo kullanılacak");
+  }
+
+  if (!process.env.BRAVE_SEARCH_API_KEY) {
+    logger.warn("Site-agent filosu etkinleştirilmedi: Brave anahtarı gerekli");
+    return false;
+  }
+  const mode = process.env.BRAVE_SEARCH_MODE === "persistent_search" ? "persistent_search" : "transient_search";
+  if (mode === "persistent_search" && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
+    logger.warn("Persistent site-agent filosu etkinleştirilmedi: Brave saklama hakkı doğrulaması gerekli");
     return false;
   }
 
@@ -36,7 +54,7 @@ export async function prepareSiteSearchAgentFleet(
 export async function runDueSiteSearchAgents(
   supabase: Client,
   watchlists: ScannerWatchlist[],
-  options: { workerId?: string; limit?: number; sourceKey?: string; logger?: Pick<Console, "log" | "warn" | "error"> } = {},
+  options: { workerId?: string; chefRunId?: string; limit?: number; sourceKey?: string; force?: boolean; logger?: Pick<Console, "log" | "warn" | "error"> } = {},
 ): Promise<SiteAgentFleetSummary> {
   const logger = options.logger ?? console;
   if (options.limit !== undefined && options.limit !== 1) {
@@ -48,6 +66,7 @@ export async function runDueSiteSearchAgents(
     p_limit: 1,
     p_lease_seconds: 300,
     p_source_key: options.sourceKey ?? null,
+    p_force: options.force ?? false,
   });
   if (isMissingFleetSchema(error)) {
     logger.warn("site_search_agents şeması henüz uygulanmadı; site-agent filosu atlandı");
@@ -60,9 +79,53 @@ export async function runDueSiteSearchAgents(
   summary.claimed = agents.length;
 
   for (const agent of agents) {
-    await runAgent(supabase, agent, watchlists, summary, workerId, logger);
+    await runAgent(supabase, agent, watchlists, summary, workerId, options.chefRunId, logger);
   }
   return summary;
+}
+
+export async function runAllActiveSiteSearchAgents(
+  supabase: Client,
+  watchlists: ScannerWatchlist[],
+  options: { chefRunId: string; logger?: Pick<Console, "log" | "warn" | "error"> },
+) {
+  const { data: agents, error } = await supabase
+    .from("site_search_agents")
+    .select("source_key")
+    .eq("status", "active")
+    .order("source_key");
+  if (error) throw new Error(`site_agent_catalog_failed: ${error.message}`);
+
+  const total = createEmptySiteAgentFleetSummary();
+  for (const agent of agents ?? []) {
+    const result = await runDueSiteSearchAgents(supabase, watchlists, {
+      workerId: `manual-europe-${crypto.randomUUID()}`,
+      chefRunId: options.chefRunId,
+      sourceKey: agent.source_key,
+      force: true,
+      limit: 1,
+      logger: options.logger,
+    });
+    mergeSiteAgentFleetSummary(total, result);
+  }
+  return total;
+}
+
+export function mergeSiteAgentFleetSummary(target: SiteAgentFleetSummary, source: SiteAgentFleetSummary) {
+  target.claimed += source.claimed;
+  target.completed += source.completed;
+  target.partial += source.partial;
+  target.blocked += source.blocked;
+  target.failed += source.failed;
+  target.fetched += source.fetched;
+  target.inserted += source.inserted;
+  target.alertsCreated += source.alertsCreated;
+  target.alertsSent += source.alertsSent;
+  target.alertsFailed += source.alertsFailed;
+  target.transientCompleted += source.transientCompleted;
+  target.persistentCompleted += source.persistentCompleted;
+  target.sources.push(...source.sources);
+  return target;
 }
 
 export function createEmptySiteAgentFleetSummary(): SiteAgentFleetSummary {
@@ -75,6 +138,10 @@ export function createEmptySiteAgentFleetSummary(): SiteAgentFleetSummary {
     fetched: 0,
     inserted: 0,
     alertsCreated: 0,
+    alertsSent: 0,
+    alertsFailed: 0,
+    transientCompleted: 0,
+    persistentCompleted: 0,
     sources: [],
   };
 }
@@ -85,13 +152,15 @@ async function runAgent(
   watchlists: ScannerWatchlist[],
   summary: SiteAgentFleetSummary,
   workerId: string,
+  chefRunId: string | undefined,
   logger: Pick<Console, "log" | "warn" | "error">,
 ) {
   if (!agent.lease_token || agent.reserved_request_count < 1) {
     throw new Error("site_agent_claim_missing_lease_budget");
   }
 
-  const correlationId = crypto.randomUUID();
+  // Every child run reports under the correlation ID issued by the Chef Agent.
+  const correlationId = chefRunId ?? crypto.randomUUID();
   const { data: runId, error: runError } = await supabase.rpc("start_site_search_agent_run", {
     p_agent_id: agent.id,
     p_worker_id: workerId,
@@ -119,15 +188,16 @@ async function runAgent(
       maxPages: agent.max_pages_per_query,
       maxRequests: agent.reserved_request_count,
       onRequestAttempt: () => { requestCount += 1; },
+      processingMode: agent.processing_mode,
     });
     requestCount = Math.max(requestCount, search.requestCount);
     queryCount = search.queryCount;
     pageCount = search.pageCount;
     cursorAfter = search.nextCursor;
     partial = search.partial;
-    result = await processIncomingListings(supabase, search.listings, {
-      deadlineAt,
-    });
+    result = agent.processing_mode === "transient_search"
+      ? await processTransientListings(supabase, search.listings, watchlists)
+      : await processIncomingListings(supabase, search.listings, { deadlineAt });
     if ((result.rejected ?? 0) > 0 || (result.deferred ?? 0) > 0) partial = true;
     if ((result.deferred ?? 0) > 0) cursorAfter = agent.query_cursor;
   } catch (error) {
@@ -190,6 +260,10 @@ async function runAgent(
   summary.fetched += result.fetched;
   summary.inserted += result.inserted;
   summary.alertsCreated += result.alertsCreated;
+  summary.alertsSent += result.alertsSent;
+  summary.alertsFailed += result.alertsFailed;
+  if (agent.processing_mode === "transient_search") summary.transientCompleted += 1;
+  else summary.persistentCompleted += 1;
   summary.sources.push({ sourceKey: agent.source_key, status });
   logger.log(`[site-agent:${agent.source_key}] ${result.fetched} sonuç, ${result.inserted} yeni kayıt`);
 }

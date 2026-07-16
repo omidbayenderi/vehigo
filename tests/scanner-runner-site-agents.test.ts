@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createEmptySiteAgentFleetSummary: vi.fn(() => ({
     claimed: 0, completed: 0, partial: 0, blocked: 0, failed: 0,
-    fetched: 0, inserted: 0, alertsCreated: 0, sources: [],
+    fetched: 0, inserted: 0, alertsCreated: 0, alertsSent: 0, alertsFailed: 0,
+    transientCompleted: 0, persistentCompleted: 0, sources: [],
   })),
   getConnector: vi.fn(),
   listActiveWatchlistsForScanner: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   purgeRpc: vi.fn(),
   recordScannerRun: vi.fn(),
   replayDueIngestEvents: vi.fn(),
+  runAllActiveSiteSearchAgents: vi.fn(),
   runDueSiteSearchAgents: vi.fn(),
   syncRuntimeConnectorCatalog: vi.fn(),
 }));
@@ -31,6 +33,7 @@ vi.mock("@/lib/services/scanner-ingest", () => ({ replayDueIngestEvents: mocks.r
 vi.mock("@/lib/scanner/site-search-agents", () => ({
   createEmptySiteAgentFleetSummary: mocks.createEmptySiteAgentFleetSummary,
   prepareSiteSearchAgentFleet: mocks.prepareSiteSearchAgentFleet,
+  runAllActiveSiteSearchAgents: mocks.runAllActiveSiteSearchAgents,
   runDueSiteSearchAgents: mocks.runDueSiteSearchAgents,
 }));
 
@@ -54,7 +57,8 @@ describe("scanner runner site-agent integration", () => {
   it("merges the single leased agent totals into the scanner summary", async () => {
     mocks.runDueSiteSearchAgents.mockResolvedValue({
       claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
-      fetched: 4, inserted: 3, alertsCreated: 2, sources: [{ sourceKey: "mobile_de", status: "ok" }],
+      fetched: 4, inserted: 3, alertsCreated: 2, alertsSent: 0, alertsFailed: 0,
+      transientCompleted: 0, persistentCompleted: 1, sources: [{ sourceKey: "mobile_de", status: "ok" }],
     });
 
     const result = await runScannerOnce(client());
@@ -63,18 +67,55 @@ describe("scanner runner site-agent integration", () => {
     expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledWith(
       expect.anything(),
       [],
-      expect.objectContaining({ limit: 1 }),
+      expect.objectContaining({ limit: 1, chefRunId: expect.any(String) }),
     );
   });
 
-  it("surfaces fleet failure while still completing stale-listing maintenance", async () => {
+  it("propagates a manual force request to the site-agent claim", async () => {
+    mocks.runDueSiteSearchAgents.mockResolvedValue({
+      claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
+      fetched: 12, inserted: 0, alertsCreated: 1, alertsSent: 1, alertsFailed: 0,
+      transientCompleted: 1, persistentCompleted: 0, sources: [{ sourceKey: "mobile_de", status: "ok" }],
+    });
+
+    const result = await runScannerOnce(client(), { force: true });
+
+    expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.objectContaining({ force: true }),
+    );
+    expect(result.delisted).toBe(0);
+    expect(mocks.markStaleListingsAsDelisted).not.toHaveBeenCalled();
+  });
+
+  it("runs the complete active fleet for an explicit Europe-wide manual scan", async () => {
+    mocks.runAllActiveSiteSearchAgents.mockResolvedValue({
+      claimed: 45, completed: 45, partial: 0, blocked: 0, failed: 0,
+      fetched: 1_240, inserted: 0, alertsCreated: 3, alertsSent: 2, alertsFailed: 0,
+      transientCompleted: 45, persistentCompleted: 0,
+      sources: [{ sourceKey: "mobile_de", status: "ok" }],
+    });
+
+    const result = await runScannerOnce(client(), { force: true, siteAgentScope: "all" });
+
+    expect(mocks.runAllActiveSiteSearchAgents).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.objectContaining({ chefRunId: expect.any(String) }),
+    );
+    expect(mocks.runDueSiteSearchAgents).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ fetched: 1_240, alertsCreated: 3, delisted: 0 });
+  });
+
+  it("surfaces fleet failure without delisting records when no persistent discovery ran", async () => {
     mocks.runDueSiteSearchAgents.mockRejectedValue(new Error("stale lease"));
 
     const result = await runScannerOnce(client());
 
     expect(result.failed).toEqual([{ sourceKey: "site_agent_fleet", error: "stale lease" }]);
-    expect(result.delisted).toBe(2);
-    expect(mocks.markStaleListingsAsDelisted).toHaveBeenCalled();
+    expect(result.delisted).toBe(0);
+    expect(mocks.markStaleListingsAsDelisted).not.toHaveBeenCalled();
   });
 
   it("fails closed without calling Brave when storage rights are not verified", async () => {

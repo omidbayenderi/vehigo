@@ -32,5 +32,6 @@ export type ConnectorManifest = {
 export type ScanAdapter = {
   key: string;
   manifest: ConnectorManifest;
+  processingMode?: "persistent" | "transient";
   fetchListings: (context: ScanContext) => Promise<MarketListingInput[]>;
 };

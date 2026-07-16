@@ -112,6 +112,8 @@ Kural setleri yalnız kaynak referansıyla aktif hale getirilebilir. Hesap sonuc
 
 `brave_web` için `.env.local` içinde `BRAVE_SEARCH_API_KEY` gerekir. Google Custom Search JSON API yeni müşterilere kapalı olduğu için yeni kurulumda genel web arama katmanı Brave Search API üzerinden çalışır.
 
+Mobile.de ve AutoScout24 Apify connector'ları transient çalışır; sonuçlar aynı turda filtrelenip Telegram'a iletilir ve ilan içeriği Supabase'e yazılmaz. Üretimde `APIFY_ENABLED=true`, `APIFY_API_TOKEN`, `APIFY_MOBILE_DE_ACTOR`, `APIFY_AUTOSCOUT24_ACTOR` ve `APIFY_MAX_RESULTS_PER_RUN` tanımlanmalıdır. Kaynaklar günlük aralıkla ve birbirinden bağımsız hata sınırlarıyla çalışır.
+
 ## Otomatik tarama
 
 `.github/workflows/scanner-cron.yml` günde 3 kez `/api/scanner/run`, günde 2 kez de son 12 saatin yeni ilanları için `/api/scanner/digest` çağırır. `.github/workflows/operations-maintenance.yml` ise her 5 dakikada bir expired lease kurtarma ve retention bakımını çalıştırır. GitHub Actions secrets ve Vercel ortam değişkenlerinde şunlar tanımlı olmalı:
@@ -122,6 +124,11 @@ Kural setleri yalnız kaynak referansıyla aktif hale getirilebilir. Hesap sonuc
 - `SCANNER_INGEST_SECRET`
 - `CRON_SECRET`
 - `BRAVE_SEARCH_API_KEY`
+- `APIFY_ENABLED`
+- `APIFY_API_TOKEN`
+- `APIFY_MOBILE_DE_ACTOR`
+- `APIFY_AUTOSCOUT24_ACTOR`
+- `APIFY_MAX_RESULTS_PER_RUN`
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
 
