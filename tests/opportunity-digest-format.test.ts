@@ -39,4 +39,48 @@ describe("Telegram opportunity digest localization", () => {
     expect(message).toContain("دلیل: تطابق برند: Toyota");
     expect(message).toContain("مشاهده آگهی");
   });
+
+  it("prepends an arbitrage highlight only for alerts the arbitrage engine approved", () => {
+    const approvedAlert = {
+      id: "alert-1",
+      alert_type: "new_match",
+      opportunity_label: "hot",
+      opportunity_score: 90,
+      opportunity_reasons: [],
+      market_listings: {
+        title: "MAN TGX 18.440 Sattelzugmaschine", brand: "MAN", model: "TGX", year: 2019,
+        price: 22000, currency: "EUR", seller_city: null, seller_country: null,
+        source_key: "apify_mobile_de", listing_url: "https://mobile.de/example-1", raw: {},
+      },
+      watchlists: { name: "Çekici Almanya" },
+    };
+    const ordinaryAlert = {
+      id: "alert-2",
+      alert_type: "new_match",
+      opportunity_label: "good",
+      opportunity_score: 70,
+      opportunity_reasons: [],
+      market_listings: {
+        title: "MAN TGX 18.440", brand: "MAN", model: "TGX", year: 2018,
+        price: 38000, currency: "EUR", seller_city: null, seller_country: null,
+        source_key: "apify_mobile_de", listing_url: "https://mobile.de/example-2", raw: {},
+      },
+      watchlists: { name: "Çekici Almanya" },
+    };
+    const arbitrageByAlertId = new Map([[
+      "alert-1",
+      {
+        approved: true, confidence: 0.82, comparableCount: 9, medianComparablePrice: 39000,
+        estimatedNetProfitPercent: 57.3, reason: "Fiyat medyanın belirgin altında ve risk sinyali yok", aiUsed: true,
+      },
+    ]]);
+
+    const message = formatDigest([approvedAlert, ordinaryAlert] as never, 12, "tr", arbitrageByAlertId as never);
+
+    expect(message).toContain("🔥 <b>Gerçek Arbitraj Fırsatı</b>");
+    expect(message).toContain("Tahmini net kâr: %57.3");
+    expect(message).toContain("Medyan karşılaştırma: 39.000 EUR (9 ilan)");
+    expect(message.indexOf("🔥")).toBeLessThan(message.indexOf("MAN TGX 18.440 Sattelzugmaschine"));
+    expect(message.split("🔥")).toHaveLength(2);
+  });
 });

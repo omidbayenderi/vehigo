@@ -3,6 +3,7 @@ import type { Database, VehicleCondition } from "@/lib/supabase/types";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import { checkScannerHealth, type ScannerHealthIssue } from "@/lib/services/scanner-health";
 import { readListingCondition, readListingSeatCount } from "@/lib/services/market-alerts";
+import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
 
 type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -87,9 +88,19 @@ export async function sendOpportunityDigest(
     if (alerts.length === 0 && healthIssues.length === 0) continue;
     users++;
     pendingAlerts += alerts.length;
+    const arbitrageByAlertId = new Map<string, ArbitrageAssessment>();
+    for (const alert of alerts) {
+      if (!alert.market_listings || !alert.watchlists) continue;
+      try {
+        const assessment = await assessEuropeanArbitrage(supabase, alert.market_listings, alert.watchlists);
+        if (assessment.approved) arbitrageByAlertId.set(alert.id, assessment);
+      } catch {
+        // Arbitrage checking is a bonus signal; a failure here must never block ordinary delivery.
+      }
+    }
     const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, locale) : null;
     const messageParts = [
-      alerts.length > 0 ? formatDigest(alerts, hours, locale) : null,
+      alerts.length > 0 ? formatDigest(alerts, hours, locale, arbitrageByAlertId) : null,
       healthWarning,
     ].filter((part): part is string => Boolean(part));
 
@@ -161,8 +172,13 @@ export function isUnsentDigestAlert(alert: Pick<Alert, "status" | "sent_at">) {
   return alert.status === "pending" && alert.sent_at === null;
 }
 
-export function formatDigest(alerts: DigestAlert[], hours: number, locale: "tr" | "fa" = "tr") {
-  if (locale === "fa") return formatDigestFa(alerts, hours);
+export function formatDigest(
+  alerts: DigestAlert[],
+  hours: number,
+  locale: "tr" | "fa" = "tr",
+  arbitrageByAlertId: Map<string, ArbitrageAssessment> = new Map(),
+) {
+  if (locale === "fa") return formatDigestFa(alerts, hours, arbitrageByAlertId);
   const lines = [
     `Vehigo fırsat özeti - ${hours} saatlik dönem ve bekleyenler`,
     ``,
@@ -180,8 +196,10 @@ export function formatDigest(alerts: DigestAlert[], hours: number, locale: "tr" 
         seatCount ? `Koltuk: ${seatCount}` : null,
         condition ? `Durum: ${conditionLabel(condition, "tr")}` : null,
       ].filter(Boolean).join(" | ");
+      const arbitrage = arbitrageByAlertId.get(alert.id);
 
       return [
+        arbitrage ? formatArbitrageBlock(arbitrage, "tr") : null,
         `${index + 1}. [${alert.alert_type === "price_drop" ? "FİYAT DÜŞTÜ" : labelText(alert.opportunity_label)}] ${escapeHtml(title || "Araç ilanı")}`,
         `Skor: ${alert.opportunity_score ?? "-"}/100 | Kural: ${escapeHtml(watchlist?.name ?? "-")}`,
         `Fiyat: ${escapeHtml(price)} | Konum: ${escapeHtml(location)} | Kaynak: ${escapeHtml(listing.source_key)}`,
@@ -196,7 +214,7 @@ export function formatDigest(alerts: DigestAlert[], hours: number, locale: "tr" 
   return lines.join("\n");
 }
 
-function formatDigestFa(alerts: DigestAlert[], hours: number) {
+function formatDigestFa(alerts: DigestAlert[], hours: number, arbitrageByAlertId: Map<string, ArbitrageAssessment> = new Map()) {
   const lines = [
     `خلاصه فرصت‌های وهیگو — دوره ${hours.toLocaleString("fa-IR")} ساعته و موارد در انتظار`,
     ``,
@@ -214,8 +232,10 @@ function formatDigestFa(alerts: DigestAlert[], hours: number) {
         seatCount ? `تعداد صندلی: ${seatCount.toLocaleString("fa-IR")}` : null,
         condition ? `وضعیت: ${conditionLabel(condition, "fa")}` : null,
       ].filter(Boolean).join(" | ");
+      const arbitrage = arbitrageByAlertId.get(alert.id);
 
       return [
+        arbitrage ? formatArbitrageBlock(arbitrage, "fa") : null,
         `${(index + 1).toLocaleString("fa-IR")}. [${alert.alert_type === "price_drop" ? "کاهش قیمت" : labelTextFa(alert.opportunity_label)}] ${escapeHtml(title || "آگهی خودرو")}`,
         `امتیاز: ${alert.opportunity_score?.toLocaleString("fa-IR") ?? "-"}/۱۰۰ | هشدار: ${escapeHtml(watchlist?.name ?? "-")}`,
         `قیمت: ${escapeHtml(price)} | مکان: ${escapeHtml(location)} | منبع: ${escapeHtml(listingSource(listing))}`,
@@ -227,6 +247,28 @@ function formatDigestFa(alerts: DigestAlert[], hours: number) {
     }),
   ];
   return lines.join("\n");
+}
+
+function formatArbitrageBlock(assessment: ArbitrageAssessment, locale: "tr" | "fa") {
+  const margin = assessment.estimatedNetProfitPercent?.toFixed(1) ?? "?";
+  const median = assessment.medianComparablePrice?.toLocaleString(locale === "fa" ? "fa-IR" : "tr-TR") ?? "?";
+  const confidence = Math.round(assessment.confidence * 100);
+  if (locale === "fa") {
+    return [
+      `🔥 <b>فرصت آربیتراژ واقعی</b>`,
+      `سود خالص تخمینی: %${margin}`,
+      `میانه مقایسه‌ای: ${median} یورو (${assessment.comparableCount.toLocaleString("fa-IR")} آگهی)`,
+      `اطمینان هوش مصنوعی: %${confidence}`,
+      `ارزیابی: ${escapeHtml(assessment.reason)}`,
+    ].join("\n");
+  }
+  return [
+    `🔥 <b>Gerçek Arbitraj Fırsatı</b>`,
+    `Tahmini net kâr: %${margin}`,
+    `Medyan karşılaştırma: ${median} EUR (${assessment.comparableCount} ilan)`,
+    `AI güveni: %${confidence}`,
+    `Değerlendirme: ${escapeHtml(assessment.reason)}`,
+  ].join("\n");
 }
 
 function listingSource(listing: Listing) {
