@@ -15,7 +15,7 @@ export default function ManualTriggerButtons({ canRunScanner }: { canRunScanner:
       <h2 className="mb-1 text-sm font-medium text-ink">Manuel çalıştırma</h2>
       <p className="mb-4 text-sm text-ink-faint">
         {canRunScanner
-          ? "Otomatik taramayı beklemeden şimdi çalıştırın veya bekleyen yeni eşleşmeleri Telegram’a gönderin."
+          ? "45 bağımsız pazar ajanıyla Avrupa genelini şimdi tarayın (yaklaşık 1–3 dakika) veya bekleyen eşleşmeleri Telegram’a gönderin."
           : "Bekleyen yeni eşleşmeleri Telegram’a şimdi gönderin."}
       </p>
       <div className="flex flex-wrap gap-2">
@@ -26,7 +26,7 @@ export default function ManualTriggerButtons({ canRunScanner }: { canRunScanner:
             className="flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${scanPending ? "animate-spin" : ""}`} strokeWidth={1.75} />
-            {scanPending ? "Taranıyor..." : "Şimdi tara"}
+            {scanPending ? "Avrupa taranıyor..." : "Avrupa'yı tara (45 ajan)"}
           </button>
         </form> : null}
         <form action={digestAction}>

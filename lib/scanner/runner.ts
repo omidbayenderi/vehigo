@@ -13,6 +13,7 @@ import { replayDueIngestEvents } from "@/lib/services/scanner-ingest";
 import {
   createEmptySiteAgentFleetSummary,
   prepareSiteSearchAgentFleet,
+  runAllActiveSiteSearchAgents,
   runDueSiteSearchAgents,
   type SiteAgentFleetSummary,
 } from "@/lib/scanner/site-search-agents";
@@ -22,6 +23,7 @@ type Client = SupabaseClient<Database>;
 export type ScannerRunOptions = {
   force?: boolean;
   sourceKey?: string;
+  siteAgentScope?: "one" | "all";
   logger?: Pick<Console, "log" | "warn" | "error">;
 };
 
@@ -140,14 +142,16 @@ export async function runScannerOnce(
       logger.log(`[chef-agent:${chefRunId}] filo güvenlik nedeniyle çalıştırılmadı; durum raporu tamamlandı`);
       return finalizeScannerRun(supabase, summary);
     }
-    summary.siteAgents = await runDueSiteSearchAgents(supabase, watchlists, {
-      workerId: `scanner-${crypto.randomUUID()}`,
-      chefRunId,
-      limit: 1,
-      sourceKey: options.sourceKey,
-      force: options.force,
-      logger,
-    });
+    summary.siteAgents = options.siteAgentScope === "all"
+      ? await runAllActiveSiteSearchAgents(supabase, watchlists, { chefRunId, logger })
+      : await runDueSiteSearchAgents(supabase, watchlists, {
+        workerId: `scanner-${crypto.randomUUID()}`,
+        chefRunId,
+        limit: 1,
+        sourceKey: options.sourceKey,
+        force: options.force,
+        logger,
+      });
     summary.fetched += summary.siteAgents.fetched;
     summary.inserted += summary.siteAgents.inserted;
     summary.alertsCreated += summary.siteAgents.alertsCreated;

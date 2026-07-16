@@ -62,6 +62,10 @@ describe("manual alert operations", () => {
       "00000000-0000-4000-8000-000000000001",
       expect.objectContaining({ fetched: 4 }),
     );
+    expect(mocks.runScannerOnce).toHaveBeenCalledWith(
+      { kind: "admin" },
+      { force: true, siteAgentScope: "all" },
+    );
     expect(mocks.logAudit).toHaveBeenCalledWith(
       expect.anything(),
       "00000000-0000-4000-8000-000000000001",

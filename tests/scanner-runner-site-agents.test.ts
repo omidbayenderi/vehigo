@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   purgeRpc: vi.fn(),
   recordScannerRun: vi.fn(),
   replayDueIngestEvents: vi.fn(),
+  runAllActiveSiteSearchAgents: vi.fn(),
   runDueSiteSearchAgents: vi.fn(),
   syncRuntimeConnectorCatalog: vi.fn(),
 }));
@@ -32,6 +33,7 @@ vi.mock("@/lib/services/scanner-ingest", () => ({ replayDueIngestEvents: mocks.r
 vi.mock("@/lib/scanner/site-search-agents", () => ({
   createEmptySiteAgentFleetSummary: mocks.createEmptySiteAgentFleetSummary,
   prepareSiteSearchAgentFleet: mocks.prepareSiteSearchAgentFleet,
+  runAllActiveSiteSearchAgents: mocks.runAllActiveSiteSearchAgents,
   runDueSiteSearchAgents: mocks.runDueSiteSearchAgents,
 }));
 
@@ -85,6 +87,25 @@ describe("scanner runner site-agent integration", () => {
     );
     expect(result.delisted).toBe(0);
     expect(mocks.markStaleListingsAsDelisted).not.toHaveBeenCalled();
+  });
+
+  it("runs the complete active fleet for an explicit Europe-wide manual scan", async () => {
+    mocks.runAllActiveSiteSearchAgents.mockResolvedValue({
+      claimed: 45, completed: 45, partial: 0, blocked: 0, failed: 0,
+      fetched: 1_240, inserted: 0, alertsCreated: 3, alertsSent: 2, alertsFailed: 0,
+      transientCompleted: 45, persistentCompleted: 0,
+      sources: [{ sourceKey: "mobile_de", status: "ok" }],
+    });
+
+    const result = await runScannerOnce(client(), { force: true, siteAgentScope: "all" });
+
+    expect(mocks.runAllActiveSiteSearchAgents).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.objectContaining({ chefRunId: expect.any(String) }),
+    );
+    expect(mocks.runDueSiteSearchAgents).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ fetched: 1_240, alertsCreated: 3, delisted: 0 });
   });
 
   it("surfaces fleet failure without delisting records when no persistent discovery ran", async () => {

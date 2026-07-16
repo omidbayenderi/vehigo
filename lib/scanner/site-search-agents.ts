@@ -84,6 +84,50 @@ export async function runDueSiteSearchAgents(
   return summary;
 }
 
+export async function runAllActiveSiteSearchAgents(
+  supabase: Client,
+  watchlists: ScannerWatchlist[],
+  options: { chefRunId: string; logger?: Pick<Console, "log" | "warn" | "error"> },
+) {
+  const { data: agents, error } = await supabase
+    .from("site_search_agents")
+    .select("source_key")
+    .eq("status", "active")
+    .order("source_key");
+  if (error) throw new Error(`site_agent_catalog_failed: ${error.message}`);
+
+  const total = createEmptySiteAgentFleetSummary();
+  for (const agent of agents ?? []) {
+    const result = await runDueSiteSearchAgents(supabase, watchlists, {
+      workerId: `manual-europe-${crypto.randomUUID()}`,
+      chefRunId: options.chefRunId,
+      sourceKey: agent.source_key,
+      force: true,
+      limit: 1,
+      logger: options.logger,
+    });
+    mergeSiteAgentFleetSummary(total, result);
+  }
+  return total;
+}
+
+export function mergeSiteAgentFleetSummary(target: SiteAgentFleetSummary, source: SiteAgentFleetSummary) {
+  target.claimed += source.claimed;
+  target.completed += source.completed;
+  target.partial += source.partial;
+  target.blocked += source.blocked;
+  target.failed += source.failed;
+  target.fetched += source.fetched;
+  target.inserted += source.inserted;
+  target.alertsCreated += source.alertsCreated;
+  target.alertsSent += source.alertsSent;
+  target.alertsFailed += source.alertsFailed;
+  target.transientCompleted += source.transientCompleted;
+  target.persistentCompleted += source.persistentCompleted;
+  target.sources.push(...source.sources);
+  return target;
+}
+
 export function createEmptySiteAgentFleetSummary(): SiteAgentFleetSummary {
   return {
     claimed: 0,

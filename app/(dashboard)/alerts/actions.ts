@@ -151,7 +151,7 @@ export async function runScannerNowAction(): Promise<FormState> {
     }
 
     const admin = createAdminClient();
-    const summary = await runScannerOnce(admin, { force: true });
+    const summary = await runScannerOnce(admin, { force: true, siteAgentScope: "all" });
     const receipt = await sendManualScanReceipt(admin, user.id, summary);
     await logAudit(supabase, user.id, "manual_run", "scanner", null, { command: "run" });
     revalidatePath("/alerts");
