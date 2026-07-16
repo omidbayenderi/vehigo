@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-line-soft bg-surface/90 px-4 py-3 backdrop-blur-xl md:hidden">
         <Brand />
         <div className="flex items-center gap-2">
-          <LanguageToggle compact />
+          <LanguageToggle compact persist />
           <ThemeToggle compact />
           <details className="group relative">
             <summary className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-line bg-surface text-ink-soft hover:bg-surface-sunken" aria-label="Menüyü aç">
@@ -49,7 +49,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
         <NavLinks isOwner={isOwner} />
         <div className="border-t border-line-soft p-3">
-          <LanguageToggle />
+          <LanguageToggle persist />
           <ThemeToggle />
           <div className="mt-2 flex items-center gap-2.5 rounded-xl px-3 py-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-wash text-xs font-semibold text-brand-ink">

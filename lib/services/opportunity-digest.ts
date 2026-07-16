@@ -36,23 +36,26 @@ export async function sendOpportunityDigest(
   const { data, error } = await pendingQuery;
   if (error) throw new Error(error.message);
 
-  const candidateUsers = new Map<string, string>();
+  const candidateUsers = new Map<string, { chatId: string; locale: "tr" | "fa" }>();
   for (const alert of (data ?? []) as unknown as DigestAlert[]) {
     if (!isUnsentDigestAlert(alert)) continue;
     if (!alert.users_profile?.telegram_chat_id || !alert.market_listings) continue;
-    candidateUsers.set(alert.user_id, alert.users_profile.telegram_chat_id);
+    candidateUsers.set(alert.user_id, {
+      chatId: alert.users_profile.telegram_chat_id,
+      locale: alert.users_profile.locale,
+    });
   }
 
   const healthIssues = await checkScannerHealth(supabase);
   if (healthIssues.length > 0) {
     const { data: linkedProfiles, error: profilesError } = await supabase
       .from("users_profile")
-      .select("id,telegram_chat_id,telegram_verified_at")
+      .select("id,telegram_chat_id,telegram_verified_at,locale")
       .not("telegram_chat_id", "is", null)
       .not("telegram_verified_at", "is", null);
     if (profilesError) throw new Error(profilesError.message);
     for (const profile of linkedProfiles ?? []) {
-      if (profile.telegram_chat_id) candidateUsers.set(profile.id, profile.telegram_chat_id);
+      if (profile.telegram_chat_id) candidateUsers.set(profile.id, { chatId: profile.telegram_chat_id, locale: profile.locale });
     }
   }
   let users = 0;
@@ -61,7 +64,7 @@ export async function sendOpportunityDigest(
   let failed = 0;
   let pendingAlerts = 0;
 
-  for (const [userId, chatId] of candidateUsers) {
+  for (const [userId, { chatId, locale }] of candidateUsers) {
     const claimToken = crypto.randomUUID();
     const { data: claimed, error: claimError } = await supabase.rpc("claim_opportunity_digest_alerts", {
       p_claim_token: claimToken,
@@ -84,9 +87,9 @@ export async function sendOpportunityDigest(
     if (alerts.length === 0 && healthIssues.length === 0) continue;
     users++;
     pendingAlerts += alerts.length;
-    const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, "fa") : null;
+    const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, locale) : null;
     const messageParts = [
-      alerts.length > 0 ? formatDigest(alerts, hours, "fa") : null,
+      alerts.length > 0 ? formatDigest(alerts, hours, locale) : null,
       healthWarning,
     ].filter((part): part is string => Boolean(part));
 

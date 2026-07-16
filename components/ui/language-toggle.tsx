@@ -3,13 +3,18 @@
 import { Languages } from "lucide-react";
 import { useAppLocale } from "./locale-bridge";
 
-export function LanguageToggle({ compact = false }: { compact?: boolean }) {
+export function LanguageToggle({ compact = false, persist = false }: { compact?: boolean; persist?: boolean }) {
   const { locale, setLocale } = useAppLocale();
   const next = locale === "fa" ? "tr" : "fa";
   const label = locale === "fa" ? "Türkçe" : "فارسی";
 
   function switchLanguage() {
     localStorage.setItem("vehigo-locale", next);
+    if (persist) {
+      import("@/app/(dashboard)/user-locale-actions").then(({ updateUserLocaleAction }) => {
+        void updateUserLocaleAction(next);
+      });
+    }
     if (next === "fa") setLocale("fa");
     else window.location.reload();
   }
