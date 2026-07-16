@@ -7,6 +7,7 @@ import { deleteWatchlistAction, editWatchlistAction, type FormState } from "./ac
 import DetailedVehicleFilters, { detailValuesFromWatchlist } from "./detailed-vehicle-filters";
 import NaturalLanguagePlanner from "./natural-language-planner";
 import GeographyFields from "./geography-fields";
+import VehicleTypePicker from "./vehicle-type-picker";
 
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
@@ -26,6 +27,7 @@ export default function WatchlistEditor({
   const [open, setOpen] = useState(false);
   const enabledSources = sources.filter((source) => source.enabled);
   const [selectedSources, setSelectedSources] = useState(() => new Set(watchlist.source_keys));
+  const [vehicleType, setVehicleType] = useState(watchlist.vehicle_type ?? "");
   const [state, action, pending] = useActionState(editWatchlistAction.bind(null, watchlist.id), initialState);
   const [deleting, startDelete] = useTransition();
 
@@ -77,9 +79,9 @@ export default function WatchlistEditor({
         <Field label="Şehir" name="city" value={watchlist.city} />
         <Field label="Marka" name="brand" value={watchlist.brand} />
         <Field label="Model" name="model" value={watchlist.model} />
-        <label className="text-sm"><span className="mb-1 block text-ink-soft">Araç tipi</span><select name="vehicle_type" defaultValue={watchlist.vehicle_type ?? ""} className={inputClass}>
-          <option value="">Farketmez</option><option value="car">Otomobil</option><option value="van">Hafif ticari / Van</option><option value="truck">Kamyon</option><option value="trailer">Dorse</option><option value="construction">İş makinesi</option><option value="spare_part">Yedek parça</option><option value="bus">Otobüs</option><option value="other">Diğer</option>
-        </select></label>
+        <div className="md:col-span-3">
+          <VehicleTypePicker name="vehicle_type" value={vehicleType} onChange={setVehicleType} />
+        </div>
         <Field label="Min yıl" name="min_year" type="number" value={watchlist.min_year} />
         <Field label="Max yıl" name="max_year" type="number" value={watchlist.max_year} />
         <Field label="Max km" name="max_mileage_km" type="number" value={watchlist.max_mileage_km} />

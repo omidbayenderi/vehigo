@@ -602,9 +602,26 @@ function mappedHostValue(host: string, values: Record<string, string>) {
   return key ? values[key] : undefined;
 }
 
+// Brave often indexes a marketplace's category/search-results page (e.g. an
+// aggregator's "Toyota Corolla cars ▸ 66 offers, price from €1,800") rather
+// than a single vehicle's detail page. These carry a plausible title/price
+// but describe a whole inventory, not the specific vehicle a watchlist is
+// looking for, so they must not be treated as a discoverable listing.
+function isAggregateListingPage(title?: string, description?: string) {
+  const text = `${title ?? ""} ${description ?? ""}`;
+  return [
+    /\b\d[\d.,]*\s*(?:offers?|ads?|listings?|results?|anuncios|annonces|angebote|advertenties|annunci|ilanlar)\b/i,
+    /\bprice from\b/i,
+    /\bab\s*€\s*\d/i,
+    /\bsearch results\b/i,
+    /▸/,
+  ].some((pattern) => pattern.test(text));
+}
+
 function isLikelyVehicleListing(url: string, title?: string, description?: string) {
   const text = `${url} ${title ?? ""} ${description ?? ""}`.toLowerCase();
   if (text.includes("youtube.com") || text.includes("wikipedia.org")) return false;
+  if (isAggregateListingPage(title, description)) return false;
   if (isPublicSocialListingUrl(url)) return true;
   if (isKnownMarketplaceUrl(url)) return true;
   return [

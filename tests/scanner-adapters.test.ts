@@ -538,6 +538,28 @@ describe("braveWebAdapter", () => {
     expect(listings[0]).toMatchObject({ source_key: "brave_web", listing_url: "https://dealer.example/man-tgx", seat_count: 2, condition: "used_good" });
   });
 
+  it("rejects an aggregator category page instead of treating it as one vehicle listing", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    const braveBody = {
+      web: {
+        results: [
+          {
+            title: "Gasoline Toyota Corolla cars | Autoline Europe",
+            url: "https://www.autoline.info/used/Toyota/Corolla",
+            description: "Gasoline Toyota Corolla cars ▸ 66 offers ✓ Price from €1,800 ✓ New and used",
+          },
+          { title: "Toyota Corolla 1.6 kaufen", url: "https://www.autoscout24.com/offers/toyota-corolla-1", description: "used petrol Toyota Corolla for sale" },
+        ],
+      },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(braveBody), { status: 200 })));
+
+    const listings = await braveWebAdapter.fetchListings({ watchlists: [] });
+
+    expect(listings).toHaveLength(1);
+    expect(listings[0].listing_url).toBe("https://autoscout24.com/offers/toyota-corolla-1");
+  });
+
   it("attributes indexed results to their marketplace without copying watchlist location or type", async () => {
     process.env.BRAVE_SEARCH_API_KEY = "test-key";
     const braveBody = {
