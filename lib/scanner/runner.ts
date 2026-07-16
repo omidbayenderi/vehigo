@@ -151,6 +151,8 @@ export async function runScannerOnce(
     summary.fetched += summary.siteAgents.fetched;
     summary.inserted += summary.siteAgents.inserted;
     summary.alertsCreated += summary.siteAgents.alertsCreated;
+    summary.alertsSent += summary.siteAgents.alertsSent;
+    summary.alertsFailed += summary.siteAgents.alertsFailed;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Bilinmeyen site-agent filo hatası";
     logger.error(`[site-agent-fleet] HATA: ${message}`);
@@ -162,6 +164,7 @@ export async function runScannerOnce(
 }
 
 async function finalizeScannerRun(supabase: Client, summary: ScannerRunSummary) {
-  summary.delisted = await markStaleListingsAsDelisted(supabase);
+  const persistentDiscoveryRan = summary.scannedSources > 0 || summary.siteAgents.persistentCompleted > 0;
+  summary.delisted = persistentDiscoveryRan ? await markStaleListingsAsDelisted(supabase) : 0;
   return summary;
 }

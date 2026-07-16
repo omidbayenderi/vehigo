@@ -14,6 +14,7 @@ import { runScannerOnce } from "@/lib/scanner/runner";
 import { sendOpportunityDigest } from "@/lib/services/opportunity-digest";
 import { analyzeMarketListing } from "@/lib/services/market-intelligence";
 import { runAiMarketReview } from "@/lib/services/ai-evaluation-ledger";
+import { sendManualScanReceipt } from "@/lib/services/manual-scan-receipt";
 
 export type FormState = { error?: string; ok?: string };
 type MarketListing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -151,10 +152,11 @@ export async function runScannerNowAction(): Promise<FormState> {
 
     const admin = createAdminClient();
     const summary = await runScannerOnce(admin, { force: true });
+    const receipt = await sendManualScanReceipt(admin, user.id, summary);
     await logAudit(supabase, user.id, "manual_run", "scanner", null, { command: "run" });
     revalidatePath("/alerts");
     return {
-      ok: `Tarama tamamlandı: ${summary.scannedSources} doğrudan kaynak, ${summary.siteAgents.completed} bağımsız pazar ajanı çalıştı; ${summary.fetched} ilan çekildi, ${summary.inserted} yeni ilan, ${summary.alertsCreated} yeni eşleşme oluşturuldu. Geçici arama eşleşmeleri aynı turda Telegram'a iletilir; kalıcı eşleşmeler sabah/akşam özetinde veya “Özet gönder” ile gönderilir. ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
+      ok: `Tarama tamamlandı: ${summary.scannedSources} doğrudan kaynak, ${summary.siteAgents.completed} bağımsız pazar ajanı çalıştı; ${summary.fetched} ilan çekildi, ${summary.inserted} yeni ilan, ${summary.alertsCreated} yeni eşleşme oluşturuldu. ${summary.alertsCreated === 0 ? "Filtrelere uyan ilan olmadığı için fırsat bildirimi oluşmadı." : "Geçici arama eşleşmeleri aynı turda Telegram'a iletildi."} Manuel tarama makbuzu ${receipt.sent ? "Telegram'a iletildi" : receipt.reason === "not_linked" ? "için Telegram bağlantısı bulunamadı" : "Telegram'a iletilemedi"}. ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };

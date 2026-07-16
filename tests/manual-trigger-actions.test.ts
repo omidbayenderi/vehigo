@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   logAudit: vi.fn(),
   revalidatePath: vi.fn(),
   runScannerOnce: vi.fn(),
+  sendManualScanReceipt: vi.fn(),
   sendOpportunityDigest: vi.fn(),
 }));
 
@@ -16,6 +17,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: mocks.createAdminCli
 vi.mock("@/lib/services/audit", () => ({ logAudit: mocks.logAudit }));
 vi.mock("@/lib/scanner/runner", () => ({ runScannerOnce: mocks.runScannerOnce }));
 vi.mock("@/lib/services/opportunity-digest", () => ({ sendOpportunityDigest: mocks.sendOpportunityDigest }));
+vi.mock("@/lib/services/manual-scan-receipt", () => ({ sendManualScanReceipt: mocks.sendManualScanReceipt }));
 
 import { runScannerNowAction, sendDigestNowAction } from "@/app/(dashboard)/alerts/actions";
 
@@ -34,6 +36,7 @@ describe("manual alert operations", () => {
     mocks.createClient.mockResolvedValue(ownerClient());
     mocks.createAdminClient.mockReturnValue({ kind: "admin" });
     mocks.logAudit.mockResolvedValue(undefined);
+    mocks.sendManualScanReceipt.mockResolvedValue({ sent: true });
   });
 
   it("records a manual scanner run without putting a command string in the UUID entity field", async () => {
@@ -42,6 +45,8 @@ describe("manual alert operations", () => {
       fetched: 4,
       inserted: 2,
       alertsCreated: 1,
+      alertsSent: 1,
+      alertsFailed: 0,
       siteAgents: { completed: 1 },
       delisted: 0,
       failed: [],
@@ -51,6 +56,12 @@ describe("manual alert operations", () => {
 
     expect(result.error).toBeUndefined();
     expect(result.ok).toContain("1 bağımsız pazar ajanı çalıştı");
+    expect(result.ok).toContain("Manuel tarama makbuzu Telegram'a iletildi");
+    expect(mocks.sendManualScanReceipt).toHaveBeenCalledWith(
+      { kind: "admin" },
+      "00000000-0000-4000-8000-000000000001",
+      expect.objectContaining({ fetched: 4 }),
+    );
     expect(mocks.logAudit).toHaveBeenCalledWith(
       expect.anything(),
       "00000000-0000-4000-8000-000000000001",

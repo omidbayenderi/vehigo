@@ -17,6 +17,10 @@ export type SiteAgentFleetSummary = {
   fetched: number;
   inserted: number;
   alertsCreated: number;
+  alertsSent: number;
+  alertsFailed: number;
+  transientCompleted: number;
+  persistentCompleted: number;
   sources: Array<{ sourceKey: string; status: "ok" | "partial" | "failed" | "blocked"; errorCode?: string }>;
 };
 
@@ -90,6 +94,10 @@ export function createEmptySiteAgentFleetSummary(): SiteAgentFleetSummary {
     fetched: 0,
     inserted: 0,
     alertsCreated: 0,
+    alertsSent: 0,
+    alertsFailed: 0,
+    transientCompleted: 0,
+    persistentCompleted: 0,
     sources: [],
   };
 }
@@ -208,6 +216,10 @@ async function runAgent(
   summary.fetched += result.fetched;
   summary.inserted += result.inserted;
   summary.alertsCreated += result.alertsCreated;
+  summary.alertsSent += result.alertsSent;
+  summary.alertsFailed += result.alertsFailed;
+  if (agent.processing_mode === "transient_search") summary.transientCompleted += 1;
+  else summary.persistentCompleted += 1;
   summary.sources.push({ sourceKey: agent.source_key, status });
   logger.log(`[site-agent:${agent.source_key}] ${result.fetched} sonuç, ${result.inserted} yeni kayıt`);
 }
