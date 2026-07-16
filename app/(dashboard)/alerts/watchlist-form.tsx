@@ -6,6 +6,7 @@ import type { Database } from "@/lib/supabase/types";
 import DetailedVehicleFilters from "./detailed-vehicle-filters";
 import NaturalLanguagePlanner from "./natural-language-planner";
 import GeographyFields from "./geography-fields";
+import VehicleTypePicker from "./vehicle-type-picker";
 
 type Source = Database["public"]["Tables"]["market_sources"]["Row"];
 
@@ -47,25 +48,9 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
         <Field label="Şehir" name="city" placeholder="Berlin" />
         <Field label="Marka" name="brand" placeholder="Mercedes-Benz" />
         <Field label="Model" name="model" placeholder="Actros" />
-        <label className="text-sm">
-          <span className="mb-1 block text-ink-soft">Araç tipi</span>
-          <select
-            name="vehicle_type"
-            value={vehicleType}
-            onChange={(event) => setVehicleType(event.target.value)}
-            className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
-          >
-            <option value="">Farketmez</option>
-            <option value="car">Otomobil</option>
-            <option value="van">Hafif ticari / Van</option>
-            <option value="truck">Kamyon</option>
-            <option value="trailer">Dorse</option>
-            <option value="construction">İş makinesi</option>
-            <option value="spare_part">Yedek parça</option>
-            <option value="bus">Otobüs</option>
-            <option value="other">Diğer</option>
-          </select>
-        </label>
+        <div className="md:col-span-3">
+          <VehicleTypePicker name="vehicle_type" value={vehicleType} onChange={setVehicleType} />
+        </div>
         {vehicleType === "car" ? <Field label="Koltuk sayısı" name="seat_count" type="number" /> : null}
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Araç durumu</span>
