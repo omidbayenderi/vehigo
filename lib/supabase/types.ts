@@ -2,7 +2,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json } | 
 
 export type UserRole = "owner" | "broker" | "assistant";
 export type VatStatus = "vat_included" | "vat_free" | "margin_scheme" | "unknown";
-export type VehicleType = "car" | "van" | "truck" | "trailer" | "construction" | "spare_part" | "bus" | "other";
+export type VehicleType = "car" | "van" | "truck" | "tractor_unit" | "trailer" | "construction" | "spare_part" | "bus" | "other";
 export type VehicleCondition = "new" | "used_excellent" | "used_good" | "used_fair" | "damaged";
 export type FuelType = "gasoline" | "diesel" | "electric" | "hybrid" | "lpg" | "hydrogen" | "other";
 export type TransmissionType = "automatic" | "manual" | "semi_automatic" | "other";

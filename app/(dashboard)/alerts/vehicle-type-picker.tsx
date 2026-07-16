@@ -8,6 +8,7 @@ const VEHICLE_TYPES: Array<{ value: string; label: string; icon: LucideIcon }> =
   { value: "car", label: "Otomobil", icon: Car },
   { value: "van", label: "Hafif ticari", icon: CarFront },
   { value: "truck", label: "Kamyon", icon: Truck },
+  { value: "tractor_unit", label: "Çekici", icon: Truck },
   { value: "trailer", label: "Dorse", icon: Container },
   { value: "construction", label: "İş makinesi", icon: Construction },
   { value: "spare_part", label: "Yedek parça", icon: Wrench },
