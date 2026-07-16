@@ -76,7 +76,7 @@ export async function listDueScannerSources(
       .from("market_sources")
       .select("*")
       .eq("enabled", true)
-      .in("method", ["scrape", "web_search"]);
+      .in("method", ["scrape", "web_search", "api"]);
     if (options.sourceKey) fallback = fallback.eq("key", options.sourceKey);
     if (!options.force) fallback = fallback.or(`next_run_at.is.null,next_run_at.lte.${new Date().toISOString()}`);
     const { data: fallbackData, error: fallbackError } = await fallback;
