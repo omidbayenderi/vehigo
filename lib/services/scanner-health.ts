@@ -19,11 +19,9 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
     .eq("enabled", true)
     .in("method", ["scrape", "web_search"]);
   if (sourcesError) throw new Error(sourcesError.message);
-  if (!sources || sources.length === 0) return [];
-
   const issues: ScannerHealthIssue[] = [];
 
-  for (const source of sources) {
+  for (const source of sources ?? []) {
     const connector = getConnector(source.key);
     if (!connector) {
       issues.push({
@@ -97,6 +95,56 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
       kind: "dead_letter_backlog",
       detail: `${failedIngestCount} yeniden oynatılabilir başarısız event bekliyor`,
     });
+  }
+
+  const { data: siteAgents, error: agentsError } = await supabase
+    .from("site_search_agents")
+    .select("status,last_started_at,last_status,last_error_message,interval_minutes");
+  if (agentsError && !/schema cache|does not exist/i.test(agentsError.message)) {
+    throw new Error(agentsError.message);
+  }
+  if (siteAgents) {
+    const pending = siteAgents.filter((agent) => agent.status === "pending_activation").length;
+    const blocked = siteAgents.filter((agent) => agent.status === "blocked").length;
+    const now = Date.now();
+    const stale = siteAgents.filter((agent) => agent.status === "active" && (
+      !agent.last_started_at
+      || now - new Date(agent.last_started_at).getTime() > (agent.interval_minutes * 2 + 60) * 60_000
+    )).length;
+    const failing = siteAgents.filter((agent) => agent.status === "active" && agent.last_status === "failed").length;
+
+    if (pending > 0) {
+      issues.push({
+        sourceKey: "site_agent_fleet",
+        sourceName: "Pazar ajan filosu",
+        kind: "never_ran",
+        detail: `${pending} bağımsız ajan aktivasyon bekliyor`,
+      });
+    }
+    if (blocked > 0) {
+      issues.push({
+        sourceKey: "site_agent_fleet",
+        sourceName: "Pazar ajan filosu",
+        kind: "failing",
+        detail: `${blocked} bağımsız ajan engellendi`,
+      });
+    }
+    if (stale > 0) {
+      issues.push({
+        sourceKey: "site_agent_fleet",
+        sourceName: "Pazar ajan filosu",
+        kind: "stale",
+        detail: `${stale} bağımsız ajan beklenen çalışma aralığını aştı`,
+      });
+    }
+    if (failing > 0) {
+      issues.push({
+        sourceKey: "site_agent_fleet",
+        sourceName: "Pazar ajan filosu",
+        kind: "failing",
+        detail: `${failing} bağımsız ajanın son çalışması başarısız`,
+      });
+    }
   }
 
   return issues;

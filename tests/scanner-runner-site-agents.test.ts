@@ -63,7 +63,7 @@ describe("scanner runner site-agent integration", () => {
     expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledWith(
       expect.anything(),
       [],
-      expect.objectContaining({ limit: 1 }),
+      expect.objectContaining({ limit: 1, chefRunId: expect.any(String) }),
     );
   });
 

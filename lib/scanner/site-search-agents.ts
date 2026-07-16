@@ -20,9 +20,17 @@ export type SiteAgentFleetSummary = {
 };
 
 export async function prepareSiteSearchAgentFleet(
-  _supabase: Client,
+  supabase: Client,
   logger: Pick<Console, "warn"> = console,
 ) {
+  const { error: reconcileError } = await supabase.rpc("reconcile_site_search_agent_fleet", {});
+  if (reconcileError && !isMissingFleetSchema(reconcileError)) {
+    throw new Error(`site_agent_reconcile_failed: ${reconcileError.message}`);
+  }
+  if (reconcileError) {
+    logger.warn("Site-agent katalog uzlaştırması henüz uygulanmadı; mevcut filo kullanılacak");
+  }
+
   if (!process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
     logger.warn("Site-agent filosu etkinleştirilmedi: Brave anahtarı ve sonuç saklama hakkı doğrulaması gerekli");
     return false;
@@ -36,7 +44,7 @@ export async function prepareSiteSearchAgentFleet(
 export async function runDueSiteSearchAgents(
   supabase: Client,
   watchlists: ScannerWatchlist[],
-  options: { workerId?: string; limit?: number; sourceKey?: string; logger?: Pick<Console, "log" | "warn" | "error"> } = {},
+  options: { workerId?: string; chefRunId?: string; limit?: number; sourceKey?: string; logger?: Pick<Console, "log" | "warn" | "error"> } = {},
 ): Promise<SiteAgentFleetSummary> {
   const logger = options.logger ?? console;
   if (options.limit !== undefined && options.limit !== 1) {
@@ -60,7 +68,7 @@ export async function runDueSiteSearchAgents(
   summary.claimed = agents.length;
 
   for (const agent of agents) {
-    await runAgent(supabase, agent, watchlists, summary, workerId, logger);
+    await runAgent(supabase, agent, watchlists, summary, workerId, options.chefRunId, logger);
   }
   return summary;
 }
@@ -85,13 +93,15 @@ async function runAgent(
   watchlists: ScannerWatchlist[],
   summary: SiteAgentFleetSummary,
   workerId: string,
+  chefRunId: string | undefined,
   logger: Pick<Console, "log" | "warn" | "error">,
 ) {
   if (!agent.lease_token || agent.reserved_request_count < 1) {
     throw new Error("site_agent_claim_missing_lease_budget");
   }
 
-  const correlationId = crypto.randomUUID();
+  // Every child run reports under the correlation ID issued by the Chef Agent.
+  const correlationId = chefRunId ?? crypto.randomUUID();
   const { data: runId, error: runError } = await supabase.rpc("start_site_search_agent_run", {
     p_agent_id: agent.id,
     p_worker_id: workerId,

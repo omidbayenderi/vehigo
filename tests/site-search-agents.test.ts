@@ -56,6 +56,7 @@ function rpcClient(input: {
 } = {}) {
   const finishCalls: unknown[] = [];
   const rpc = vi.fn(async (name: string, args: unknown) => {
+    if (name === "reconcile_site_search_agent_fleet") return { data: 45, error: null };
     if (name === "activate_site_search_agent_fleet") return { data: 3, error: null };
     if (name === "claim_due_site_search_agents") {
       return input.claim ?? { data: [agent], error: null };
@@ -91,7 +92,7 @@ describe("site search agent fleet", () => {
 
     await expect(prepareSiteSearchAgentFleet(client as never, logger)).resolves.toBe(false);
 
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("reconcile_site_search_agent_fleet", {});
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("etkinleştirilmedi"));
   });
 
@@ -100,7 +101,7 @@ describe("site search agent fleet", () => {
 
     await expect(prepareSiteSearchAgentFleet(client as never)).resolves.toBe(true);
 
-    expect(rpc).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledWith("reconcile_site_search_agent_fleet", {});
   });
 
   it("degrades safely when migration 0027 is not yet in the schema cache", async () => {
@@ -116,7 +117,7 @@ describe("site search agent fleet", () => {
   });
 
   it("finishes a successful run atomically with its lease token and exact request usage", async () => {
-    const { client, finishCalls } = rpcClient();
+    const { client, rpc, finishCalls } = rpcClient();
     mocks.fetchSiteSearchAgentListings.mockImplementation(async (input) => {
       input.onRequestAttempt();
       input.onRequestAttempt();
@@ -131,10 +132,17 @@ describe("site search agent fleet", () => {
     });
     mocks.processIncomingListings.mockResolvedValue({ fetched: 1, inserted: 1, alertsCreated: 2, alertsSent: 0, alertsFailed: 0 });
 
-    const summary = await runDueSiteSearchAgents(client as never, [], { workerId: "fleet-test", limit: 1 });
+    const summary = await runDueSiteSearchAgents(client as never, [], {
+      workerId: "fleet-test",
+      chefRunId: "00000000-0000-4000-8000-000000000099",
+      limit: 1,
+    });
 
     expect(summary).toMatchObject({ claimed: 1, completed: 1, partial: 0, fetched: 1, inserted: 1, alertsCreated: 2 });
     expect(finishCalls).toHaveLength(1);
+    expect(rpc).toHaveBeenCalledWith("start_site_search_agent_run", expect.objectContaining({
+      p_correlation_id: "00000000-0000-4000-8000-000000000099",
+    }));
     expect(finishCalls[0]).toMatchObject({
       p_worker_id: "fleet-test",
       p_lease_token: agent.lease_token,

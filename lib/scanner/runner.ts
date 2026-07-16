@@ -48,6 +48,8 @@ export async function runScannerOnce(
   options: ScannerRunOptions = {},
 ): Promise<ScannerRunSummary> {
   const logger = options.logger ?? console;
+  const chefRunId = crypto.randomUUID();
+  logger.log(`[chef-agent:${chefRunId}] kaynak uzlaştırması ve görev dağıtımı başladı`);
   await syncRuntimeConnectorCatalog(supabase);
   const siteAgentFleetReady = await prepareSiteSearchAgentFleet(supabase, logger);
   const [{ replayed, failed: replayFailed }, { data: purgedPayloads, error: purgeError }] = await Promise.all([
@@ -134,9 +136,13 @@ export async function runScannerOnce(
   }
 
   try {
-    if (!siteAgentFleetReady) return finalizeScannerRun(supabase, summary);
+    if (!siteAgentFleetReady) {
+      logger.log(`[chef-agent:${chefRunId}] filo güvenlik nedeniyle çalıştırılmadı; durum raporu tamamlandı`);
+      return finalizeScannerRun(supabase, summary);
+    }
     summary.siteAgents = await runDueSiteSearchAgents(supabase, watchlists, {
       workerId: `scanner-${crypto.randomUUID()}`,
+      chefRunId,
       limit: 1,
       sourceKey: options.sourceKey,
       logger,
@@ -150,6 +156,7 @@ export async function runScannerOnce(
     summary.failed.push({ sourceKey: "site_agent_fleet", error: message });
   }
 
+  logger.log(`[chef-agent:${chefRunId}] ajan raporları toplandı`);
   return finalizeScannerRun(supabase, summary);
 }
 
