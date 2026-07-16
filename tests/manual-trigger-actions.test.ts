@@ -42,6 +42,7 @@ describe("manual alert operations", () => {
       fetched: 4,
       inserted: 2,
       alertsCreated: 1,
+      siteAgents: { completed: 1 },
       delisted: 0,
       failed: [],
     });
@@ -49,6 +50,7 @@ describe("manual alert operations", () => {
     const result = await runScannerNowAction();
 
     expect(result.error).toBeUndefined();
+    expect(result.ok).toContain("1 bağımsız pazar ajanı çalıştı");
     expect(mocks.logAudit).toHaveBeenCalledWith(
       expect.anything(),
       "00000000-0000-4000-8000-000000000001",

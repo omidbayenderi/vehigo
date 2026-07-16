@@ -852,7 +852,7 @@ export type Database = {
       activate_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
       activate_transient_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
       reconcile_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
-      claim_due_site_search_agents: { Args: { p_worker_id: string; p_limit?: number; p_lease_seconds?: number; p_source_key?: string | null }; Returns: Database["public"]["Tables"]["site_search_agents"]["Row"][] };
+      claim_due_site_search_agents: { Args: { p_worker_id: string; p_limit?: number; p_lease_seconds?: number; p_source_key?: string | null; p_force?: boolean }; Returns: Database["public"]["Tables"]["site_search_agents"]["Row"][] };
       start_site_search_agent_run: { Args: { p_agent_id: string; p_worker_id: string; p_lease_token: string; p_correlation_id: string }; Returns: string };
       finish_site_search_agent_run: { Args: { p_run_id: string; p_agent_id: string; p_worker_id: string; p_lease_token: string; p_status: Exclude<SiteSearchRunStatus, "running">; p_request_count: number; p_query_count: number; p_page_count: number; p_fetched_count: number; p_inserted_count: number; p_alerts_created: number; p_cursor_after: number; p_next_run_at: string; p_error_code?: string | null; p_error_message?: string | null; p_block_agent?: boolean }; Returns: boolean };
       claim_opportunity_digest_alerts: { Args: { p_claim_token: string; p_limit?: number; p_user_id?: string | null; p_lease_seconds?: number }; Returns: Database["public"]["Tables"]["listing_alerts"]["Row"][] };

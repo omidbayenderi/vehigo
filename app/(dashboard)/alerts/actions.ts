@@ -154,7 +154,7 @@ export async function runScannerNowAction(): Promise<FormState> {
     await logAudit(supabase, user.id, "manual_run", "scanner", null, { command: "run" });
     revalidatePath("/alerts");
     return {
-      ok: `Tarama tamamlandı: ${summary.scannedSources} otomatik kaynak, ${summary.fetched} ilan çekildi, ${summary.inserted} yeni ilan, ${summary.alertsCreated} yeni eşleşme oluşturuldu. Telegram bildirimleri sabah/akşam özetinde veya “Özet gönder” ile iletilir. ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
+      ok: `Tarama tamamlandı: ${summary.scannedSources} doğrudan kaynak, ${summary.siteAgents.completed} bağımsız pazar ajanı çalıştı; ${summary.fetched} ilan çekildi, ${summary.inserted} yeni ilan, ${summary.alertsCreated} yeni eşleşme oluşturuldu. Geçici arama eşleşmeleri aynı turda Telegram'a iletilir; kalıcı eşleşmeler sabah/akşam özetinde veya “Özet gönder” ile gönderilir. ${summary.delisted} ilan satılmış/kaldırılmış olarak işaretlendi.${summary.failed.length > 0 ? ` Hatalı: ${summary.failed.map((f) => f.sourceKey).join(", ")}.` : ""}`,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Bilinmeyen hata" };

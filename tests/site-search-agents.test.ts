@@ -185,7 +185,7 @@ describe("site search agent fleet", () => {
 
   it("routes transient agents through the in-memory processor without persistence", async () => {
     const transientAgent = { ...agent, processing_mode: "transient_search" as const };
-    const { client, finishCalls } = rpcClient({ claim: { data: [transientAgent], error: null } });
+    const { client, rpc, finishCalls } = rpcClient({ claim: { data: [transientAgent], error: null } });
     mocks.fetchSiteSearchAgentListings.mockResolvedValue({
       listings: [{ listing_url: "https://mobile.de/vehicle/transient" }],
       requestCount: 1, queryCount: 1, pageCount: 1, nextCursor: 4, partial: false,
@@ -194,9 +194,10 @@ describe("site search agent fleet", () => {
       fetched: 1, inserted: 0, alertsCreated: 1, alertsSent: 1, alertsFailed: 0, rejected: 0, deferred: 0,
     });
 
-    const summary = await runDueSiteSearchAgents(client as never, [], { workerId: "fleet-test" });
+    const summary = await runDueSiteSearchAgents(client as never, [], { workerId: "fleet-test", force: true });
 
     expect(summary).toMatchObject({ claimed: 1, completed: 1, fetched: 1, inserted: 0, alertsCreated: 1 });
+    expect(rpc).toHaveBeenCalledWith("claim_due_site_search_agents", expect.objectContaining({ p_force: true }));
     expect(mocks.fetchSiteSearchAgentListings).toHaveBeenCalledWith(expect.objectContaining({ processingMode: "transient_search" }));
     expect(mocks.processTransientListings).toHaveBeenCalledOnce();
     expect(mocks.processIncomingListings).not.toHaveBeenCalled();

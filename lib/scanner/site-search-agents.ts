@@ -50,7 +50,7 @@ export async function prepareSiteSearchAgentFleet(
 export async function runDueSiteSearchAgents(
   supabase: Client,
   watchlists: ScannerWatchlist[],
-  options: { workerId?: string; chefRunId?: string; limit?: number; sourceKey?: string; logger?: Pick<Console, "log" | "warn" | "error"> } = {},
+  options: { workerId?: string; chefRunId?: string; limit?: number; sourceKey?: string; force?: boolean; logger?: Pick<Console, "log" | "warn" | "error"> } = {},
 ): Promise<SiteAgentFleetSummary> {
   const logger = options.logger ?? console;
   if (options.limit !== undefined && options.limit !== 1) {
@@ -62,6 +62,7 @@ export async function runDueSiteSearchAgents(
     p_limit: 1,
     p_lease_seconds: 300,
     p_source_key: options.sourceKey ?? null,
+    p_force: options.force ?? false,
   });
   if (isMissingFleetSchema(error)) {
     logger.warn("site_search_agents şeması henüz uygulanmadı; site-agent filosu atlandı");

@@ -145,6 +145,7 @@ export async function runScannerOnce(
       chefRunId,
       limit: 1,
       sourceKey: options.sourceKey,
+      force: options.force,
       logger,
     });
     summary.fetched += summary.siteAgents.fetched;

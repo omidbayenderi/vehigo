@@ -67,6 +67,21 @@ describe("scanner runner site-agent integration", () => {
     );
   });
 
+  it("propagates a manual force request to the site-agent claim", async () => {
+    mocks.runDueSiteSearchAgents.mockResolvedValue({
+      claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
+      fetched: 12, inserted: 0, alertsCreated: 1, sources: [{ sourceKey: "mobile_de", status: "ok" }],
+    });
+
+    await runScannerOnce(client(), { force: true });
+
+    expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.objectContaining({ force: true }),
+    );
+  });
+
   it("surfaces fleet failure while still completing stale-listing maintenance", async () => {
     mocks.runDueSiteSearchAgents.mockRejectedValue(new Error("stale lease"));
 
