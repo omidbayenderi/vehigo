@@ -12,7 +12,7 @@ export async function sendManualScanReceipt(
 ) {
   const { data: profile, error } = await supabase
     .from("users_profile")
-    .select("telegram_chat_id,telegram_verified_at")
+    .select("telegram_chat_id,telegram_verified_at,locale")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -20,15 +20,25 @@ export async function sendManualScanReceipt(
     return { sent: false as const, reason: "not_linked" as const };
   }
 
-  const message = [
-    "<b>Vehigo manuel tarama tamamlandı</b>",
-    `Çalışan pazar ajanı: ${summary.siteAgents.completed}`,
-    `Çekilen ilan: ${summary.fetched}`,
-    `Yeni eşleşme: ${summary.alertsCreated}`,
-    summary.alertsCreated === 0
-      ? "Filtrelerinize uyan yeni ilan bulunmadı."
-      : `Eşleşme bildirimleri: ${summary.alertsSent} başarılı, ${summary.alertsFailed} başarısız.`,
-  ].join("\n");
+  const message = profile.locale === "fa"
+    ? [
+      "<b>جست‌وجوی دستی Vehigo تکمیل شد</b>",
+      `عامل‌های بازار فعال: ${summary.siteAgents.completed}`,
+      `آگهی‌های دریافت‌شده: ${summary.fetched}`,
+      `تطابق جدید: ${summary.alertsCreated}`,
+      summary.alertsCreated === 0
+        ? "آگهی جدیدی مطابق فیلترهای شما یافت نشد."
+        : `اعلان‌های تطابق: ${summary.alertsSent} موفق، ${summary.alertsFailed} ناموفق.`,
+    ].join("\n")
+    : [
+      "<b>Vehigo manuel tarama tamamlandı</b>",
+      `Çalışan pazar ajanı: ${summary.siteAgents.completed}`,
+      `Çekilen ilan: ${summary.fetched}`,
+      `Yeni eşleşme: ${summary.alertsCreated}`,
+      summary.alertsCreated === 0
+        ? "Filtrelerinize uyan yeni ilan bulunmadı."
+        : `Eşleşme bildirimleri: ${summary.alertsSent} başarılı, ${summary.alertsFailed} başarısız.`,
+    ].join("\n");
   const delivery = await sendTelegramMessage(profile.telegram_chat_id, message);
   return delivery.ok
     ? { sent: true as const }

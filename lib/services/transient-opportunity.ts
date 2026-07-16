@@ -48,13 +48,13 @@ export async function processTransientListings(
 
   const { data: profiles, error: profileError } = await supabase
     .from("users_profile")
-    .select("id,telegram_chat_id,telegram_verified_at")
+    .select("id,telegram_chat_id,telegram_verified_at,locale")
     .in("id", userIds)
     .not("telegram_chat_id", "is", null)
     .not("telegram_verified_at", "is", null);
   if (profileError) throw new Error(profileError.message);
   const chatByUser = new Map((profiles ?? []).flatMap((profile) =>
-    profile.telegram_chat_id ? [[profile.id, profile.telegram_chat_id] as const] : [],
+    profile.telegram_chat_id ? [[profile.id, { chatId: profile.telegram_chat_id, locale: profile.locale }] as const] : [],
   ));
   const matchesByUser = new Map<string, Array<{ listing: Listing; watchlist: Watchlist }>>();
   const seenByUser = new Map<string, Set<string>>();
@@ -74,9 +74,9 @@ export async function processTransientListings(
   }
 
   for (const [userId, matches] of matchesByUser) {
-    const chatId = chatByUser.get(userId);
-    if (!chatId || matches.length === 0) continue;
-    const delivery = await sendTelegramMessage(chatId, formatTransientDigest(matches));
+    const recipient = chatByUser.get(userId);
+    if (!recipient || matches.length === 0) continue;
+    const delivery = await sendTelegramMessage(recipient.chatId, formatTransientDigest(matches, recipient.locale));
     if (delivery.ok) result.alertsSent++;
     else result.alertsFailed++;
   }
@@ -119,19 +119,42 @@ function transientListing(input: MarketListingInput): Listing {
   };
 }
 
-function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Watchlist }>) {
-  const lines = ["<b>Vehigo geçici arama özeti</b>", "Sonuçlar kaydedilmeden işlendi.", ""];
+function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Watchlist }>, locale: "tr" | "fa") {
+  const t = locale === "fa"
+    ? {
+      header: "<b>خلاصه جست‌وجوی موقت Vehigo</b>",
+      subheader: "نتایج بدون ذخیره‌سازی پردازش شدند.",
+      untitled: "آگهی خودرو",
+      alarm: "هشدار",
+      score: "امتیاز",
+      price: "قیمت",
+      location: "موقعیت",
+      reason: "دلیل",
+      open: "مشاهده آگهی",
+    }
+    : {
+      header: "<b>Vehigo geçici arama özeti</b>",
+      subheader: "Sonuçlar kaydedilmeden işlendi.",
+      untitled: "Araç ilanı",
+      alarm: "Alarm",
+      score: "Skor",
+      price: "Fiyat",
+      location: "Konum",
+      reason: "Neden",
+      open: "İlanı aç",
+    };
+  const lines = [t.header, t.subheader, ""];
   for (const [index, { listing, watchlist }] of matches.entries()) {
     const opportunity = assessOpportunity(listing, watchlist);
-    const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ") || "Araç ilanı";
+    const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ") || t.untitled;
     const price = listing.price === null ? "-" : `${listing.price.toLocaleString("tr-TR")} ${listing.currency}`;
     const location = [listing.seller_city, listing.seller_country].filter(Boolean).join(", ") || "-";
     lines.push(
       `${index + 1}. <b>${escapeHtml(title)}</b>`,
-      `Alarm: ${escapeHtml(watchlist.name)} | Skor: ${opportunity.score}/100`,
-      `Fiyat: ${escapeHtml(price)} | Konum: ${escapeHtml(location)}`,
-      opportunity.reasons[0] ? `Neden: ${escapeHtml(opportunity.reasons[0])}` : "",
-      `<a href="${escapeHtml(listing.listing_url)}">İlanı aç</a>`,
+      `${t.alarm}: ${escapeHtml(watchlist.name)} | ${t.score}: ${opportunity.score}/100`,
+      `${t.price}: ${escapeHtml(price)} | ${t.location}: ${escapeHtml(location)}`,
+      opportunity.reasons[0] ? `${t.reason}: ${escapeHtml(opportunity.reasons[0])}` : "",
+      `<a href="${escapeHtml(listing.listing_url)}">${t.open}</a>`,
       "",
     );
   }

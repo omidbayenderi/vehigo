@@ -28,6 +28,7 @@ export type MessageChannel = "whatsapp" | "telegram" | "instagram";
 export type MessageStatus = "draft" | "approved" | "sent" | "discarded";
 export type MarketSourceStatus = "idle" | "ok" | "failed" | "blocked" | "skipped";
 export type MarketSourceMethod = "scrape" | "email_alert" | "web_search" | "api";
+export type UserLocale = "tr" | "fa";
 export type MarketSourceVehicleCategory = "car_light_commercial" | "heavy_commercial" | "construction_agri" | "general";
 export type ListingAlertStatus = "pending" | "sent" | "failed" | "skipped";
 export type ListingAlertType = "new_match" | "price_drop";
@@ -78,6 +79,7 @@ export type Database = {
           telegram_chat_id: string | null;
           telegram_verified_at: string | null;
           active_organization_id: string | null;
+          locale: UserLocale;
           created_at: string;
         };
         Insert: {
@@ -88,6 +90,7 @@ export type Database = {
           telegram_chat_id?: string | null;
           telegram_verified_at?: string | null;
           active_organization_id?: string | null;
+          locale?: UserLocale;
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["users_profile"]["Insert"]>;
