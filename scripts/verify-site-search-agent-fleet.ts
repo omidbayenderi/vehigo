@@ -5,14 +5,21 @@ import { applyE2eEnvironment } from "@/scripts/lib/e2e-environment";
 if (!process.argv.includes("--apply")) throw new Error("Site-agent acceptance için --apply bayrağı gerekli.");
 if (process.argv.includes("--e2e")) applyE2eEnvironment();
 const live = process.argv.includes("--live");
+const processingMode = process.argv.includes("--persistent") ? "persistent_search" : "transient_search";
 
 async function main() {
   const supabase = createAdminClient();
   if (live) {
-    if (!process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
-      throw new Error("Canlı acceptance için Brave anahtarı ve saklama hakkı doğrulaması gerekli.");
+    if (!process.env.BRAVE_SEARCH_API_KEY) {
+      throw new Error("Canlı acceptance için Brave anahtarı gerekli.");
     }
-    const { error: activationError } = await supabase.rpc("activate_site_search_agent_fleet", {});
+    if (processingMode === "persistent_search" && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
+      throw new Error("Persistent canlı acceptance için saklama hakkı doğrulaması gerekli.");
+    }
+    const activationRpc = processingMode === "persistent_search"
+      ? "activate_site_search_agent_fleet"
+      : "activate_transient_site_search_agent_fleet";
+    const { error: activationError } = await supabase.rpc(activationRpc, {});
     if (activationError) throw activationError;
   }
   const [{ data: agents, error: agentError }, { data: marktplaats, error: sourceError }] = await Promise.all([
@@ -24,6 +31,9 @@ async function main() {
   if (agents.length < 4) throw new Error(`En az 4 site agent bekleniyordu; bulunan: ${agents.length}.`);
   if (agents.some((agent) => agent.provider_key !== "brave_web" || agent.egress_policy !== "provider_managed" || agent.acquisition_mode !== "web_index")) {
     throw new Error("Tüm site agentları brave_web/web_index/provider_managed sözleşmesini taşımalıdır.");
+  }
+  if (live && agents.some((agent) => agent.status === "active" && agent.processing_mode !== processingMode)) {
+    throw new Error(`Aktif site agentları ${processingMode} modunda değil.`);
   }
   if (marktplaats.method === "scrape" || marktplaats.connector_version) {
     throw new Error("Doğrudan Marktplaats HTML connectorı devre dışı değil.");
@@ -88,9 +98,12 @@ async function main() {
 
   console.log(JSON.stringify({
     agents: agents.length,
+    active_agents: agents.filter((agent) => agent.status === "active").length,
+    transient_agents: agents.filter((agent) => agent.processing_mode === "transient_search").length,
     provider: "brave_web",
     acquisition_mode: "web_index",
     egress_policy: "provider_managed",
+    processing_mode: processingMode,
     direct_marktplaats_disabled: true,
     atomic_claim: true,
     live,
@@ -99,6 +112,11 @@ async function main() {
 }
 
 void main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : "Site-agent acceptance başarısız.");
+  const message = error instanceof Error
+    ? error.message
+    : error && typeof error === "object" && "message" in error && typeof error.message === "string"
+      ? error.message
+      : "Site-agent acceptance başarısız.";
+  console.error(message);
   process.exitCode = 1;
 });

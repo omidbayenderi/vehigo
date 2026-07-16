@@ -62,7 +62,7 @@ Each agent -> run ledger -> health/error/cursor/next-run state
 - Exactly one due agent is claimed per synchronous scheduler tick so work finishes inside the five-minute fenced lease.
 - Provider-backed agents run no more frequently than every eight hours; the ten-minute scheduler has spare capacity for at least forty agents without a growing due queue.
 - The daily limit is enforced against atomically reserved HTTP requests; unused reservation is released on successful terminal completion.
-- 429/timeouts receive bounded exponential retry. The fleet is not activated until storage rights are confirmed; provider authorization failures block only the affected agent.
+- 429/timeouts receive bounded exponential retry. Transient agents can run without storage rights; persistent agents remain blocked until rights are confirmed. Provider authorization failures block only the affected agent.
 - Fleet activation is an explicit one-time operator action. Scheduled scans never reactivate paused agents.
 - Activation also requires a non-expired `provider_storage_rights_evidence` record containing the contract reference, SHA-256 evidence hash, permitted data classes/territories, retention period and approver. An environment flag alone cannot activate storage.
 - Digest candidates are claimed per user with a fifteen-minute UUID lease and fenced completion, preventing concurrent cron/manual runs from selecting the same listing alert. Ambiguous post-Telegram completion is quarantined as `delivery_uncertain` instead of being automatically resent.
@@ -71,7 +71,7 @@ Each agent -> run ledger -> health/error/cursor/next-run state
 ## Compliance decisions
 
 1. Brave Search is used as an official machine-readable API, not by scraping a consumer search page.
-2. `BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true` is mandatory because Vehigo persists URLs, snippets and derived listing records. Brave's standard Search API terms prohibit storing Search Results beyond transient operation; the flag may only be enabled under an Order Form/plan that explicitly grants storage rights. See <https://api-dashboard.search.brave.com/documentation/resources/terms-of-service> and <https://brave.com/search/api/>.
+2. Vehigo has two explicit modes. `transient_search` validates and matches results in memory, sends same-run Telegram digests, and stores no result URL/title/snippet/listing/alert. `persistent_search` stores URLs, snippets and derived listing records and therefore requires both `BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true` and active database evidence from an Order Form/plan explicitly granting storage rights. See <https://api-dashboard.search.brave.com/terms-of-service> and <https://brave.com/search/api/>.
 3. The Marktplaats HTML parser remains as a contract-tested dormant module but is removed from the runtime registry. Its direct source is disabled until explicit permission is recorded.
 4. Site agents discover indexed listing evidence; they do not bypass login, CAPTCHA, rate limits or robots controls.
 5. A deeper first-party connector can replace an index agent only through an official API, partner feed, saved-search email or documented permitted HTML agreement.
@@ -82,7 +82,7 @@ Each agent -> run ledger -> health/error/cursor/next-run state
 
 - Apply `0026` to `vehigo-e2e` and pass two-user/two-organization DB, API and Storage isolation tests.
 - Apply `0027` to `vehigo-e2e` and prove fenced leases, cursor rotation, per-site failure isolation, exact request budgets and atomic run-ledger transitions.
-- Obtain a Brave Order Form/storage-rights plan (or replace Brave with a provider whose contract permits persistence), record the evidence reference, and only then set the confirmation flag. Until then, production deploys fail closed and keep the fleet paused.
+- Keep production on `transient_search` until a Brave Order Form/storage-rights plan is obtained. Record the evidence reference before setting the confirmation flag and activating `persistent_search`.
 - Record at least one sustainable source permission path and one real export corridor with verified rule/rate/document sources.
 
 ### P1 — production hardening

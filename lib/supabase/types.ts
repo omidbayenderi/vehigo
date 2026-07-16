@@ -324,7 +324,7 @@ export type Database = {
         Relationships: [];
       };
       site_search_agents: {
-        Row: { id: string; source_key: string; host: string; provider_key: "brave_web"; acquisition_mode: "web_index"; egress_policy: "provider_managed"; status: SiteSearchAgentStatus; interval_minutes: number; jitter_percent: number; max_queries_per_run: number; max_pages_per_query: number; daily_query_limit: number; daily_request_count: number; daily_budget_date: string; reserved_request_count: number; query_cursor: number; next_run_at: string; locked_until: string | null; locked_by: string | null; lease_token: string | null; last_started_at: string | null; last_completed_at: string | null; last_success_at: string | null; last_status: Exclude<SiteSearchRunStatus, "running"> | null; last_error_code: string | null; last_error_message: string | null; consecutive_failures: number; created_at: string; updated_at: string };
+        Row: { id: string; source_key: string; host: string; provider_key: "brave_web"; acquisition_mode: "web_index"; egress_policy: "provider_managed"; processing_mode: "transient_search" | "persistent_search"; status: SiteSearchAgentStatus; interval_minutes: number; jitter_percent: number; max_queries_per_run: number; max_pages_per_query: number; daily_query_limit: number; daily_request_count: number; daily_budget_date: string; reserved_request_count: number; query_cursor: number; next_run_at: string; locked_until: string | null; locked_by: string | null; lease_token: string | null; last_started_at: string | null; last_completed_at: string | null; last_success_at: string | null; last_status: Exclude<SiteSearchRunStatus, "running"> | null; last_error_code: string | null; last_error_message: string | null; consecutive_failures: number; created_at: string; updated_at: string };
         Insert: Partial<Database["public"]["Tables"]["site_search_agents"]["Row"]> & { source_key: string; host: string };
         Update: Partial<Database["public"]["Tables"]["site_search_agents"]["Row"]>;
         Relationships: [];
@@ -850,6 +850,7 @@ export type Database = {
       set_active_organization: { Args: { p_organization_id: string }; Returns: string };
       is_platform_admin: { Args: Record<string, never>; Returns: boolean };
       activate_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
+      activate_transient_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
       reconcile_site_search_agent_fleet: { Args: Record<string, never>; Returns: number };
       claim_due_site_search_agents: { Args: { p_worker_id: string; p_limit?: number; p_lease_seconds?: number; p_source_key?: string | null }; Returns: Database["public"]["Tables"]["site_search_agents"]["Row"][] };
       start_site_search_agent_run: { Args: { p_agent_id: string; p_worker_id: string; p_lease_token: string; p_correlation_id: string }; Returns: string };

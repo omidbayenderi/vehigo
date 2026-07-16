@@ -44,6 +44,12 @@ if (requestedMode !== "development") {
 if (process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED && !["true", "false"].includes(process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED)) {
   problems.push("BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED must be true or false");
 }
+if (process.env.BRAVE_SEARCH_MODE && !["transient_search", "persistent_search"].includes(process.env.BRAVE_SEARCH_MODE)) {
+  problems.push("BRAVE_SEARCH_MODE must be transient_search or persistent_search");
+}
+if (process.env.BRAVE_SEARCH_MODE === "persistent_search" && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
+  problems.push("persistent_search requires BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true");
+}
 
 if (problems.length) {
   console.error(`Environment check failed for ${requestedMode}:`);

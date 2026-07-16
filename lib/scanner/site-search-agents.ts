@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/types";
 import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
 import { fetchSiteSearchAgentListings } from "@/lib/scanner/adapters/brave-web";
 import { processIncomingListings, type ProcessListingsResult } from "@/lib/services/market-alerts";
+import { processTransientListings } from "@/lib/services/transient-opportunity";
 
 type Client = SupabaseClient<Database>;
 type Agent = Database["public"]["Tables"]["site_search_agents"]["Row"];
@@ -31,8 +32,13 @@ export async function prepareSiteSearchAgentFleet(
     logger.warn("Site-agent katalog uzlaştırması henüz uygulanmadı; mevcut filo kullanılacak");
   }
 
-  if (!process.env.BRAVE_SEARCH_API_KEY || process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
-    logger.warn("Site-agent filosu etkinleştirilmedi: Brave anahtarı ve sonuç saklama hakkı doğrulaması gerekli");
+  if (!process.env.BRAVE_SEARCH_API_KEY) {
+    logger.warn("Site-agent filosu etkinleştirilmedi: Brave anahtarı gerekli");
+    return false;
+  }
+  const mode = process.env.BRAVE_SEARCH_MODE === "persistent_search" ? "persistent_search" : "transient_search";
+  if (mode === "persistent_search" && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
+    logger.warn("Persistent site-agent filosu etkinleştirilmedi: Brave saklama hakkı doğrulaması gerekli");
     return false;
   }
 
@@ -129,15 +135,16 @@ async function runAgent(
       maxPages: agent.max_pages_per_query,
       maxRequests: agent.reserved_request_count,
       onRequestAttempt: () => { requestCount += 1; },
+      processingMode: agent.processing_mode,
     });
     requestCount = Math.max(requestCount, search.requestCount);
     queryCount = search.queryCount;
     pageCount = search.pageCount;
     cursorAfter = search.nextCursor;
     partial = search.partial;
-    result = await processIncomingListings(supabase, search.listings, {
-      deadlineAt,
-    });
+    result = agent.processing_mode === "transient_search"
+      ? await processTransientListings(supabase, search.listings, watchlists)
+      : await processIncomingListings(supabase, search.listings, { deadlineAt });
     if ((result.rejected ?? 0) > 0 || (result.deferred ?? 0) > 0) partial = true;
     if ((result.deferred ?? 0) > 0) cursorAfter = agent.query_cursor;
   } catch (error) {
