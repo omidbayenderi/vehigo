@@ -7,4 +7,4 @@
 - Cost bound: At most 45 agents × 4 provider requests = 180 Brave requests per manual Europe scan (about USD 0.90 at the current Search price).
 - Evidence: The regression test failed before the scope change and passed afterward. Full suite: 165 tests passed; ESLint passed; Next.js production build passed.
 - Regression tests: `tests/manual-trigger-actions.test.ts`, `tests/scanner-runner-site-agents.test.ts`, `tests/site-search-agents.test.ts`.
-- Status: DONE_WITH_CONCERNS pending production deployment and one full-fleet live verification.
+- Status: DONE. Deployment `dpl_DCw82ioXodSVCiaDKLeAgq7ifuSs` reached READY. A production-data full-fleet verification completed 45/45 agents under Chef correlation `2f6ad517-762c-480d-a8dc-329db07b1aec`, fetched 1,358 results, created 28 transient matches, sent 4 Telegram messages with 0 delivery failures, persisted 0 provider results, delisted 0 records, and reported no blocked or failed agents.
