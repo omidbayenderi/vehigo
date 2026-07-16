@@ -17,6 +17,7 @@ import {
   runDueSiteSearchAgents,
   type SiteAgentFleetSummary,
 } from "@/lib/scanner/site-search-agents";
+import { processTransientListings } from "@/lib/services/transient-opportunity";
 
 type Client = SupabaseClient<Database>;
 
@@ -30,6 +31,7 @@ export type ScannerRunOptions = {
 export type ScannerRunSummary = {
   checkedSources: number;
   scannedSources: number;
+  persistentScannedSources: number;
   fetched: number;
   inserted: number;
   alertsCreated: number;
@@ -69,6 +71,7 @@ export async function runScannerOnce(
   const summary: ScannerRunSummary = {
     checkedSources: dueSources.length,
     scannedSources: 0,
+    persistentScannedSources: 0,
     fetched: 0,
     inserted: 0,
     alertsCreated: 0,
@@ -111,13 +114,16 @@ export async function runScannerOnce(
     logger.log(`[${source.key}] tarama başladı...`);
     try {
       const listings = await adapter.fetchListings({ watchlists });
-      const result = await processIncomingListings(supabase, listings);
+      const result = adapter.processingMode === "transient"
+        ? await processTransientListings(supabase, listings, watchlists)
+        : await processIncomingListings(supabase, listings);
       const { nextRunAt } = await recordScannerRun(supabase, source.key, startedAt, {
         status: "ok",
         result,
       });
 
       summary.scannedSources++;
+      if (adapter.processingMode !== "transient") summary.persistentScannedSources++;
       summary.fetched += result.fetched;
       summary.inserted += result.inserted;
       summary.alertsCreated += result.alertsCreated;
@@ -168,7 +174,7 @@ export async function runScannerOnce(
 }
 
 async function finalizeScannerRun(supabase: Client, summary: ScannerRunSummary) {
-  const persistentDiscoveryRan = summary.scannedSources > 0 || summary.siteAgents.persistentCompleted > 0;
+  const persistentDiscoveryRan = summary.persistentScannedSources > 0 || summary.siteAgents.persistentCompleted > 0;
   summary.delisted = persistentDiscoveryRan ? await markStaleListingsAsDelisted(supabase) : 0;
   return summary;
 }

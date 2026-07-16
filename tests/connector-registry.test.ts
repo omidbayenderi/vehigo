@@ -9,7 +9,9 @@ import braveWebContract from "@/tests/fixtures/connectors/brave-web.contract.jso
 describe("connector registry", () => {
   it("publishes versioned capability manifests for every runtime connector", () => {
     const manifests = listConnectorManifests();
-    expect(manifests.map((manifest) => manifest.key).sort()).toEqual(["brave_web"]);
+    expect(manifests.map((manifest) => manifest.key).sort()).toEqual([
+      "apify_autoscout24", "apify_mobile_de", "brave_web",
+    ]);
     for (const manifest of manifests) {
       expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(manifest.acquisitionModes.length).toBeGreaterThan(0);
