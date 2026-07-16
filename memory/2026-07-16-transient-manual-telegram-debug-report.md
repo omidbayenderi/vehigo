@@ -7,4 +7,4 @@
 - Fix: Manual scans now always send a Telegram completion receipt, including an explicit no-match result. Site-agent summaries expose delivery and processing-mode counters. Global stale cleanup is skipped when no persistent discovery path ran.
 - Evidence: 163 tests passed; ESLint passed; Next.js production build passed.
 - Regression tests: `tests/manual-scan-receipt.test.ts`, `tests/manual-trigger-actions.test.ts`, `tests/scanner-runner-site-agents.test.ts`, `tests/site-search-agents.test.ts`.
-- Status: DONE_WITH_CONCERNS pending production deployment and live Telegram receipt verification.
+- Status: DONE_WITH_CONCERNS. Deployment `dpl_HsJgkFnwgpjUcuNeWkvsajzCgycb` reached READY. A production transient smoke test completed one `alle_lkw_de` agent, fetched 78 results, and returned `delisted=0`, `failed=[]`, HTTP 200. Automated Telegram receipt verification was intentionally not sent because selecting a recipient implicitly could disclose operational data to the wrong profile; the signed-in user must trigger the final receipt through the manual Scan action.
