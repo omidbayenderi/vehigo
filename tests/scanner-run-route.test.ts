@@ -31,4 +31,13 @@ describe("scanner run HTTP health signal", () => {
     expect(scannerRunHasCriticalFailures(summary({ skipped: ["mobile_de"] }))).toBe(true);
     expect(scannerRunHasCriticalFailures(summary({ skipped: ["brave_web"] }))).toBe(false);
   });
+
+  it("allows brave_web's own storage-rights failure but still degrades on any other source failure", () => {
+    expect(scannerRunHasCriticalFailures(summary({
+      failed: [{ sourceKey: "brave_web", error: "Brave Search sonuçlarını saklama hakkı doğrulanmadı" }],
+    }))).toBe(false);
+    expect(scannerRunHasCriticalFailures(summary({
+      failed: [{ sourceKey: "brave_web", error: "..." }, { sourceKey: "apify_mobile_de", error: "timeout" }],
+    }))).toBe(true);
+  });
 });
