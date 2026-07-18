@@ -8,7 +8,9 @@ const REQUEST_TIMEOUT_MS = 12_000;
 export const UNIFIED_SITE_AGENT_SOURCE_KEY = "brave_web";
 export const MAX_QUERIES_PER_RUN = 30;
 export const EUROPE_MARKETPLACE_HOSTS = [
-  "mobile.de", "autoscout24.com", "truckscout24.com", "autoline.info", "marktplaats.nl",
+  "mobile.de", "autoscout24.com", "autoscout24.de", "autoscout24.nl", "autoscout24.be",
+  "autoscout24.fr", "autoscout24.it", "autoscout24.at", "autoscout24.es",
+  "truckscout24.com", "autoline.info", "marktplaats.nl",
   "truck1.eu", "leboncoin.fr", "autotrader.co.uk", "machineryline.com",
   "machineseeker.com", "wallapop.com", "trucksnl.com", "mascus.com",
   "agriaffaires.com", "europe-camions.com", "kleyntrucks.com", "basworld.com",
@@ -27,6 +29,13 @@ export const EUROPE_MARKETPLACE_HOSTS = [
 export const MARKETPLACE_SOURCE_BY_HOST: Record<string, string> = {
   "mobile.de": "mobile_de",
   "autoscout24.com": "autoscout24",
+  "autoscout24.de": "autoscout24",
+  "autoscout24.nl": "autoscout24",
+  "autoscout24.be": "autoscout24",
+  "autoscout24.fr": "autoscout24",
+  "autoscout24.it": "autoscout24",
+  "autoscout24.at": "autoscout24",
+  "autoscout24.es": "autoscout24",
   "truckscout24.com": "truckscout24",
   "autoline.info": "autoline",
   "marktplaats.nl": "marktplaats",
@@ -123,10 +132,11 @@ const LOCAL_SEARCH_PROFILES: Record<string, LocalSearchProfile> = {
 };
 
 const HOST_MARKET_COUNTRY: Record<string, string> = {
-  "mobile.de": "DE", "truckscout24.com": "DE", "machineseeker.com": "DE", "kleinanzeigen.de": "DE", "alle-lkw.de": "DE",
+  "mobile.de": "DE", "autoscout24.de": "DE", "truckscout24.com": "DE", "machineseeker.com": "DE", "kleinanzeigen.de": "DE", "alle-lkw.de": "DE",
   "truckstore.com": "DE", "machinery-portal.com": "DE", "traktorpool.de": "DE", "machinerypark.com": "NL",
-  "marktplaats.nl": "NL", "trucksnl.com": "NL", "kleyntrucks.com": "NL", "basworld.com": "NL",
-  "leboncoin.fr": "FR", "agriaffaires.com": "FR", "subito.it": "IT", "wallapop.com": "ES", "coches.net": "ES", "milanuncios.com": "ES",
+  "marktplaats.nl": "NL", "autoscout24.nl": "NL", "trucksnl.com": "NL", "kleyntrucks.com": "NL", "basworld.com": "NL",
+  "autoscout24.be": "BE", "autoscout24.at": "AT", "leboncoin.fr": "FR", "autoscout24.fr": "FR", "agriaffaires.com": "FR",
+  "subito.it": "IT", "autoscout24.it": "IT", "wallapop.com": "ES", "autoscout24.es": "ES", "coches.net": "ES", "milanuncios.com": "ES",
   "olx.pt": "PT", "olx.pl": "PL", "otomoto.pl": "PL", "olx.ro": "RO", "olx.bg": "BG", "mobile.bg": "BG",
   "bazos.cz": "CZ", "sbazar.cz": "CZ", "bazos.sk": "SK", "willhaben.at": "AT", "2dehands.be": "BE", "2ememain.be": "BE",
   "blocket.se": "SE", "finn.no": "NO", "dba.dk": "DK", "nettiauto.com": "FI", "car.gr": "GR", "carandmotor.gr": "GR",

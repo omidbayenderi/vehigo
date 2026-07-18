@@ -229,8 +229,25 @@ describe("braveWebAdapter", () => {
   it("maps marketplace and public-social hostnames to canonical catalog source keys", () => {
     expect(sourceKeyForUrl("https://www.kleinanzeigen.de/s-anzeige/example/123")).toBe("kleinanzeigen");
     expect(sourceKeyForUrl("https://m.olx.pt/d/anuncio/example")).toBe("olx_pt");
+    expect(sourceKeyForUrl("https://www.autoscout24.de/angebote/example")).toBe("autoscout24");
+    expect(sourceKeyForUrl("https://www.autoscout24.nl/aanbod/example")).toBe("autoscout24");
     expect(sourceKeyForUrl("https://www.facebook.com/groups/cars/posts/123")).toBe("facebook_public");
     expect(sourceKeyForUrl("https://dealer.example/car/123")).toBe("brave_web");
+  });
+
+  it("searches every official AutoScout24 country site selected by the canonical source", () => {
+    const watchlist = {
+      brand: "Toyota",
+      model: "Corolla",
+      vehicle_type: "car",
+      keywords: [],
+      source_keys: ["autoscout24"],
+    } as unknown as ScannerWatchlist;
+
+    const combined = buildQueries([watchlist]).map((plan) => plan.query).join(" ");
+    for (const host of ["autoscout24.com", "autoscout24.de", "autoscout24.nl", "autoscout24.be", "autoscout24.fr", "autoscout24.it", "autoscout24.at", "autoscout24.es"]) {
+      expect(combined).toContain(`site:${host}`);
+    }
   });
 
   it("builds isolated per-site queries and rotates the watchlist cursor", () => {
