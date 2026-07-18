@@ -33,6 +33,20 @@ export const apifyAutoscout24Adapter = createApifyAdapter({
   buildInput: (watchlists, limit) => autoscoutInput(watchlists, limit),
 });
 
+export const apifyMarktplaatsAdapter = createApifyAdapter({
+  key: "apify_marktplaats",
+  displayName: "Marktplaats.nl via Apify",
+  countries: ["NL"],
+  actorEnv: "APIFY_MARKTPLAATS_ACTOR",
+  defaultActor: "memo23/marktplaats-nl-scraper",
+  buildInput: (watchlists, limit) => ({
+    queries: marktplaatsQueries(watchlists),
+    maxItems: limit,
+    maxConcurrency: 3,
+  }),
+  defaultCountryCode: "NL",
+});
+
 function createApifyAdapter(config: {
   key: string;
   displayName: string;
@@ -40,6 +54,7 @@ function createApifyAdapter(config: {
   actorEnv: string;
   defaultActor: string;
   buildInput: (watchlists: ScannerWatchlist[], limit: number) => Record<string, unknown>;
+  defaultCountryCode?: string;
 }): ScanAdapter {
   return {
     key: config.key,
@@ -67,7 +82,12 @@ function createApifyAdapter(config: {
       const input = config.buildInput(watchlists, limit);
       if (isEmptyActorInput(input)) return [];
       const records = await runActor(actor, token, input);
-      return dedupe(records.slice(0, limit).flatMap((record) => normalizeApifyRecord(record, config.key)));
+      const listings = dedupe(records.slice(0, limit).flatMap((record) => normalizeApifyRecord(record, config.key)));
+      if (!config.defaultCountryCode) return listings;
+      return listings.map((listing) => ({
+        ...listing,
+        seller_country_code: listing.seller_country_code ?? config.defaultCountryCode,
+      }));
     },
   };
 }
@@ -115,13 +135,13 @@ function normalizeApifyRecord(record: ApifyRecord, sourceKey: string): MarketLis
 
   return [{
     source_key: sourceKey,
-    source_listing_id: stringValue(listing, ["id", "listingId", "vehicleId", "adId"]) ?? idFromUrl(url),
+    source_listing_id: stringValue(listing, ["id", "listingId", "vehicleId", "adId", "itemId"]) ?? idFromUrl(url),
     listing_url: url,
     title: stringValue(listing, ["title", "name", "shortTitle"]),
     description: stringValue(listing, ["description", "subtitle", "subTitle"]),
     seller_name: stringValue(dealer ?? listing, ["name", "sellerName", "dealerName"]),
     seller_country_code: stringValue(location ?? listing, ["countryCode", "country"]),
-    seller_city: stringValue(location ?? listing, ["city", "town"]),
+    seller_city: stringValue(location ?? listing, ["city", "town", "cityName"]),
     seller_postal_code: stringValue(location ?? listing, ["zip", "postalCode"]),
     brand: stringValue(listing, ["make", "brand", "manufacturer"]),
     model: stringValue(listing, ["model", "modelName"]),
@@ -156,6 +176,18 @@ function autoscoutInput(watchlists: ScannerWatchlist[], limit: number) {
     maxResults: limit,
     includeDetails: true,
   };
+}
+
+const NL_VEHICLE_TERMS: Record<string, string> = {
+  car: "auto", van: "bestelwagen", truck: "vrachtwagen", tractor_unit: "trekker",
+  trailer: "oplegger", construction: "bouwmachine", spare_part: "onderdelen", bus: "bus", other: "voertuig",
+};
+
+function marktplaatsQueries(watchlists: ScannerWatchlist[]) {
+  return relevantWatchlists(watchlists, "NL").map((watchlist) => {
+    const vehicleTerm = NL_VEHICLE_TERMS[watchlist.vehicle_type ?? "other"] ?? NL_VEHICLE_TERMS.other;
+    return [watchlist.brand, watchlist.model, vehicleTerm].filter(Boolean).join(" ");
+  });
 }
 
 function mobileDeSearchUrl(watchlist: ScannerWatchlist) {
@@ -201,7 +233,8 @@ function maxResults() {
 }
 
 function isEmptyActorInput(input: Record<string, unknown>) {
-  return Object.keys(input).length === 0 || (Array.isArray(input.startUrls) && input.startUrls.length === 0);
+  if (Object.keys(input).length === 0) return true;
+  return (["startUrls", "queries"] as const).some((key) => Array.isArray(input[key]) && input[key].length === 0);
 }
 
 function isRecord(value: unknown): value is ApifyRecord {
