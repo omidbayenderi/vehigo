@@ -44,6 +44,7 @@ export function validateConnectorManifest(manifest: ScanAdapter["manifest"]) {
   if (manifest.acquisitionModes.length === 0) issues.push("missing_acquisition_modes");
   if (manifest.vehicleTypes.length === 0) issues.push("missing_vehicle_types");
   if (!manifest.fieldCoverage.includes("source_key") || !manifest.fieldCoverage.includes("listing_url")) issues.push("missing_identity_fields");
+  if (!/^[a-z0-9_]+$/.test(manifest.persistenceProviderKey)) issues.push("invalid_persistence_provider_key");
   if (hasDuplicates(manifest.countries) || hasDuplicates(manifest.acquisitionModes) || hasDuplicates(manifest.vehicleTypes) || hasDuplicates(manifest.fieldCoverage)) issues.push("duplicate_manifest_values");
   return issues;
 }

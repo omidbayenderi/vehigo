@@ -1,8 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Database } from "@/lib/supabase/types";
 
-const mocks = vi.hoisted(() => ({ sendTelegramMessage: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  sendTelegramMessage: vi.fn(),
+  claimTransientDeliveryReceipts: vi.fn(),
+  completeTransientDeliveryReceipts: vi.fn(),
+  releaseTransientDeliveryReceipts: vi.fn(),
+}));
 vi.mock("@/lib/services/notifications", () => ({ sendTelegramMessage: mocks.sendTelegramMessage }));
+vi.mock("@/lib/services/transient-delivery-receipts", () => ({
+  transientReceiptHash: (candidate: { sourceIdentity: string }) => `hash:${candidate.sourceIdentity}`,
+  receiptClaimKey: (candidate: { organizationId: string; userId: string; sourceKey: string }, hash: string) =>
+    `${candidate.organizationId}:${candidate.userId}:${candidate.sourceKey}:${hash}`,
+  claimTransientDeliveryReceipts: mocks.claimTransientDeliveryReceipts,
+  completeTransientDeliveryReceipts: mocks.completeTransientDeliveryReceipts,
+  releaseTransientDeliveryReceipts: mocks.releaseTransientDeliveryReceipts,
+}));
 
 import { processTransientListings } from "@/lib/services/transient-opportunity";
 
@@ -38,6 +51,13 @@ describe("transient opportunity processing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.sendTelegramMessage.mockResolvedValue({ ok: true });
+    mocks.claimTransientDeliveryReceipts.mockImplementation(async (_supabase, candidates) => new Map(candidates.map((candidate: {
+      organizationId: string; userId: string; sourceKey: string; sourceIdentity: string;
+    }) => {
+      const receiptHash = `hash:${candidate.sourceIdentity}`;
+      const claimKey = `${candidate.organizationId}:${candidate.userId}:${candidate.sourceKey}:${receiptHash}`;
+      return [claimKey, { ...candidate, receiptHash, claimKey }];
+    })));
   });
 
   it("matches and delivers within the same run without writing listings or alerts", async () => {
@@ -78,7 +98,38 @@ describe("transient opportunity processing", () => {
       fetched: 1, inserted: 0, alertsCreated: 1, alertsSent: 1, alertsFailed: 0, rejected: 0, deferred: 0,
     });
     expect(from).toHaveBeenCalledOnce();
-    expect(mocks.sendTelegramMessage).toHaveBeenCalledWith("12345", expect.stringContaining("kaydedilmeden işlendi"));
+    expect(mocks.sendTelegramMessage).toHaveBeenCalledWith("12345", expect.stringContaining("İlan içeriği kaydedilmedi"));
+    expect(mocks.completeTransientDeliveryReceipts).toHaveBeenCalledOnce();
+  });
+
+  it("does not deliver a receipt that was already claimed by an earlier run", async () => {
+    mocks.claimTransientDeliveryReceipts.mockResolvedValue(new Map());
+    const response = Promise.resolve({
+      data: [{ id: "user-1", telegram_chat_id: "12345", telegram_verified_at: "2026-07-16T00:00:00.000Z", locale: "tr" }],
+      error: null,
+    });
+    const query = { select: vi.fn(), in: vi.fn(), not: vi.fn(), then: response.then.bind(response) };
+    query.select.mockReturnValue(query);
+    query.in.mockReturnValue(query);
+    query.not.mockReturnValue(query);
+
+    const result = await processTransientListings({ from: vi.fn(() => query) } as never, [{
+      source_key: "mobile_de",
+      source_listing_id: "mobile-1",
+      listing_url: "https://mobile.de/vehicle/1",
+      title: "Volkswagen Golf 2022",
+      seller_country: "Germany",
+      brand: "Volkswagen",
+      model: "Golf",
+      year: 2022,
+      mileage_km: 42_000,
+      price: 18_500,
+      currency: "EUR",
+      vehicle_type: "car",
+    }], [watchlist]);
+
+    expect(result).toMatchObject({ alertsCreated: 0, alertsSent: 0, alertsFailed: 0 });
+    expect(mocks.sendTelegramMessage).not.toHaveBeenCalled();
   });
 
   it("rejects malformed provider data in memory and does not attempt delivery", async () => {

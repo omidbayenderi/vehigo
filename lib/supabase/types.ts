@@ -47,6 +47,8 @@ export type ListingDecisionReason =
 export type ScannerRunStatus = "ok" | "failed" | "blocked" | "skipped";
 export type MarketSourceCatalogStatus = "planned" | "available" | "degraded" | "blocked" | "retired";
 export type ConnectorContractStatus = "unknown" | "ok" | "failed";
+export type PersistencePolicy = "transient_only" | "evidence_required" | "permitted";
+export type CommercialOpportunityStatus = "not_evaluated" | "approved" | "rejected" | "insufficient_data" | "error";
 export type ScannerIngestChannel = "connector" | "email_alert" | "authorized_automation" | "replay";
 export type ScannerIngestEventStatus = "received" | "processing" | "completed" | "rejected" | "failed";
 export type OrganizationStatus = "active" | "suspended" | "closed";
@@ -435,6 +437,7 @@ export type Database = {
           data_retention_days?: number;
           terms_url?: string | null;
           robots_url?: string | null;
+          persistence_policy?: PersistencePolicy;
           vehicle_category?: MarketSourceVehicleCategory;
           created_at: string;
           updated_at: string;
@@ -498,6 +501,15 @@ export type Database = {
           max_doors?: number | null;
           emission_class?: string | null;
           exterior_color?: string | null;
+          destination_country_code?: string | null;
+          estimated_fixed_costs?: number;
+          monthly_holding_cost?: number;
+          cost_reserve_percent?: number;
+          conservative_sale_discount_percent?: number;
+          min_net_profit?: number;
+          min_net_margin_percent?: number;
+          max_inventory_days?: number;
+          instant_alert_score?: number;
           created_at: string;
           updated_at: string;
         };
@@ -741,6 +753,18 @@ export type Database = {
           next_attempt_at: string | null;
           digest_claim_token: string | null;
           digest_claimed_until: string | null;
+          commercial_status?: CommercialOpportunityStatus;
+          commercial_evaluation_version?: string | null;
+          estimated_purchase_cost?: number | null;
+          expected_sale_price?: number | null;
+          estimated_total_cost?: number | null;
+          estimated_net_profit?: number | null;
+          estimated_net_margin_percent?: number | null;
+          commercial_confidence?: number | null;
+          commercial_comparable_count?: number | null;
+          commercial_evidence?: Json | null;
+          commercially_evaluated_at?: string | null;
+          instant_notified_at?: string | null;
           created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["listing_alerts"]["Row"]> & {
@@ -749,6 +773,30 @@ export type Database = {
           user_id: string;
         };
         Update: Partial<Database["public"]["Tables"]["listing_alerts"]["Row"]>;
+        Relationships: [];
+      };
+      transient_delivery_receipts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          source_key: string;
+          receipt_hash: string;
+          status: "pending" | "sent";
+          claimed_at: string;
+          notified_at: string | null;
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["transient_delivery_receipts"]["Row"]> & {
+          organization_id: string;
+          user_id: string;
+          source_key: string;
+          receipt_hash: string;
+          expires_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["transient_delivery_receipts"]["Row"]>;
         Relationships: [];
       };
       scanner_runs: {

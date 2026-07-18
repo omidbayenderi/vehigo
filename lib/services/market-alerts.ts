@@ -10,6 +10,7 @@ import { assessOpportunity, opportunityReasonsToJson } from "@/lib/services/oppo
 import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
 import { evaluateListingForWatchlist } from "@/lib/search/matcher";
 import { isSearchPlanV1, SEARCH_PLAN_VERSION } from "@/lib/search/search-plan";
+import { evaluateAndNotifyCommercialAlert } from "@/lib/services/commercial-opportunity";
 
 type Client = SupabaseClient<Database>;
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
@@ -284,6 +285,7 @@ export async function replaceWatchlist(
     "transmission", "body_type", "drive_type", "seller_type", "min_power_hp",
     "max_power_hp", "min_engine_cc", "max_engine_cc", "min_doors", "max_doors",
     "emission_class", "exterior_color",
+    "destination_country_code",
   ] as const;
   const update: Database["public"]["Tables"]["watchlists"]["Update"] = {
     ...watchlist,
@@ -319,7 +321,9 @@ export async function matchStoredListingsForWatchlist(supabase: Client, watchlis
 
   let created = 0;
   for (const listing of listings ?? []) {
-    if (listingMatchesWatchlist(listing, watchlist) && await createAlertIfNeeded(supabase, listing, watchlist)) created++;
+    if (!listingMatchesWatchlist(listing, watchlist)) continue;
+    const alert = await createAlertIfNeeded(supabase, listing, watchlist);
+    if (alert.created) created++;
   }
   return created;
 }
@@ -386,8 +390,10 @@ export async function processIncomingListings(
           result.deferred = listings.length - index;
           break listingLoop;
         }
-        const created = await createAlertIfNeeded(supabase, listing.row, watchlist);
-        if (created) result.alertsCreated++;
+        const alert = await createAlertIfNeeded(supabase, listing.row, watchlist);
+        if (alert.created) result.alertsCreated++;
+        if (alert.sent) result.alertsSent++;
+        if (alert.failed) result.alertsFailed++;
       }
 
       if (listing.priceDropped) {
@@ -587,10 +593,10 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
     .eq("user_id", watchlist.user_id)
     .maybeSingle();
   if (existingError) throw new Error(existingError.message);
-  if (existing) return false;
+  if (existing) return { created: false, sent: false, failed: false };
   const opportunity = assessOpportunity(listing, watchlist);
 
-  const { error } = await supabase.from("listing_alerts").insert({
+  const { data: alert, error } = await supabase.from("listing_alerts").insert({
     listing_id: listing.id,
     watchlist_id: watchlist.id,
     user_id: watchlist.user_id,
@@ -601,9 +607,15 @@ async function createAlertIfNeeded(supabase: Client, listing: Listing, watchlist
     opportunity_score: opportunity.score,
     opportunity_label: opportunity.label,
     opportunity_reasons: opportunityReasonsToJson(opportunity.reasons),
-  });
+  }).select("id").single();
   if (error) throw new Error(error.message);
-  return true;
+  const notification = await evaluateAndNotifyCommercialAlert(supabase, {
+    alertId: alert.id,
+    opportunityScore: opportunity.score,
+    listing,
+    watchlist,
+  });
+  return { created: true, sent: notification.sent, failed: notification.failed };
 }
 
 /**

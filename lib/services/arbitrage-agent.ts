@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import { analyzeMarketListing } from "./market-intelligence";
 import { runAiMarketReview } from "./ai-evaluation-ledger";
+import { calculateCommercialOpportunity, profileFromWatchlist } from "./commercial-opportunity";
 
 type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -13,6 +14,9 @@ export type ArbitrageAssessment = {
   comparableCount: number;
   medianComparablePrice: number | null;
   estimatedNetProfitPercent: number | null;
+  estimatedNetProfit?: number | null;
+  estimatedTotalCost?: number | null;
+  expectedSalePrice?: number | null;
   reason: string;
   aiUsed: boolean;
 };
@@ -40,15 +44,31 @@ export async function assessEuropeanArbitrage(
     const snapshot = await analyzeMarketListing(supabase, listing.id);
     const distribution = snapshot.distribution && typeof snapshot.distribution === "object" && !Array.isArray(snapshot.distribution) ? snapshot.distribution : {};
     const median = typeof distribution.median === "number" ? distribution.median : null;
-    const math = median ? calculateConservativeArbitrage(listing.price, [median, median, median]) : null;
-    if (!snapshot.claim_eligible || !math || math.netProfitPercent < 40 || snapshot.risk_level === "critical") {
-      return { ...rejected(!snapshot.claim_eligible ? "Örneklem kalitesi ticari arbitraj iddiası için yetersiz" : snapshot.risk_level === "critical" ? "Kritik risk sinyali nedeniyle arbitraj yayını engellendi" : "10% maliyet rezervinden sonra matematiksel marj %40 altında"), comparableCount: snapshot.comparable_count, medianComparablePrice: median, estimatedNetProfitPercent: math?.netProfitPercent ?? null };
+    const commercial = calculateCommercialOpportunity({
+      purchasePrice: listing.price,
+      medianComparablePrice: median,
+      comparableCount: snapshot.comparable_count,
+      sourceCount: snapshot.source_count,
+      confidence: snapshot.confidence,
+      riskLevel: snapshot.risk_level,
+      profile: profileFromWatchlist(watchlist),
+    });
+    if (!snapshot.claim_eligible || !commercial.approved) {
+      return {
+        ...rejected(!snapshot.claim_eligible ? "Örneklem kalitesi ticari arbitraj iddiası için yetersiz" : commercial.reason),
+        comparableCount: snapshot.comparable_count,
+        medianComparablePrice: median,
+        estimatedNetProfitPercent: commercial.estimatedNetMarginPercent,
+        estimatedNetProfit: commercial.estimatedNetProfit,
+        estimatedTotalCost: commercial.estimatedTotalCost,
+        expectedSalePrice: commercial.expectedSalePrice,
+      };
     }
     const evaluation = await runAiMarketReview(supabase, watchlist.user_id, snapshot);
     const output = evaluation.output && typeof evaluation.output === "object" && !Array.isArray(evaluation.output) ? evaluation.output : {};
     const confidence = typeof output.confidence === "number" ? output.confidence : 0;
     const reason = typeof output.summary === "string" ? output.summary : evaluation.error ?? "AI kanıt incelemesi tamamlanmadı";
-    return { approved: evaluation.status === "completed" && confidence >= 0.75, confidence, comparableCount: snapshot.comparable_count, medianComparablePrice: median, estimatedNetProfitPercent: math.netProfitPercent, reason, aiUsed: evaluation.status === "completed" };
+    return { approved: evaluation.status === "completed" && confidence >= 0.75, confidence, comparableCount: snapshot.comparable_count, medianComparablePrice: median, estimatedNetProfitPercent: commercial.estimatedNetMarginPercent, estimatedNetProfit: commercial.estimatedNetProfit, estimatedTotalCost: commercial.estimatedTotalCost, expectedSalePrice: commercial.expectedSalePrice, reason, aiUsed: evaluation.status === "completed" };
   } catch (error) {
     return rejected(error instanceof Error ? error.message : "Piyasa istihbaratı oluşturulamadı");
   }

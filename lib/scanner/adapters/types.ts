@@ -5,6 +5,7 @@ export type ScannerWatchlist = Database["public"]["Tables"]["watchlists"]["Row"]
 
 export type ScanContext = {
   watchlists: ScannerWatchlist[];
+  processingMode?: "persistent" | "transient";
 };
 
 export type ConnectorAcquisitionMode =
@@ -27,6 +28,8 @@ export type ConnectorManifest = {
   fieldCoverage: ConnectorField[];
   supportsDirectSearch: boolean;
   supportsIncrementalSync: boolean;
+  persistencePolicy: "transient_only" | "evidence_required" | "permitted";
+  persistenceProviderKey: string;
 };
 
 export type ScanAdapter = {

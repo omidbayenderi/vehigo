@@ -8,16 +8,16 @@ type Client = SupabaseClient<Database>;
 export type ScannerHealthIssue = {
   sourceKey: string;
   sourceName: string;
-  kind: "never_ran" | "stale" | "failing" | "missing_connector" | "contract_mismatch" | "dead_letter_backlog";
+  kind: "never_ran" | "stale" | "failing" | "empty_results" | "missing_connector" | "contract_mismatch" | "dead_letter_backlog";
   detail: string;
 };
 
 export async function checkScannerHealth(supabase: Client): Promise<ScannerHealthIssue[]> {
   const { data: sources, error: sourcesError } = await supabase
     .from("market_sources")
-    .select("key,name,min_interval_minutes,connector_version,acquisition_modes,country_codes,vehicle_types")
+    .select("key,name,min_interval_minutes,connector_version,acquisition_modes,country_codes,vehicle_types,persistence_policy")
     .eq("enabled", true)
-    .in("method", ["scrape", "web_search"]);
+    .in("method", ["scrape", "web_search", "api"]);
   if (sourcesError) throw new Error(sourcesError.message);
   const issues: ScannerHealthIssue[] = [];
 
@@ -42,14 +42,14 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
       }
     }
 
-    const { data: lastRun, error: runError } = await supabase
+    const { data: recentRuns, error: runError } = await supabase
       .from("scanner_runs")
-      .select("started_at,status,error")
+      .select("started_at,status,error,fetched_count")
       .eq("source_key", source.key)
       .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(3);
     if (runError) throw new Error(runError.message);
+    const lastRun = recentRuns?.[0];
 
     if (!lastRun) {
       issues.push({
@@ -78,6 +78,13 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceName: source.name,
         kind: "failing",
         detail: lastRun.error ? `Son çalışma başarısız: ${lastRun.error}` : "Son çalışma başarısız",
+      });
+    } else if (recentRuns.length >= 3 && recentRuns.every((run) => run.status === "ok" && run.fetched_count === 0)) {
+      issues.push({
+        sourceKey: source.key,
+        sourceName: source.name,
+        kind: "empty_results",
+        detail: "Son 3 başarılı tarama sıfır sonuç döndürdü; actor/sorgu sözleşmesi kontrol edilmeli",
       });
     }
   }

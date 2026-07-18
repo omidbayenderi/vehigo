@@ -232,6 +232,18 @@ export const watchlistSchema = z.object({
   max_doors: z.coerce.number().int().min(1).max(10).optional(),
   emission_class: z.string().optional(),
   exterior_color: z.string().optional(),
+  destination_country_code: z.preprocess(
+    (value) => typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string().trim().transform((value) => value.toUpperCase()).pipe(z.string().regex(/^[A-Z]{2}$/, "Hedef ülke iki harfli ISO kodu olmalı")).optional(),
+  ),
+  estimated_fixed_costs: z.coerce.number().min(0).default(0),
+  monthly_holding_cost: z.coerce.number().min(0).default(0),
+  cost_reserve_percent: z.coerce.number().min(0).max(100).default(10),
+  conservative_sale_discount_percent: z.coerce.number().min(0).max(50).default(5),
+  min_net_profit: z.coerce.number().min(0).default(3000),
+  min_net_margin_percent: z.coerce.number().min(0).max(100).default(12),
+  max_inventory_days: z.coerce.number().int().min(1).max(730).default(45),
+  instant_alert_score: z.coerce.number().int().min(50).max(100).default(85),
 });
 
 export const searchPlanRequestSchema = z.object({

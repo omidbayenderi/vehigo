@@ -19,8 +19,11 @@ vi.mock("@/lib/services/arbitrage-agent", () => ({
 import { sendOpportunityDigest } from "@/lib/services/opportunity-digest";
 
 function query(result: { data: unknown; error: null }) {
-  const chain: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "is", "not", "order", "limit", "in"]) {
+  const methods = ["select", "eq", "is", "not", "order", "limit", "in"] as const;
+  const chain = {} as Record<(typeof methods)[number], ReturnType<typeof vi.fn>> & {
+    then: (resolve: (value: unknown) => unknown) => Promise<unknown>;
+  };
+  for (const method of methods) {
     chain[method] = vi.fn(() => chain);
   }
   chain.then = (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve);

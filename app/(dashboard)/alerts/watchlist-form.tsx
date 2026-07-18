@@ -17,7 +17,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
   const enabledSources = sources.filter((source) => source.enabled);
   const [selectedSources, setSelectedSources] = useState(() => new Set(
     enabledSources
-      .filter((source) => source.method === "scrape" || source.method === "web_search")
+      .filter((source) => source.method === "scrape" || source.method === "web_search" || source.method === "api")
       .map((source) => source.key),
   ));
   const setSourceChecked = (key: string, checked: boolean) => {
@@ -74,6 +74,22 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
 
       <DetailedVehicleFilters />
 
+      <details open className="mt-4 rounded-lg border border-line-soft bg-surface-sunken/40 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-brand">Ticari alım profili</summary>
+        <p className="mt-2 text-xs text-ink-faint">Anlık alarm ancak piyasa örneklemi, net kâr ve marj hedeflerinin tamamı doğrulanırsa gönderilir.</p>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Field label="Hedef ülke kodu" name="destination_country_code" placeholder="IR" />
+          <Field label="Sabit ek maliyet (€)" name="estimated_fixed_costs" type="number" defaultValue="0" />
+          <Field label="Aylık bekleme maliyeti (€)" name="monthly_holding_cost" type="number" defaultValue="0" />
+          <Field label="Maliyet rezervi (%)" name="cost_reserve_percent" type="number" defaultValue="10" />
+          <Field label="Muhafazakâr satış indirimi (%)" name="conservative_sale_discount_percent" type="number" defaultValue="5" />
+          <Field label="Minimum net kâr (€)" name="min_net_profit" type="number" defaultValue="3000" />
+          <Field label="Minimum net marj (%)" name="min_net_margin_percent" type="number" defaultValue="12" />
+          <Field label="Maksimum stok günü" name="max_inventory_days" type="number" defaultValue="45" />
+          <Field label="Anlık alarm skor eşiği" name="instant_alert_score" type="number" defaultValue="85" />
+        </div>
+      </details>
+
       <details className="mt-4 rounded-lg border border-line-soft bg-surface-sunken/40 p-4">
         <summary className="cursor-pointer text-sm font-semibold text-brand">Arama davranışı ve sıralama</summary>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -95,7 +111,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
             </div>
           </div>
           <div className="rounded-md border border-line bg-surface p-3">
-            {sources.filter((source) => source.enabled && (source.method === "scrape" || source.method === "web_search")).map((source) => (
+            {sources.filter((source) => source.enabled && (source.method === "scrape" || source.method === "web_search" || source.method === "api")).map((source) => (
               <label key={source.key} className="inline-flex items-center gap-2 text-ink">
                 <input
                   type="checkbox"

@@ -32,6 +32,7 @@
     "scan": "tsx scripts/scanner/index.ts",
     "scan:once": "tsx scripts/scanner/index.ts --once",
     "scan:force": "tsx scripts/scanner/index.ts --once --force",
+    "costs:estimate": "tsx scripts/estimate-monthly-cost.ts",
     "operations:maintenance": "tsx scripts/run-operational-maintenance.ts"
   },
   "dependencies": {

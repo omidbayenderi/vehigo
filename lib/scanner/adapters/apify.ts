@@ -14,7 +14,7 @@ export const apifyMobileDeAdapter = createApifyAdapter({
   actorEnv: "APIFY_MOBILE_DE_ACTOR",
   defaultActor: "memo23/mobile-de-scraper",
   buildInput: (watchlists, limit) => ({
-    startUrls: relevantWatchlists(watchlists, "DE").map((watchlist) => ({
+    startUrls: relevantWatchlists(watchlists, "DE", "apify_mobile_de").map((watchlist) => ({
       url: mobileDeSearchUrl(watchlist),
     })),
     maxItems: limit,
@@ -72,6 +72,8 @@ function createApifyAdapter(config: {
       ],
       supportsDirectSearch: true,
       supportsIncrementalSync: false,
+      persistencePolicy: "evidence_required",
+      persistenceProviderKey: config.key,
     },
     async fetchListings({ watchlists }) {
       if (process.env.APIFY_ENABLED !== "true") return [];
@@ -162,7 +164,8 @@ function normalizeApifyRecord(record: ApifyRecord, sourceKey: string): MarketLis
 }
 
 function autoscoutInput(watchlists: ScannerWatchlist[], limit: number) {
-  const watchlist = watchlists.find((item) => item.active && item.vehicle_type === "car") ?? watchlists.find((item) => item.active);
+  const selected = watchlists.filter((item) => item.active && sourceSelected(item, "apify_autoscout24"));
+  const watchlist = selected.find((item) => item.vehicle_type === "car") ?? selected[0];
   if (!watchlist) return {};
   return {
     make: slug(watchlist.brand),
@@ -184,7 +187,7 @@ const NL_VEHICLE_TERMS: Record<string, string> = {
 };
 
 function marktplaatsQueries(watchlists: ScannerWatchlist[]) {
-  return relevantWatchlists(watchlists, "NL").map((watchlist) => {
+  return relevantWatchlists(watchlists, "NL", "apify_marktplaats").map((watchlist) => {
     const vehicleTerm = NL_VEHICLE_TERMS[watchlist.vehicle_type ?? "other"] ?? NL_VEHICLE_TERMS.other;
     return [watchlist.brand, watchlist.model, vehicleTerm].filter(Boolean).join(" ");
   });
@@ -204,10 +207,14 @@ function mobileDeSearchUrl(watchlist: ScannerWatchlist) {
   return `https://suchen.mobile.de/fahrzeuge/search.html?${params}`;
 }
 
-function relevantWatchlists(watchlists: ScannerWatchlist[], countryCode: string) {
-  const active = watchlists.filter((watchlist) => watchlist.active);
+function relevantWatchlists(watchlists: ScannerWatchlist[], countryCode: string, sourceKey: string) {
+  const active = watchlists.filter((watchlist) => watchlist.active && sourceSelected(watchlist, sourceKey));
   const local = active.filter((watchlist) => !watchlist.country || countryMatches(watchlist.country, countryCode));
   return (local.length > 0 ? local : active).slice(0, 5);
+}
+
+function sourceSelected(watchlist: ScannerWatchlist, sourceKey: string) {
+  return !watchlist.source_keys?.length || watchlist.source_keys.includes(sourceKey);
 }
 
 function autoscoutCountries(watchlist: ScannerWatchlist) {

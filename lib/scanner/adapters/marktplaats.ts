@@ -165,6 +165,8 @@ export const marktplaatsAdapter: ScanAdapter = {
     ],
     supportsDirectSearch: true,
     supportsIncrementalSync: false,
+    persistencePolicy: "evidence_required",
+    persistenceProviderKey: "marktplaats",
   },
   async fetchListings({ watchlists }): Promise<MarketListingInput[]> {
     const byItemId = new Map<string, MarktplaatsListing>();

@@ -102,6 +102,21 @@ export default function WatchlistEditor({
 
       <DetailedVehicleFilters values={detailValuesFromWatchlist(watchlist)} />
 
+      <details open className="mt-4 rounded-lg border border-line-soft bg-surface-sunken/40 p-4">
+        <summary className="cursor-pointer text-sm font-semibold text-brand">Ticari alım profili</summary>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <Field label="Hedef ülke kodu" name="destination_country_code" value={watchlist.destination_country_code ?? ""} />
+          <Field label="Sabit ek maliyet (€)" name="estimated_fixed_costs" type="number" value={watchlist.estimated_fixed_costs ?? 0} />
+          <Field label="Aylık bekleme maliyeti (€)" name="monthly_holding_cost" type="number" value={watchlist.monthly_holding_cost ?? 0} />
+          <Field label="Maliyet rezervi (%)" name="cost_reserve_percent" type="number" value={watchlist.cost_reserve_percent ?? 10} />
+          <Field label="Satış indirimi (%)" name="conservative_sale_discount_percent" type="number" value={watchlist.conservative_sale_discount_percent ?? 5} />
+          <Field label="Minimum net kâr (€)" name="min_net_profit" type="number" value={watchlist.min_net_profit ?? 3000} />
+          <Field label="Minimum net marj (%)" name="min_net_margin_percent" type="number" value={watchlist.min_net_margin_percent ?? 12} />
+          <Field label="Maksimum stok günü" name="max_inventory_days" type="number" value={watchlist.max_inventory_days ?? 45} />
+          <Field label="Anlık alarm skor eşiği" name="instant_alert_score" type="number" value={watchlist.instant_alert_score ?? 85} />
+        </div>
+      </details>
+
       <div className="mt-3 grid gap-3 md:grid-cols-3">
         <Field label="Anahtar kelimeler" name="keywords" value={watchlist.keywords.join(", ")} />
         <Field label="Olmazsa olmaz" name="must_have_keywords" value={watchlist.must_have_keywords.filter((keyword) => !keyword.startsWith("__vehigo_")).join(", ")} />

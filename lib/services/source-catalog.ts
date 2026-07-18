@@ -5,7 +5,7 @@ import { getConnector, listConnectorManifests } from "@/lib/scanner/registry";
 
 type Client = SupabaseClient<Database>;
 type MarketSource = Database["public"]["Tables"]["market_sources"]["Row"];
-type ContractSource = Pick<MarketSource, "key" | "connector_version" | "acquisition_modes" | "country_codes" | "vehicle_types">;
+type ContractSource = Pick<MarketSource, "key" | "connector_version" | "acquisition_modes" | "country_codes" | "vehicle_types" | "persistence_policy">;
 
 export type ConnectorCatalogState = "operational" | "catalog_only" | "runtime_only" | "contract_mismatch";
 export type ConnectorCatalogRow = {
@@ -22,6 +22,7 @@ export function connectorContractIssues(source: ContractSource, manifest: Connec
   if (source.acquisition_modes && !sameSet(source.acquisition_modes, manifest.acquisitionModes)) issues.push("acquisition_modes_mismatch");
   if (source.country_codes && !sameSet(source.country_codes, manifest.countries)) issues.push("countries_mismatch");
   if (source.vehicle_types && !sameSet(source.vehicle_types, manifest.vehicleTypes)) issues.push("vehicle_types_mismatch");
+  if (source.persistence_policy && source.persistence_policy !== manifest.persistencePolicy) issues.push("persistence_policy_mismatch");
   return issues;
 }
 
@@ -41,10 +42,10 @@ export async function syncRuntimeConnectorCatalog(supabase: Client) {
           direct_search: manifest.supportsDirectSearch,
           incremental_sync: manifest.supportsIncrementalSync,
           field_coverage: manifest.fieldCoverage,
+          persistence_provider_key: manifest.persistenceProviderKey,
         } as Json,
+        persistence_policy: manifest.persistencePolicy,
         catalog_status: "available",
-        contract_status: "ok",
-        contract_error: null,
         last_contract_check_at: checkedAt,
       })
       .eq("key", manifest.key)

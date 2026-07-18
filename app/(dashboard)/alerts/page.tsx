@@ -254,6 +254,21 @@ export default async function AlertsPage() {
                       <p className="mt-2 text-xs text-ink-faint">{decision.riskNotes.join(" · ")}</p>
                     </div>
                   </div>
+                  {alert.commercial_status && alert.commercial_status !== "not_evaluated" ? (
+                    <div className={`mt-4 rounded-md border p-3 ${alert.commercial_status === "approved" ? "border-success/30 bg-success/5" : "border-line-soft bg-paper"}`}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className={pillClasses(alert.commercial_status === "approved" ? "success" : alert.commercial_status === "error" ? "danger" : "warning")}>
+                          {alert.commercial_status === "approved" ? "Ticari eşik onaylandı" : alert.commercial_status === "insufficient_data" ? "Piyasa kanıtı yetersiz" : alert.commercial_status === "error" ? "Değerlendirme hatası" : "Ticari eşik karşılanmadı"}
+                        </span>
+                        <span className="text-xs text-ink-faint">{alert.commercial_comparable_count ?? 0} karşılaştırma</span>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3" style={{ fontVariantNumeric: "tabular-nums" }}>
+                        <div><span className="block text-xs text-ink-faint">Toplam maliyet</span><strong>{alert.estimated_total_cost?.toLocaleString("tr-TR") ?? "-"} {listing.currency}</strong></div>
+                        <div><span className="block text-xs text-ink-faint">Muhafazakâr satış</span><strong>{alert.expected_sale_price?.toLocaleString("tr-TR") ?? "-"} {listing.currency}</strong></div>
+                        <div><span className="block text-xs text-ink-faint">Net kâr / marj</span><strong>{alert.estimated_net_profit?.toLocaleString("tr-TR") ?? "-"} {listing.currency} · %{alert.estimated_net_margin_percent?.toFixed(1) ?? "-"}</strong></div>
+                      </div>
+                    </div>
+                  ) : null}
                   <MarketIntelligenceCard listingId={listing.id} snapshot={intelligenceByListingId.get(listing.id)} />
                   <OpportunityDecisionForm
                     alertId={alert.id}

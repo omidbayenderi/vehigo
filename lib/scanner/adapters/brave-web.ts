@@ -186,9 +186,11 @@ export const braveWebAdapter: ScanAdapter = {
     ],
     supportsDirectSearch: true,
     supportsIncrementalSync: false,
+    persistencePolicy: "evidence_required",
+    persistenceProviderKey: "brave_web",
   },
-  async fetchListings({ watchlists }): Promise<MarketListingInput[]> {
-    const token = requireBraveSearchConfiguration();
+  async fetchListings({ watchlists, processingMode }): Promise<MarketListingInput[]> {
+    const token = requireBraveSearchConfiguration(processingMode !== "transient");
 
     const plans = buildQueries(watchlists).slice(0, MAX_QUERIES_PER_RUN);
     const listings: MarketListingInput[] = [];

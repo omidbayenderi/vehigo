@@ -112,7 +112,11 @@ Kural setleri yalnız kaynak referansıyla aktif hale getirilebilir. Hesap sonuc
 
 `brave_web` için `.env.local` içinde `BRAVE_SEARCH_API_KEY` gerekir. Google Custom Search JSON API yeni müşterilere kapalı olduğu için yeni kurulumda genel web arama katmanı Brave Search API üzerinden çalışır.
 
-Mobile.de ve AutoScout24 Apify connector'ları transient çalışır; sonuçlar aynı turda filtrelenip Telegram'a iletilir ve ilan içeriği Supabase'e yazılmaz. Üretimde `APIFY_ENABLED=true`, `APIFY_API_TOKEN`, `APIFY_MOBILE_DE_ACTOR`, `APIFY_AUTOSCOUT24_ACTOR` ve `APIFY_MAX_RESULTS_PER_RUN` tanımlanmalıdır. Kaynaklar günlük aralıkla ve birbirinden bağımsız hata sınırlarıyla çalışır.
+Mobile.de ve AutoScout24 Apify connector'ları varsayılan olarak transient çalışır; sonuçlar aynı turda filtrelenip Telegram'a iletilir ve ilan içeriği Supabase'e yazılmaz. Kalıcı piyasa havuzu yalnız `APIFY_PERSIST_RESULTS=true` ile açıkça istenir ve ilgili connector için aktif `provider_storage_rights_evidence` kaydı bütün gerekli veri sınıfları ile bölgeleri kapsarsa açılır. Marktplaats Actor'ı katalogda bulunur ancak yazılı API/yeniden kullanım izni kaydedilene kadar veritabanında devre dışıdır.
+
+Transient sonuçlarda tekrar Telegram bildirimi, ilan içeriği yerine yalnız sunucu tarafında HMAC-SHA256 ile üretilmiş geri döndürülemez teslimat iziyle engellenir. Başlık, URL, fiyat, açıklama ve ham provider payload'ı bu tabloda tutulmaz. İzler varsayılan 90 gün sonra silinir; bu operasyonel veri minimizasyonudur ve kaynağın otomatik erişim izninin yerine geçmez.
+
+Her alarm aynı zamanda ticari alım profilidir: sabit masraf, bekleme maliyeti, rezerv, muhafazakâr satış indirimi, minimum net kâr/marj ve anlık bildirim eşiği saklanır. Vehigo en az 6 karşılaştırmalı ilan ve 2 bağımsız kaynak olmadan ticari fırsat iddiası üretmez. Bütün eşikler geçerse ilan, tahmini toplam maliyet ve net kâr kanıtıyla anında Telegram'a gönderilir; diğer eşleşmeler normal digest akışında kalır.
 
 ## Otomatik tarama
 
@@ -122,15 +126,22 @@ Mobile.de ve AutoScout24 Apify connector'ları transient çalışır; sonuçlar 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SCANNER_INGEST_SECRET`
+- `DELIVERY_RECEIPT_HMAC_SECRET` (en az 32 karakter; boşsa `SCANNER_INGEST_SECRET` alan ayrımıyla kullanılır)
+- `DELIVERY_RECEIPT_RETENTION_DAYS` (varsayılan `90`, en fazla `365`)
+- `DELIVERY_RECEIPT_CLAIM_MINUTES` (yarım kalan Telegram teslimatını yeniden deneyebilmek için varsayılan `15`)
 - `CRON_SECRET`
 - `BRAVE_SEARCH_API_KEY`
 - `APIFY_ENABLED`
 - `APIFY_API_TOKEN`
 - `APIFY_MOBILE_DE_ACTOR`
 - `APIFY_AUTOSCOUT24_ACTOR`
+- `APIFY_MARKTPLAATS_ACTOR`
 - `APIFY_MAX_RESULTS_PER_RUN`
+- `APIFY_PERSIST_RESULTS` (varsayılan `false`; aktif saklama hakkı kanıtı da zorunludur)
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
+
+Aylık teknik işletme maliyetini mevcut tarama hacmiyle görmek için `npm run costs:estimate` çalıştırılır. Brave istek hacmi, Apify kullanımı, hosting, Supabase ve AI bütçesi `VEHIGO_COST_*` ortam değişkenleriyle senaryolaştırılabilir.
 
 Vercel Cron, `CRON_SECRET` tanımlıysa `Authorization: Bearer CRON_SECRET` ile doğrulanır. n8n veya manuel test çağrıları için `x-scanner-secret: SCANNER_INGEST_SECRET` header'ı kullanılır.
 

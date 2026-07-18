@@ -19,6 +19,7 @@ import {
   type SiteAgentFleetSummary,
 } from "@/lib/scanner/site-search-agents";
 import { processTransientListings } from "@/lib/services/transient-opportunity";
+import { resolveConnectorProcessingMode } from "@/lib/scanner/persistence-policy";
 
 type Client = SupabaseClient<Database>;
 
@@ -125,8 +126,12 @@ export async function runScannerOnce(
 
     logger.log(`[${source.key}] tarama başladı...`);
     try {
-      const listings = await adapter.fetchListings({ watchlists });
-      const result = adapter.processingMode === "transient"
+      const processing = await resolveConnectorProcessingMode(supabase, adapter);
+      if (processing.mode === "transient" && processing.reason === "evidence_missing") {
+        logger.warn(`[${source.key}] kalıcı saklama kanıtı bulunmadı; sonuçlar geçici işlenecek`);
+      }
+      const listings = await adapter.fetchListings({ watchlists, processingMode: processing.mode });
+      const result = processing.mode === "transient"
         ? await processTransientListings(supabase, listings, watchlists)
         : await processIncomingListings(supabase, listings);
       const { nextRunAt } = await recordScannerRun(supabase, source.key, startedAt, {
@@ -135,7 +140,7 @@ export async function runScannerOnce(
       });
 
       summary.scannedSources++;
-      if (adapter.processingMode !== "transient") summary.persistentScannedSources++;
+      if (processing.mode === "persistent") summary.persistentScannedSources++;
       summary.fetched += result.fetched;
       summary.inserted += result.inserted;
       summary.alertsCreated += result.alertsCreated;

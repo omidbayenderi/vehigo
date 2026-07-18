@@ -50,6 +50,19 @@ if (process.env.BRAVE_SEARCH_MODE && !["transient_search", "persistent_search"].
 if (process.env.BRAVE_SEARCH_MODE === "persistent_search" && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
   problems.push("persistent_search requires BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true");
 }
+if (process.env.APIFY_PERSIST_RESULTS && !["true", "false"].includes(process.env.APIFY_PERSIST_RESULTS)) {
+  problems.push("APIFY_PERSIST_RESULTS must be true or false");
+}
+if (process.env.APIFY_PERSIST_RESULTS === "true" && process.env.APIFY_ENABLED !== "true") {
+  problems.push("APIFY_PERSIST_RESULTS=true requires APIFY_ENABLED=true");
+}
+if (process.env.DELIVERY_RECEIPT_HMAC_SECRET) {
+  validateMinimumLength("DELIVERY_RECEIPT_HMAC_SECRET", 32);
+} else if (requestedMode !== "development") {
+  validateMinimumLength("SCANNER_INGEST_SECRET", 32);
+}
+validateOptionalIntegerRange("DELIVERY_RECEIPT_RETENTION_DAYS", 1, 365);
+validateOptionalIntegerRange("DELIVERY_RECEIPT_CLAIM_MINUTES", 5, 60);
 
 if (problems.length) {
   console.error(`Environment check failed for ${requestedMode}:`);
@@ -91,4 +104,13 @@ function validateMinimumLength(key: string, length: number) {
 function requirePositiveNumber(key: string) {
   const value = Number(process.env[key]);
   if (!Number.isFinite(value) || value <= 0) problems.push(`${key} must be a positive number`);
+}
+
+function validateOptionalIntegerRange(key: string, minimum: number, maximum: number) {
+  const raw = process.env[key]?.trim();
+  if (!raw) return;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    problems.push(`${key} must be an integer between ${minimum} and ${maximum}`);
+  }
 }

@@ -6,6 +6,14 @@ import { marketListingInputSchema, canonicalMarketListingInputSchema } from "@/l
 import { listingMatchesWatchlist } from "@/lib/services/market-alerts";
 import { assessOpportunity } from "@/lib/services/opportunity-agents";
 import { sendTelegramMessage } from "@/lib/services/notifications";
+import {
+  claimTransientDeliveryReceipts,
+  completeTransientDeliveryReceipts,
+  receiptClaimKey,
+  releaseTransientDeliveryReceipts,
+  transientReceiptHash,
+  type TransientReceiptCandidate,
+} from "@/lib/services/transient-delivery-receipts";
 
 type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -69,18 +77,45 @@ export async function processTransientListings(
       const matches = matchesByUser.get(watchlist.user_id) ?? [];
       if (matches.length < 5) matches.push({ listing, watchlist });
       matchesByUser.set(watchlist.user_id, matches);
-      result.alertsCreated++;
     }
   }
 
   for (const [userId, matches] of matchesByUser) {
     const recipient = chatByUser.get(userId);
     if (!recipient || matches.length === 0) continue;
-    const delivery = await sendTelegramMessage(recipient.chatId, formatTransientDigest(matches, recipient.locale));
-    if (delivery.ok) result.alertsSent++;
-    else result.alertsFailed++;
+    const candidates = matches.map(({ listing, watchlist }) => receiptCandidate(listing, watchlist));
+    const claimed = await claimTransientDeliveryReceipts(supabase, candidates);
+    const deliverable = matches.flatMap((match, index) => {
+      const candidate = candidates[index];
+      const hash = transientReceiptHash(candidate);
+      const claim = claimed.get(receiptClaimKey(candidate, hash));
+      return claim ? [{ match, claim }] : [];
+    });
+    if (deliverable.length === 0) continue;
+    result.alertsCreated += deliverable.length;
+    const delivery = await sendTelegramMessage(
+      recipient.chatId,
+      formatTransientDigest(deliverable.map(({ match }) => match), recipient.locale),
+    );
+    const deliveryClaims = deliverable.map(({ claim }) => claim);
+    if (delivery.ok) {
+      await completeTransientDeliveryReceipts(supabase, userId, deliveryClaims);
+      result.alertsSent++;
+    } else {
+      await releaseTransientDeliveryReceipts(supabase, userId, deliveryClaims);
+      result.alertsFailed++;
+    }
   }
   return result;
+}
+
+function receiptCandidate(listing: Listing, watchlist: Watchlist): TransientReceiptCandidate {
+  return {
+    organizationId: watchlist.organization_id,
+    userId: watchlist.user_id,
+    sourceKey: listing.source_key,
+    sourceIdentity: listing.source_listing_id || listing.listing_url,
+  };
 }
 
 function transientListing(input: MarketListingInput): Listing {
@@ -123,7 +158,7 @@ function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Wat
   const t = locale === "fa"
     ? {
       header: "<b>خلاصه جست‌وجوی موقت Vehigo</b>",
-      subheader: "نتایج بدون ذخیره‌سازی پردازش شدند.",
+      subheader: "محتوای آگهی ذخیره نشد؛ فقط یک رسید رمزنگاری‌شده برای جلوگیری از اعلان تکراری نگهداری می‌شود.",
       untitled: "آگهی خودرو",
       alarm: "هشدار",
       score: "امتیاز",
@@ -134,7 +169,7 @@ function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Wat
     }
     : {
       header: "<b>Vehigo geçici arama özeti</b>",
-      subheader: "Sonuçlar kaydedilmeden işlendi.",
+      subheader: "İlan içeriği kaydedilmedi; yalnızca tekrar bildirimini önleyen şifreli teslimat izi tutuldu.",
       untitled: "Araç ilanı",
       alarm: "Alarm",
       score: "Skor",
