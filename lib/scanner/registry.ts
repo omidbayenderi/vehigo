@@ -1,11 +1,13 @@
 import { braveWebAdapter } from "@/lib/scanner/adapters/brave-web";
-import { apifyAutoscout24Adapter, apifyMobileDeAdapter } from "@/lib/scanner/adapters/apify";
+import { apifyAutoscout24Adapter, apifyMarktplaatsAdapter, apifyMobileDeAdapter } from "@/lib/scanner/adapters/apify";
 import type { ScanAdapter } from "@/lib/scanner/adapters/types";
 
-// Direct marketplace adapters are registered only after written/API/feed access
-// evidence is recorded. Site discovery is handled by the provider-backed agent
-// fleet, so the dormant Marktplaats parser cannot accidentally become a crawler.
-const CONNECTORS = [braveWebAdapter, apifyMobileDeAdapter, apifyAutoscout24Adapter] as const satisfies readonly ScanAdapter[];
+// The hand-written lib/scanner/adapters/marktplaats.ts HTML parser stays
+// unregistered: Marktplaats' own terms (art. 1.7.3) prohibit systematically
+// querying/reusing substantial portions of the listings database without a
+// written API partnership. apifyMarktplaatsAdapter carries the same
+// operator-accepted risk via a third-party Actor instead.
+const CONNECTORS = [braveWebAdapter, apifyMobileDeAdapter, apifyAutoscout24Adapter, apifyMarktplaatsAdapter] as const satisfies readonly ScanAdapter[];
 
 export const connectorRegistry: ReadonlyMap<string, ScanAdapter> = createConnectorRegistry(CONNECTORS);
 

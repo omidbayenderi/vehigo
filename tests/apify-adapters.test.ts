@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
-import { apifyAutoscout24Adapter, apifyMobileDeAdapter } from "@/lib/scanner/adapters/apify";
+import { apifyAutoscout24Adapter, apifyMarktplaatsAdapter, apifyMobileDeAdapter } from "@/lib/scanner/adapters/apify";
 
 const watchlist = {
   active: true,
@@ -14,6 +14,14 @@ const watchlist = {
   max_price: 25_000,
   max_mileage_km: 80_000,
   keywords: [],
+} as unknown as ScannerWatchlist;
+
+const nlWatchlist = {
+  ...watchlist,
+  brand: "Volkswagen",
+  model: "Transporter",
+  country: "Netherlands",
+  vehicle_type: "van",
 } as unknown as ScannerWatchlist;
 
 describe("Apify vehicle adapters", () => {
@@ -69,6 +77,43 @@ describe("Apify vehicle adapters", () => {
       make: "toyota", model: "corolla", countries: ["DE"], yearFrom: 2020,
       priceTo: 25_000, mileageTo: 80_000, maxResults: 50,
     });
+  });
+
+  it("builds Dutch keyword queries and defaults the country for Marktplaats", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify([{
+      itemId: "m123456",
+      url: "https://www.marktplaats.nl/v/auto-s/bestelauto-s/m123456-vw-transporter",
+      title: "VW Transporter L2H2",
+      sellerName: "Jan de Verkoper",
+      cityName: "Utrecht",
+      price: 18_500,
+      imageUrls: ["https://img.example/transporter.jpg"],
+    }]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const listings = await apifyMarktplaatsAdapter.fetchListings({ watchlists: [nlWatchlist] });
+
+    expect(listings).toHaveLength(1);
+    expect(listings[0]).toMatchObject({
+      source_key: "apify_marktplaats", source_listing_id: "m123456",
+      seller_name: "Jan de Verkoper", seller_city: "Utrecht", seller_country_code: "NL", price: 18_500,
+    });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("memo23~marktplaats-nl-scraper/run-sync-get-dataset-items"),
+      expect.anything(),
+    );
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      queries: ["Volkswagen Transporter bestelwagen"],
+      maxItems: 50,
+    });
+  });
+
+  it("skips the Marktplaats Actor call when there are no watchlists at all", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(apifyMarktplaatsAdapter.fetchListings({ watchlists: [] })).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("does not call Apify when the production switch is off", async () => {
