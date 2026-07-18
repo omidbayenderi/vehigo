@@ -12,6 +12,7 @@ import { syncRuntimeConnectorCatalog } from "@/lib/services/source-catalog";
 import { replayDueIngestEvents } from "@/lib/services/scanner-ingest";
 import {
   createEmptySiteAgentFleetSummary,
+  mergeSiteAgentFleetSummary,
   prepareSiteSearchAgentFleet,
   runAllActiveSiteSearchAgents,
   runDueSiteSearchAgents,
@@ -20,6 +21,17 @@ import {
 import { processTransientListings } from "@/lib/services/transient-opportunity";
 
 type Client = SupabaseClient<Database>;
+
+// The route that calls runScannerOnce caps at maxDuration=240s (see
+// app/api/scanner/run/route.ts). A single site-search-agent claim used to
+// stop the loop after one agent, so a fleet of dozens of agents could only
+// be worked through as fast as the external cron happened to fire — and
+// schedule delivery for infrequent-activity repos is unreliable. Instead,
+// keep claiming and running due agents until the fleet is drained or the
+// time budget runs out, so one invocation clears as much of the backlog as
+// it safely can.
+const SITE_AGENT_LOOP_BUDGET_MS = 180_000;
+const SITE_AGENT_LOOP_MAX_CLAIMS = 60;
 
 export type ScannerRunOptions = {
   force?: boolean;
@@ -148,16 +160,28 @@ export async function runScannerOnce(
       logger.log(`[chef-agent:${chefRunId}] filo güvenlik nedeniyle çalıştırılmadı; durum raporu tamamlandı`);
       return finalizeScannerRun(supabase, summary);
     }
-    summary.siteAgents = options.siteAgentScope === "all"
-      ? await runAllActiveSiteSearchAgents(supabase, watchlists, { chefRunId, logger })
-      : await runDueSiteSearchAgents(supabase, watchlists, {
-        workerId: `scanner-${crypto.randomUUID()}`,
-        chefRunId,
-        limit: 1,
-        sourceKey: options.sourceKey,
-        force: options.force,
-        logger,
-      });
+    if (options.siteAgentScope === "all") {
+      summary.siteAgents = await runAllActiveSiteSearchAgents(supabase, watchlists, { chefRunId, logger });
+    } else {
+      // A caller targeting one source (e.g. an admin re-running a single
+      // connector) wants exactly that one claim, not a repeated sweep of the
+      // same source. Only the unscoped sweep — the routine cron path — drains
+      // the due backlog across multiple claims.
+      const maxClaims = options.sourceKey ? 1 : SITE_AGENT_LOOP_MAX_CLAIMS;
+      const loopDeadlineAt = Date.now() + SITE_AGENT_LOOP_BUDGET_MS;
+      for (let claims = 0; claims < maxClaims && Date.now() < loopDeadlineAt; claims += 1) {
+        const result = await runDueSiteSearchAgents(supabase, watchlists, {
+          workerId: `scanner-${crypto.randomUUID()}`,
+          chefRunId,
+          limit: 1,
+          sourceKey: options.sourceKey,
+          force: options.force,
+          logger,
+        });
+        mergeSiteAgentFleetSummary(summary.siteAgents, result);
+        if (result.claimed === 0) break;
+      }
+    }
     summary.fetched += summary.siteAgents.fetched;
     summary.inserted += summary.siteAgents.inserted;
     summary.alertsCreated += summary.siteAgents.alertsCreated;
