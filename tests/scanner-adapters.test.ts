@@ -270,7 +270,7 @@ describe("braveWebAdapter", () => {
 
     expect(result.plans).toHaveLength(1);
     expect(result.plans[0]).toMatchObject({ watchlist: null });
-    expect(result.plans[0].query).toContain("site:mobile.de LKW");
+    expect(result.plans[0].query).toContain("site:mobile.de (car OR van OR truck");
   });
 
   it("rotates all marketplace query groups through one unified agent budget", () => {
@@ -285,6 +285,17 @@ describe("braveWebAdapter", () => {
     expect(second.plans).toHaveLength(4);
     expect(first.candidateCount).toBeGreaterThan(8);
     expect(second.plans[0].query).not.toBe(first.plans[0].query);
+  });
+
+  it("uses a compact all-category query when vehicle type is Farketmez", () => {
+    const watchlist = {
+      brand: null, model: null, vehicle_type: null,
+      country_codes: ["DE"], keywords: [], source_keys: ["brave_web"],
+    } as unknown as ScannerWatchlist;
+
+    const result = buildUnifiedSiteAgentQueries({ watchlists: [watchlist], cursor: 0, limit: 2 });
+
+    expect(result.plans[0].query).toContain("car OR van OR truck OR tractor OR trailer OR bus OR excavator OR parts");
   });
 
   it("attributes cross-domain results correctly when the unified Europe scout runs", async () => {

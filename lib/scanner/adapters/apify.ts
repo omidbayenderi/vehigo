@@ -64,7 +64,7 @@ function createApifyAdapter(config: {
       displayName: config.displayName,
       countries: config.countries,
       acquisitionModes: ["authorized_automation"],
-      vehicleTypes: ["car", "van", "truck", "tractor_unit", "trailer", "construction", "bus", "other"],
+      vehicleTypes: ["car", "van", "truck", "tractor_unit", "trailer", "construction", "spare_part", "bus", "other"],
       fieldCoverage: [
         "source_key", "source_listing_id", "listing_url", "title", "description", "seller_name",
         "seller_country_code", "seller_city", "brand", "model", "year", "mileage_km", "price",
@@ -214,7 +214,14 @@ function relevantWatchlists(watchlists: ScannerWatchlist[], countryCode: string,
 }
 
 function sourceSelected(watchlist: ScannerWatchlist, sourceKey: string) {
-  return !watchlist.source_keys?.length || watchlist.source_keys.includes(sourceKey);
+  if (!watchlist.source_keys?.length || watchlist.source_keys.includes(sourceKey)) return true;
+  const canonicalSourceByConnector: Record<string, string> = {
+    apify_mobile_de: "mobile_de",
+    apify_autoscout24: "autoscout24",
+    apify_marktplaats: "marktplaats",
+  };
+  const canonical = canonicalSourceByConnector[sourceKey];
+  return Boolean(canonical && watchlist.source_keys.includes(canonical));
 }
 
 function autoscoutCountries(watchlist: ScannerWatchlist) {

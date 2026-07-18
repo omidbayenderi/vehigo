@@ -81,6 +81,7 @@ const VEHICLE_TERMS: Record<string, string[]> = {
   bus: ["bus", "coach", "reisebus"],
   other: ["commercial vehicle", "utility vehicle"],
 };
+const ANY_VEHICLE_QUERY = "(car OR van OR truck OR tractor OR trailer OR bus OR excavator OR parts)";
 
 type LocalSearchProfile = {
   sale: string;
@@ -336,10 +337,12 @@ export function buildSiteAgentQueries(input: {
 
   for (let index = 0; index < Math.min(limit, candidates.length); index += 1) {
     const watchlist = candidates[(start + index) % candidates.length];
-    const vehicleType = watchlist?.vehicle_type ?? "truck";
+    const vehicleType = watchlist?.vehicle_type;
     const profileCode = mappedHostValue(input.host, HOST_QUERY_PROFILE) ?? resolveCountryCodes(watchlist ?? {})[0];
     const profile = localSearchProfile(profileCode);
-    const vehicleTerm = profile.vehicles[vehicleType] ?? (VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck)[0];
+    const vehicleTerm = vehicleType
+      ? profile.vehicles[vehicleType] ?? (VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.other)[0]
+      : ANY_VEHICLE_QUERY;
     const brandModel = [watchlist?.brand, watchlist?.model].filter(Boolean).join(" ");
     const geography = watchlist ? geographySearchTerms(watchlist).slice(0, 4).join(" OR ") : "";
     const keywords = watchlist?.keywords.slice(0, 6).join(" ") ?? "";
@@ -479,9 +482,11 @@ export function buildQueries(watchlists: ScannerWatchlist[]): QueryPlan[] {
 
   for (const watchlist of active) {
     const brandModel = watchlist ? [watchlist.brand, watchlist.model].filter(Boolean).join(" ") : "";
-    const vehicleType = watchlist?.vehicle_type ?? "truck";
+    const vehicleType = watchlist?.vehicle_type;
     const profile = localSearchProfile(resolveCountryCodes(watchlist ?? {})[0]);
-    const vehicleTerm = profile.vehicles[vehicleType] ?? (VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.truck)[0];
+    const vehicleTerm = vehicleType
+      ? profile.vehicles[vehicleType] ?? (VEHICLE_TERMS[vehicleType] ?? VEHICLE_TERMS.other)[0]
+      : ANY_VEHICLE_QUERY;
     const countryTerms = watchlist ? geographySearchTerms(watchlist) : [];
     const regionTerm = watchlist?.region_preset === "balkans" ? "Balkans"
       : watchlist?.region_preset === "schengen" ? "Schengen Europe"

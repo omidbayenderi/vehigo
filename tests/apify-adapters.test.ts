@@ -66,6 +66,18 @@ describe("Apify vehicle adapters", () => {
     );
   });
 
+  it("treats a canonical marketplace selection as selecting its Apify connector", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apifyMobileDeAdapter.fetchListings({
+      watchlists: [{ ...watchlist, source_keys: ["mobile_de"] } as ScannerWatchlist],
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(apifyMobileDeAdapter.manifest.vehicleTypes).toContain("spare_part");
+  });
+
   it("sends structured watchlist filters to AutoScout24", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("[]", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);

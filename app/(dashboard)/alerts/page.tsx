@@ -113,7 +113,7 @@ export default async function AlertsPage() {
             })}
           </div>
           <p className="mt-4 text-xs text-ink-faint">
-            Merkezi Scout agent Marktplaats ve Avrupa Deep Search ağını yaklaşık 8 saatte bir, jitter ile günde 3-4 kez tarar. Deep Search kaynakları e-posta olmadan keşfeder; korumalı sitelerde e-posta/API/n8n bağlantısı yalnız hız ve veri tamlığı için isteğe bağlı ek kanaldır. DB yalnız aranabilir ilan özeti ve kaynak linkini tutar.
+            Merkezi Europe Web Scout yaklaşık 160 dakikada bir, günde en fazla 9 tur çalışır. Mevcut alarm planında bu hız 50’den fazla site ve tüm araç kategorilerinin sorgu kuyruğunu günde en az bir kez tamamlar. Korumalı sitelerde e-posta veya izinli API bağlantısı yalnız hız ve veri tamlığı için ek kanaldır; ilan içeriği transient akışta kalıcı kaydedilmez.
           </p>
         </div>
       </details>

@@ -44,7 +44,15 @@ export default function RootLayout({
           {themeScript}
         </Script>
       </head>
-      <body className="flex min-h-full flex-col"><LocaleBridge>{children}</LocaleBridge></body>
+      <body className="flex min-h-full flex-col">
+        <LocaleBridge>{children}</LocaleBridge>
+        <footer className="px-4 py-3 text-center text-xs text-ink-faint">
+          Web discovery powered by{" "}
+          <a href="https://brave.com/search/api/" target="_blank" rel="noreferrer" className="underline hover:text-ink">
+            Brave Search API
+          </a>
+        </footer>
+      </body>
     </html>
   );
 }

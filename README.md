@@ -44,7 +44,7 @@ Telegram Bot API kullanıcı adına doğrudan mesaj göndermez; kullanıcı uygu
 
 Scanner veya n8n ingest yeni bir eşleşme ürettiğinde bekleyen Telegram alarmlarını aynı çalışmada teslim eder. Telegram henüz bağlanmamışsa alarm başarısız sayılmaz; `pending` kalır ve sonraki çalışma ya da özet gönderiminde tekrar değerlendirilir.
 
-Genel web araması için tek bir bütçeli `brave_web` Europe Web Scout aktif watchlist filtrelerinden adil sırayla sorgu üretir. Domainler `site:` grupları halinde dönüşümlü taranır; agent çalışma başına en fazla 4, günde en fazla 12 Brave isteği yapar ve sonuçları yalnız transient işler. Eski site-bazlı agent kayıtları maliyet üretmemeleri ve geçmiş audit kayıtlarının korunması için `retired` durumundadır. Bu katman 40'tan fazla Avrupa marketplace alan adını, herkese açık Facebook grup gönderilerini ve Telegram kanal sayfalarını kapsar. Özel gruplar yalnızca kullanıcının yetkilendirdiği n8n bağlantısıyla ingest edilebilir.
+Genel web araması için tek bir bütçeli `brave_web` Europe Web Scout aktif watchlist filtrelerinden adil sırayla sorgu üretir. Domainler `site:` grupları halinde dönüşümlü taranır; agent çalışma başına en fazla 4, yaklaşık 160 dakikada bir ve günde en fazla 36 Brave isteği yapar. Mevcut iki alarmın 29 sorguluk planı 8 turda tamamlandığı için günlük 9 tur bütün planı bir kez tarar. Sonuçlar yalnız transient işlenir. Eski site-bazlı agent kayıtları maliyet üretmemeleri ve geçmiş audit kayıtlarının korunması için `retired` durumundadır. Bu katman 50'den fazla Avrupa marketplace alan adını, herkese açık Facebook grup gönderilerini ve Telegram kanal sayfalarını; Otomobil, Hafif ticari, Kamyon, Çekici, Dorse, İş makinesi, Yedek parça, Otobüs ve Diğer kategorilerini kapsar. Özel gruplar yalnızca kullanıcının yetkilendirdiği n8n bağlantısıyla ingest edilebilir.
 
 ## Agent ekibi
 
@@ -116,11 +116,13 @@ Mobile.de ve AutoScout24 Apify connector'ları varsayılan olarak transient çal
 
 Transient sonuçlarda tekrar Telegram bildirimi, ilan içeriği yerine yalnız sunucu tarafında HMAC-SHA256 ile üretilmiş geri döndürülemez teslimat iziyle engellenir. Başlık, URL, fiyat, açıklama ve ham provider payload'ı bu tabloda tutulmaz. İzler varsayılan 90 gün sonra silinir; bu operasyonel veri minimizasyonudur ve kaynağın otomatik erişim izninin yerine geçmez.
 
+Transient taramada piyasa karşılaştırması aynı çalışma turunun bellekteki sonuçlarından hesaplanır; yeterli örnek varsa medyan, kaynak sayısı ve muhafazakâr net kâr Telegram mesajına eklenir, tekil karşılaştırmalı ilanlar veritabanına yazılmaz. Üç genel Telegram kanalına transient dağıtım varsayılan olarak kapalıdır. Yalnız açık yeniden yayınlama hakkı bulunan kaynaklar `TELEGRAM_TRANSIENT_CHANNELS_ENABLED=true` ve `TELEGRAM_TRANSIENT_CHANNEL_SOURCE_ALLOWLIST` ile etkinleştirilebilir; şifreleme veya HMAC kaynak kullanım izninin yerine geçmez.
+
 Her alarm aynı zamanda ticari alım profilidir: sabit masraf, bekleme maliyeti, rezerv, muhafazakâr satış indirimi, minimum net kâr/marj ve anlık bildirim eşiği saklanır. Vehigo en az 6 karşılaştırmalı ilan ve 2 bağımsız kaynak olmadan ticari fırsat iddiası üretmez. Bütün eşikler geçerse ilan, tahmini toplam maliyet ve net kâr kanıtıyla anında Telegram'a gönderilir; diğer eşleşmeler normal digest akışında kalır.
 
 ## Otomatik tarama
 
-`.github/workflows/scanner-cron.yml` günde 3 kez `/api/scanner/run`, günde 2 kez de son 12 saatin yeni ilanları için `/api/scanner/digest` çağırır. `.github/workflows/operations-maintenance.yml` ise her 5 dakikada bir expired lease kurtarma ve retention bakımını çalıştırır. GitHub Actions secrets ve Vercel ortam değişkenlerinde şunlar tanımlı olmalı:
+`.github/workflows/scanner-cron.yml` her 10 dakikada bir `/api/scanner/run` uyandırması yapar; veritabanı lease/bütçe kontrolü Europe Web Scout'u yaklaşık 160 dakikada bir ve günde en fazla 9 kez çalıştırır. Son 12 saatin yeni ilanları için `/api/scanner/digest` günde 2 kez çağrılır. `.github/workflows/operations-maintenance.yml` ise her 5 dakikada bir expired lease kurtarma ve retention bakımını çalıştırır. GitHub Actions secrets ve Vercel ortam değişkenlerinde şunlar tanımlı olmalı:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -140,6 +142,8 @@ Her alarm aynı zamanda ticari alım profilidir: sabit masraf, bekleme maliyeti,
 - `APIFY_PERSIST_RESULTS` (varsayılan `false`; aktif saklama hakkı kanıtı da zorunludur)
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_TRANSIENT_CHANNELS_ENABLED` (varsayılan `false`; yalnız yeniden yayınlama hakkı doğrulanmış kaynaklarda açılır)
+- `TELEGRAM_TRANSIENT_CHANNEL_SOURCE_ALLOWLIST` (virgülle ayrılmış kaynak anahtarları)
 
 Aylık teknik işletme maliyetini mevcut tarama hacmiyle görmek için `npm run costs:estimate` çalıştırılır. Brave istek hacmi, Apify kullanımı, hosting, Supabase ve AI bütçesi `VEHIGO_COST_*` ortam değişkenleriyle senaryolaştırılabilir.
 

@@ -17,9 +17,10 @@ vi.mock("@/lib/services/transient-delivery-receipts", () => ({
   releaseTransientDeliveryReceipts: mocks.releaseTransientDeliveryReceipts,
 }));
 
-import { processTransientListings } from "@/lib/services/transient-opportunity";
+import { assessTransientCommercialOpportunity, processTransientListings } from "@/lib/services/transient-opportunity";
 
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
+type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
 
 const watchlist = {
   id: "watch-1",
@@ -142,5 +143,31 @@ describe("transient opportunity processing", () => {
     expect(result).toMatchObject({ fetched: 1, inserted: 0, rejected: 1, alertsCreated: 0 });
     expect(from).not.toHaveBeenCalled();
     expect(mocks.sendTelegramMessage).not.toHaveBeenCalled();
+  });
+
+  it("calculates cross-source market proof from the same in-memory batch", () => {
+    const candidate = {
+      source_key: "mobile_de", source_listing_id: "candidate", price: 10_000, currency: "EUR",
+      brand: "Volkswagen", model: "Golf", condition: "used_good",
+    } as unknown as Listing;
+    const comparables = Array.from({ length: 6 }, (_, index) => ({
+      source_key: index % 2 === 0 ? "autoscout24" : "mobile_de",
+      source_listing_id: `comparable-${index}`,
+      price: 19_000 + index * 400,
+      currency: "EUR",
+      brand: "Volkswagen",
+      model: "Golf",
+      condition: "used_good",
+    })) as unknown as Listing[];
+
+    const assessment = assessTransientCommercialOpportunity(candidate, watchlist, [candidate, ...comparables]);
+
+    expect(assessment).toMatchObject({
+      status: "approved",
+      approved: true,
+      comparableCount: 6,
+      sourceCount: 2,
+    });
+    expect(assessment?.estimatedNetProfit).toBeGreaterThan(3_000);
   });
 });

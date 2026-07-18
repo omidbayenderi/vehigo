@@ -5,6 +5,11 @@ import { normalizeMarketListing } from "@/lib/normalization/normalize-listing";
 import { marketListingInputSchema, canonicalMarketListingInputSchema } from "@/lib/validation/schemas";
 import { listingMatchesWatchlist } from "@/lib/services/market-alerts";
 import { assessOpportunity } from "@/lib/services/opportunity-agents";
+import {
+  calculateCommercialOpportunity,
+  profileFromWatchlist,
+  type CommercialOpportunityAssessment,
+} from "@/lib/services/commercial-opportunity";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import {
   claimTransientDeliveryReceipts,
@@ -18,6 +23,11 @@ import {
 type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
+type TransientMatch = {
+  listing: Listing;
+  watchlist: Watchlist;
+  commercial: CommercialOpportunityAssessment | null;
+};
 
 export type TransientProcessingResult = {
   fetched: number;
@@ -64,7 +74,7 @@ export async function processTransientListings(
   const chatByUser = new Map((profiles ?? []).flatMap((profile) =>
     profile.telegram_chat_id ? [[profile.id, { chatId: profile.telegram_chat_id, locale: profile.locale }] as const] : [],
   ));
-  const matchesByUser = new Map<string, Array<{ listing: Listing; watchlist: Watchlist }>>();
+  const matchesByUser = new Map<string, TransientMatch[]>();
   const seenByUser = new Map<string, Set<string>>();
 
   for (const listing of listings) {
@@ -75,7 +85,13 @@ export async function processTransientListings(
       seen.add(listing.listing_url);
       seenByUser.set(watchlist.user_id, seen);
       const matches = matchesByUser.get(watchlist.user_id) ?? [];
-      if (matches.length < 5) matches.push({ listing, watchlist });
+      if (matches.length < 5) {
+        matches.push({
+          listing,
+          watchlist,
+          commercial: assessTransientCommercialOpportunity(listing, watchlist, listings),
+        });
+      }
       matchesByUser.set(watchlist.user_id, matches);
     }
   }
@@ -101,12 +117,43 @@ export async function processTransientListings(
     if (delivery.ok) {
       await completeTransientDeliveryReceipts(supabase, userId, deliveryClaims);
       result.alertsSent++;
+      await dispatchTransientChannelMessages(deliverable.map(({ match }) => match), recipient.locale);
     } else {
       await releaseTransientDeliveryReceipts(supabase, userId, deliveryClaims);
       result.alertsFailed++;
     }
   }
   return result;
+}
+
+async function dispatchTransientChannelMessages(matches: TransientMatch[], locale: "tr" | "fa") {
+  if (process.env.TELEGRAM_TRANSIENT_CHANNELS_ENABLED !== "true") return;
+  const allowlist = new Set(
+    (process.env.TELEGRAM_TRANSIENT_CHANNEL_SOURCE_ALLOWLIST ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+  );
+  if (allowlist.size === 0) return;
+  const permitted = matches.filter(({ listing }) => allowlist.has(listing.source_key));
+  if (permitted.length === 0) return;
+
+  const criteriaChannel = process.env.TELEGRAM_CRITERIA_CHANNEL ?? "@Vehigo_Kriter";
+  const opportunityChannel = process.env.TELEGRAM_OPPORTUNITY_CHANNEL ?? "@Vehigo_Firsat";
+  const arbitrageChannel = process.env.TELEGRAM_ARBITRAGE_CHANNEL ?? "@Vehigo_Arbitraj";
+  const deliveries: Array<Promise<unknown>> = [];
+  if (criteriaChannel) {
+    deliveries.push(sendTelegramMessage(criteriaChannel, `<b>KRİTER EŞLEŞMESİ</b>\n${formatTransientDigest(permitted, locale)}`));
+  }
+  const opportunities = permitted.filter(({ listing, watchlist }) => assessOpportunity(listing, watchlist).score >= 65);
+  if (opportunities.length > 0 && opportunityChannel) {
+    deliveries.push(sendTelegramMessage(opportunityChannel, `<b>FIRSAT EŞLEŞMESİ</b>\n${formatTransientDigest(opportunities, locale)}`));
+  }
+  const arbitrage = permitted.filter(({ commercial }) => commercial?.approved);
+  if (arbitrage.length > 0 && arbitrageChannel) {
+    deliveries.push(sendTelegramMessage(arbitrageChannel, `<b>KANITLI ARBİTRAJ FIRSATI</b>\n${formatTransientDigest(arbitrage, locale)}`));
+  }
+  await Promise.allSettled(deliveries);
 }
 
 function receiptCandidate(listing: Listing, watchlist: Watchlist): TransientReceiptCandidate {
@@ -154,7 +201,7 @@ function transientListing(input: MarketListingInput): Listing {
   };
 }
 
-function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Watchlist }>, locale: "tr" | "fa") {
+function formatTransientDigest(matches: TransientMatch[], locale: "tr" | "fa") {
   const t = locale === "fa"
     ? {
       header: "<b>خلاصه جست‌وجوی موقت Vehigo</b>",
@@ -165,6 +212,8 @@ function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Wat
       price: "قیمت",
       location: "موقعیت",
       reason: "دلیل",
+      evidence: "شواهد بازار همان نوبت",
+      profit: "سود خالص تخمینی",
       open: "مشاهده آگهی",
     }
     : {
@@ -176,10 +225,12 @@ function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Wat
       price: "Fiyat",
       location: "Konum",
       reason: "Neden",
+      evidence: "Aynı tur piyasa kanıtı",
+      profit: "Tahmini net kâr",
       open: "İlanı aç",
     };
   const lines = [t.header, t.subheader, ""];
-  for (const [index, { listing, watchlist }] of matches.entries()) {
+  for (const [index, { listing, watchlist, commercial }] of matches.entries()) {
     const opportunity = assessOpportunity(listing, watchlist);
     const title = listing.title || [listing.brand, listing.model, listing.year].filter(Boolean).join(" ") || t.untitled;
     const price = listing.price === null ? "-" : `${listing.price.toLocaleString("tr-TR")} ${listing.currency}`;
@@ -189,11 +240,58 @@ function formatTransientDigest(matches: Array<{ listing: Listing; watchlist: Wat
       `${t.alarm}: ${escapeHtml(watchlist.name)} | ${t.score}: ${opportunity.score}/100`,
       `${t.price}: ${escapeHtml(price)} | ${t.location}: ${escapeHtml(location)}`,
       opportunity.reasons[0] ? `${t.reason}: ${escapeHtml(opportunity.reasons[0])}` : "",
+      commercial?.medianComparablePrice !== null && commercial?.medianComparablePrice !== undefined
+        ? `${t.evidence}: ${commercial.comparableCount} ilan / ${commercial.sourceCount} kaynak · Medyan ${commercial.medianComparablePrice.toLocaleString("tr-TR")} ${listing.currency}`
+        : "",
+      commercial?.approved && commercial.estimatedNetProfit !== null
+        ? `🔥 ${t.profit}: ${commercial.estimatedNetProfit.toLocaleString("tr-TR")} ${listing.currency} · %${commercial.estimatedNetMarginPercent?.toFixed(1) ?? "-"}`
+        : "",
       `<a href="${escapeHtml(listing.listing_url)}">${t.open}</a>`,
       "",
     );
   }
   return lines.filter(Boolean).join("\n");
+}
+
+export function assessTransientCommercialOpportunity(
+  listing: Listing,
+  watchlist: Watchlist,
+  batch: Listing[],
+): CommercialOpportunityAssessment | null {
+  if (!listing.price || listing.currency !== watchlist.currency || !listing.brand || !listing.model) return null;
+  const brand = normalizeComparableText(listing.brand);
+  const model = normalizeComparableText(listing.model);
+  const comparables = batch.filter((candidate) =>
+    candidate.source_listing_id !== listing.source_listing_id
+    && candidate.price !== null
+    && candidate.price > 0
+    && candidate.currency === listing.currency
+    && normalizeComparableText(candidate.brand) === brand
+    && normalizeComparableText(candidate.model) === model,
+  );
+  const prices = comparables.map((candidate) => candidate.price!).sort((a, b) => a - b);
+  const medianComparablePrice = median(prices);
+  const sourceCount = new Set(comparables.map((candidate) => candidate.source_key)).size;
+  const confidence = Math.min(0.9, 0.45 + Math.min(prices.length, 12) * 0.03 + Math.min(sourceCount, 4) * 0.05);
+  return calculateCommercialOpportunity({
+    purchasePrice: listing.price,
+    medianComparablePrice,
+    comparableCount: prices.length,
+    sourceCount,
+    confidence,
+    riskLevel: listing.condition === "damaged" ? "critical" : "unknown",
+    profile: profileFromWatchlist(watchlist),
+  });
+}
+
+function normalizeComparableText(value: string | null) {
+  return value?.trim().toLocaleLowerCase("en-US") ?? "";
+}
+
+function median(values: number[]) {
+  if (values.length === 0) return null;
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2 === 0 ? (values[middle - 1] + values[middle]) / 2 : values[middle];
 }
 
 function escapeHtml(value: string) {
