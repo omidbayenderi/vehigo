@@ -10,6 +10,13 @@ const mocks = vi.hoisted(() => ({
   listActiveWatchlistsForScanner: vi.fn(),
   listDueScannerSources: vi.fn(),
   markStaleListingsAsDelisted: vi.fn(),
+  mergeSiteAgentFleetSummary: vi.fn((target: Record<string, unknown>, source: Record<string, unknown>) => {
+    for (const key of ["claimed", "completed", "partial", "blocked", "failed", "fetched", "inserted", "alertsCreated", "alertsSent", "alertsFailed", "transientCompleted", "persistentCompleted"]) {
+      target[key] = (target[key] as number) + (source[key] as number);
+    }
+    (target.sources as unknown[]).push(...(source.sources as unknown[]));
+    return target;
+  }),
   prepareSiteSearchAgentFleet: vi.fn(),
   processIncomingListings: vi.fn(),
   purgeRpc: vi.fn(),
@@ -32,6 +39,7 @@ vi.mock("@/lib/services/source-catalog", () => ({ syncRuntimeConnectorCatalog: m
 vi.mock("@/lib/services/scanner-ingest", () => ({ replayDueIngestEvents: mocks.replayDueIngestEvents }));
 vi.mock("@/lib/scanner/site-search-agents", () => ({
   createEmptySiteAgentFleetSummary: mocks.createEmptySiteAgentFleetSummary,
+  mergeSiteAgentFleetSummary: mocks.mergeSiteAgentFleetSummary,
   prepareSiteSearchAgentFleet: mocks.prepareSiteSearchAgentFleet,
   runAllActiveSiteSearchAgents: mocks.runAllActiveSiteSearchAgents,
   runDueSiteSearchAgents: mocks.runDueSiteSearchAgents,
@@ -54,16 +62,25 @@ describe("scanner runner site-agent integration", () => {
     mocks.markStaleListingsAsDelisted.mockResolvedValue(2);
   });
 
-  it("merges the single leased agent totals into the scanner summary", async () => {
-    mocks.runDueSiteSearchAgents.mockResolvedValue({
-      claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
-      fetched: 4, inserted: 3, alertsCreated: 2, alertsSent: 0, alertsFailed: 0,
-      transientCompleted: 0, persistentCompleted: 1, sources: [{ sourceKey: "mobile_de", status: "ok" }],
-    });
+  const emptyClaim = {
+    claimed: 0, completed: 0, partial: 0, blocked: 0, failed: 0,
+    fetched: 0, inserted: 0, alertsCreated: 0, alertsSent: 0, alertsFailed: 0,
+    transientCompleted: 0, persistentCompleted: 0, sources: [],
+  };
+
+  it("keeps claiming due agents until the fleet is drained, merging every claim's totals", async () => {
+    mocks.runDueSiteSearchAgents
+      .mockResolvedValueOnce({
+        claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
+        fetched: 4, inserted: 3, alertsCreated: 2, alertsSent: 0, alertsFailed: 0,
+        transientCompleted: 0, persistentCompleted: 1, sources: [{ sourceKey: "mobile_de", status: "ok" }],
+      })
+      .mockResolvedValueOnce(emptyClaim);
 
     const result = await runScannerOnce(client());
 
     expect(result).toMatchObject({ fetched: 4, inserted: 3, alertsCreated: 2, delisted: 2 });
+    expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledTimes(2);
     expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledWith(
       expect.anything(),
       [],
@@ -71,15 +88,18 @@ describe("scanner runner site-agent integration", () => {
     );
   });
 
-  it("propagates a manual force request to the site-agent claim", async () => {
-    mocks.runDueSiteSearchAgents.mockResolvedValue({
-      claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
-      fetched: 12, inserted: 0, alertsCreated: 1, alertsSent: 1, alertsFailed: 0,
-      transientCompleted: 1, persistentCompleted: 0, sources: [{ sourceKey: "mobile_de", status: "ok" }],
-    });
+  it("propagates a manual force request to every site-agent claim", async () => {
+    mocks.runDueSiteSearchAgents
+      .mockResolvedValueOnce({
+        claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
+        fetched: 12, inserted: 0, alertsCreated: 1, alertsSent: 1, alertsFailed: 0,
+        transientCompleted: 1, persistentCompleted: 0, sources: [{ sourceKey: "mobile_de", status: "ok" }],
+      })
+      .mockResolvedValueOnce(emptyClaim);
 
     const result = await runScannerOnce(client(), { force: true });
 
+    expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledTimes(2);
     expect(mocks.runDueSiteSearchAgents).toHaveBeenCalledWith(
       expect.anything(),
       [],
