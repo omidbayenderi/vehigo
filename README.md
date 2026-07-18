@@ -44,7 +44,7 @@ Telegram Bot API kullanıcı adına doğrudan mesaj göndermez; kullanıcı uygu
 
 Scanner veya n8n ingest yeni bir eşleşme ürettiğinde bekleyen Telegram alarmlarını aynı çalışmada teslim eder. Telegram henüz bağlanmamışsa alarm başarısız sayılmaz; `pending` kalır ve sonraki çalışma ya da özet gönderiminde tekrar değerlendirilir.
 
-Genel web araması için `brave_web` kaynağı aktif watchlist filtrelerinden adil sırayla sorgu üretir ve Brave Search API sonuçlarını `market_listings` havuzuna ekler. Bu katman 40'tan fazla Avrupa marketplace alan adını, herkese açık Facebook grup gönderilerini ve Telegram kanal sayfalarını kapsar. Özel gruplar yalnızca kullanıcının yetkilendirdiği n8n bağlantısıyla ingest edilebilir.
+Genel web araması için tek bir bütçeli `brave_web` Europe Web Scout aktif watchlist filtrelerinden adil sırayla sorgu üretir. Domainler `site:` grupları halinde dönüşümlü taranır; agent çalışma başına en fazla 4, günde en fazla 12 Brave isteği yapar ve sonuçları yalnız transient işler. Eski site-bazlı agent kayıtları maliyet üretmemeleri ve geçmiş audit kayıtlarının korunması için `retired` durumundadır. Bu katman 40'tan fazla Avrupa marketplace alan adını, herkese açık Facebook grup gönderilerini ve Telegram kanal sayfalarını kapsar. Özel gruplar yalnızca kullanıcının yetkilendirdiği n8n bağlantısıyla ingest edilebilir.
 
 ## Agent ekibi
 

@@ -20,13 +20,13 @@ describe("site-agent fleet health", () => {
       if (table === "market_sources") return resolvedQuery({ data: [], error: null });
       if (table === "scanner_ingest_events") return resolvedQuery({ count: 0, error: null });
       if (table === "site_search_agents") return resolvedQuery({
-        data: Array.from({ length: 45 }, () => ({
+        data: [{
           status: "pending_activation",
           last_started_at: null,
           last_status: null,
           last_error_message: null,
           interval_minutes: 480,
-        })),
+        }],
         error: null,
       });
       throw new Error(`Unexpected table: ${table}`);
@@ -37,7 +37,7 @@ describe("site-agent fleet health", () => {
     expect(issues).toEqual([expect.objectContaining({
       sourceKey: "site_agent_fleet",
       kind: "never_ran",
-      detail: "45 bağımsız ajan aktivasyon bekliyor",
+      detail: "1 birleşik agent aktivasyon bekliyor",
     })]);
   });
 });

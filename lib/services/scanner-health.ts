@@ -123,33 +123,33 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
     if (pending > 0) {
       issues.push({
         sourceKey: "site_agent_fleet",
-        sourceName: "Pazar ajan filosu",
+        sourceName: "Europe Web Scout",
         kind: "never_ran",
-        detail: `${pending} bağımsız ajan aktivasyon bekliyor`,
+        detail: `${pending} birleşik agent aktivasyon bekliyor`,
       });
     }
     if (blocked > 0) {
       issues.push({
         sourceKey: "site_agent_fleet",
-        sourceName: "Pazar ajan filosu",
+        sourceName: "Europe Web Scout",
         kind: "failing",
-        detail: `${blocked} bağımsız ajan engellendi`,
+        detail: `${blocked} birleşik agent engellendi`,
       });
     }
     if (stale > 0) {
       issues.push({
         sourceKey: "site_agent_fleet",
-        sourceName: "Pazar ajan filosu",
+        sourceName: "Europe Web Scout",
         kind: "stale",
-        detail: `${stale} bağımsız ajan beklenen çalışma aralığını aştı`,
+        detail: `${stale} birleşik agent beklenen çalışma aralığını aştı`,
       });
     }
     if (failing > 0) {
       issues.push({
         sourceKey: "site_agent_fleet",
-        sourceName: "Pazar ajan filosu",
+        sourceName: "Europe Web Scout",
         kind: "failing",
-        detail: `${failing} bağımsız ajanın son çalışması başarısız`,
+        detail: `${failing} birleşik agent çalışması başarısız`,
       });
     }
   }

@@ -28,19 +28,32 @@ async function main() {
   ]);
   if (agentError) throw agentError;
   if (sourceError) throw sourceError;
-  if (agents.length < 4) throw new Error(`En az 4 site agent bekleniyordu; bulunan: ${agents.length}.`);
-  if (agents.some((agent) => agent.provider_key !== "brave_web" || agent.egress_policy !== "provider_managed" || agent.acquisition_mode !== "web_index")) {
-    throw new Error("Tüm site agentları brave_web/web_index/provider_managed sözleşmesini taşımalıdır.");
+  const activeAgents = agents.filter((agent) => agent.status === "active");
+  const unifiedAgent = agents.find((agent) => agent.source_key === "brave_web");
+  if (!unifiedAgent) throw new Error("Birleşik brave_web Europe Web Scout bulunamadı.");
+  if (activeAgents.some((agent) => agent.id !== unifiedAgent.id)) {
+    throw new Error("Birleşik Europe Web Scout dışında aktif site agentı bulundu.");
   }
-  if (live && agents.some((agent) => agent.status === "active" && agent.processing_mode !== processingMode)) {
-    throw new Error(`Aktif site agentları ${processingMode} modunda değil.`);
+  if (live && (activeAgents.length !== 1 || activeAgents[0].id !== unifiedAgent.id)) {
+    throw new Error(`Canlı doğrulamada tam olarak bir aktif Europe Web Scout bekleniyordu; bulunan: ${activeAgents.length}.`);
+  }
+  if (!live && !["pending_activation", "active"].includes(unifiedAgent.status)) {
+    throw new Error(`Europe Web Scout beklemede veya aktif değil: ${unifiedAgent.status}.`);
+  }
+  if (unifiedAgent.provider_key !== "brave_web" || unifiedAgent.egress_policy !== "provider_managed" || unifiedAgent.acquisition_mode !== "web_index") {
+    throw new Error("Europe Web Scout brave_web/web_index/provider_managed sözleşmesini taşımalıdır.");
+  }
+  if (live && unifiedAgent.processing_mode !== processingMode) {
+    throw new Error(`Europe Web Scout ${processingMode} modunda değil.`);
+  }
+  if (agents.some((agent) => agent.source_key !== "brave_web" && agent.status !== "retired")) {
+    throw new Error("Eski site agentlarının tamamı retired olmalıdır.");
   }
   if (marktplaats.method === "scrape" || marktplaats.connector_version) {
     throw new Error("Doğrudan Marktplaats HTML connectorı devre dışı değil.");
   }
 
-  const candidate = agents.find((agent) => ["pending_activation", "active", "paused"].includes(agent.status));
-  if (!candidate) throw new Error("Claim testi için kullanılabilir site agentı bulunamadı.");
+  const candidate = unifiedAgent;
   const original = {
     status: candidate.status,
     next_run_at: candidate.next_run_at,
@@ -97,9 +110,10 @@ async function main() {
   }
 
   console.log(JSON.stringify({
-    agents: agents.length,
-    active_agents: agents.filter((agent) => agent.status === "active").length,
-    transient_agents: agents.filter((agent) => agent.processing_mode === "transient_search").length,
+    agents: 1,
+    retired_agents: agents.filter((agent) => agent.status === "retired").length,
+    active_agents: activeAgents.length,
+    transient_agents: activeAgents.filter((agent) => agent.processing_mode === "transient_search").length,
     provider: "brave_web",
     acquisition_mode: "web_index",
     egress_policy: "provider_managed",

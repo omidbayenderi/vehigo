@@ -5,6 +5,7 @@ import { geographySearchTerms, resolveCountryCodes } from "@/lib/search/geograph
 
 const ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const REQUEST_TIMEOUT_MS = 12_000;
+export const UNIFIED_SITE_AGENT_SOURCE_KEY = "brave_web";
 export const MAX_QUERIES_PER_RUN = 30;
 export const EUROPE_MARKETPLACE_HOSTS = [
   "mobile.de", "autoscout24.com", "truckscout24.com", "autoline.info", "marktplaats.nl",
@@ -229,16 +230,24 @@ export async function fetchSiteSearchAgentListings(input: {
   processingMode?: "transient_search" | "persistent_search";
 }): Promise<SiteAgentSearchResult> {
   const token = requireBraveSearchConfiguration(input.processingMode !== "transient_search");
+  const unified = input.sourceKey === UNIFIED_SITE_AGENT_SOURCE_KEY;
   const host = input.host.trim().toLowerCase().replace(/^www\./, "");
   if (!/^[a-z0-9.-]+$/.test(host)) throw new Error("site_agent: geçersiz host");
 
-  const { plans, startCursor, candidateCount } = buildSiteAgentQueries({
-    sourceKey: input.sourceKey,
-    host,
-    watchlists: input.watchlists,
-    cursor: input.queryCursor,
-    limit: Math.max(1, Math.min(input.maxQueries, 30)),
-  });
+  const selection = unified
+    ? buildUnifiedSiteAgentQueries({
+      watchlists: input.watchlists,
+      cursor: input.queryCursor,
+      limit: input.maxQueries,
+    })
+    : buildSiteAgentQueries({
+      sourceKey: input.sourceKey,
+      host,
+      watchlists: input.watchlists,
+      cursor: input.queryCursor,
+      limit: Math.max(1, Math.min(input.maxQueries, 30)),
+    });
+  const { plans, startCursor, candidateCount } = selection;
   const listings: MarketListingInput[] = [];
   const requestLimit = Math.max(1, Math.min(input.maxRequests ?? input.maxQueries * input.maxPages, 300));
   let requestCount = 0;
@@ -260,7 +269,12 @@ export async function fetchSiteSearchAgentListings(input: {
           queryCount += 1;
           attemptedQuery = true;
         }
-        const page = await fetchQueryPage(plan, token, offset, { sourceKey: input.sourceKey, host });
+        const page = await fetchQueryPage(
+          plan,
+          token,
+          offset,
+          unified ? undefined : { sourceKey: input.sourceKey, host },
+        );
         listings.push(...page.listings);
         pageCount += 1;
         if (!page.moreResultsAvailable) break;
@@ -279,6 +293,27 @@ export async function fetchSiteSearchAgentListings(input: {
     pageCount,
     nextCursor: (startCursor + queryCount) % candidateCount,
     partial,
+  };
+}
+
+export function buildUnifiedSiteAgentQueries(input: {
+  watchlists: ScannerWatchlist[];
+  cursor: number;
+  limit: number;
+}) {
+  const planned = buildQueries(input.watchlists);
+  const candidates = planned.length > 0 ? planned : buildQueries([]);
+  const limit = Math.max(1, Math.min(input.limit, MAX_QUERIES_PER_RUN));
+  const startCursor = input.cursor % candidates.length;
+  const plans = Array.from(
+    { length: Math.min(limit, candidates.length) },
+    (_, index) => candidates[(startCursor + index) % candidates.length],
+  );
+  return {
+    plans,
+    startCursor,
+    candidateCount: candidates.length,
+    nextCursor: (startCursor + plans.length) % candidates.length,
   };
 }
 

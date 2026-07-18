@@ -62,7 +62,7 @@ function rpcClient(input: {
 } = {}) {
   const finishCalls: unknown[] = [];
   const rpc = vi.fn(async (name: string, args: unknown) => {
-    if (name === "reconcile_site_search_agent_fleet") return { data: 45, error: null };
+    if (name === "reconcile_site_search_agent_fleet") return { data: 1, error: null };
     if (name === "activate_site_search_agent_fleet") return { data: 3, error: null };
     if (name === "claim_due_site_search_agents") {
       return input.claim ?? { data: [agent], error: null };
@@ -205,10 +205,9 @@ describe("site search agent fleet", () => {
     expect(finishCalls[0]).toMatchObject({ p_inserted_count: 0, p_alerts_created: 1 });
   });
 
-  it("runs every active marketplace agent exactly once in an Europe-wide manual scan", async () => {
+  it("runs the single active Europe Web Scout exactly once in a manual scan", async () => {
     const sourceAgents = {
-      mobile_de: { ...agent, source_key: "mobile_de", host: "mobile.de", processing_mode: "transient_search" as const },
-      autoscout24: { ...agent, id: "00000000-0000-4000-8000-000000000030", source_key: "autoscout24", host: "autoscout24.com", processing_mode: "transient_search" as const },
+      brave_web: { ...agent, source_key: "brave_web", host: "europe.marketplaces", processing_mode: "transient_search" as const },
     };
     const rpc = vi.fn(async (name: string, args: { p_source_key?: keyof typeof sourceAgents }) => {
       if (name === "claim_due_site_search_agents") return { data: [sourceAgents[args.p_source_key!]], error: null };
@@ -216,7 +215,7 @@ describe("site search agent fleet", () => {
       if (name === "finish_site_search_agent_run") return { data: true, error: null };
       throw new Error(`Unexpected RPC: ${name}`);
     });
-    const response = Promise.resolve({ data: [{ source_key: "autoscout24" }, { source_key: "mobile_de" }], error: null });
+    const response = Promise.resolve({ data: [{ source_key: "brave_web" }], error: null });
     const query = { select: vi.fn(), eq: vi.fn(), order: vi.fn(), then: response.then.bind(response) };
     query.select.mockReturnValue(query);
     query.eq.mockReturnValue(query);
@@ -231,11 +230,11 @@ describe("site search agent fleet", () => {
 
     const summary = await runAllActiveSiteSearchAgents(client as never, [], { chefRunId: crypto.randomUUID() });
 
-    expect(summary).toMatchObject({ claimed: 2, completed: 2, transientCompleted: 2, failed: 0 });
+    expect(summary).toMatchObject({ claimed: 1, completed: 1, transientCompleted: 1, failed: 0 });
     const claimedSources = rpc.mock.calls
       .filter(([name]) => name === "claim_due_site_search_agents")
       .map(([, args]) => args.p_source_key);
-    expect(claimedSources).toEqual(["autoscout24", "mobile_de"]);
+    expect(claimedSources).toEqual(["brave_web"]);
   });
 
   it("keeps a partial provider result and advances only the attempted cursor", async () => {

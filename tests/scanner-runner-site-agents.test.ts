@@ -111,10 +111,10 @@ describe("scanner runner site-agent integration", () => {
 
   it("runs the complete active fleet for an explicit Europe-wide manual scan", async () => {
     mocks.runAllActiveSiteSearchAgents.mockResolvedValue({
-      claimed: 45, completed: 45, partial: 0, blocked: 0, failed: 0,
+      claimed: 1, completed: 1, partial: 0, blocked: 0, failed: 0,
       fetched: 1_240, inserted: 0, alertsCreated: 3, alertsSent: 2, alertsFailed: 0,
-      transientCompleted: 45, persistentCompleted: 0,
-      sources: [{ sourceKey: "mobile_de", status: "ok" }],
+      transientCompleted: 1, persistentCompleted: 0,
+      sources: [{ sourceKey: "brave_web", status: "ok" }],
     });
 
     const result = await runScannerOnce(client(), { force: true, siteAgentScope: "all" });

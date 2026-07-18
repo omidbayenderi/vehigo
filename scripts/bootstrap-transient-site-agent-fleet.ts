@@ -5,9 +5,7 @@ if (!process.argv.includes("--apply")) {
   throw new Error("Geçici ajan başlangıç turu için --apply bayrağı gerekli.");
 }
 
-const maxRuns = Math.min(45, Math.max(1, Number(
-  process.argv.find((value) => value.startsWith("--max="))?.slice("--max=".length) ?? "45",
-)));
+const maxRuns = 1;
 
 async function main() {
   const supabase = createAdminClient();

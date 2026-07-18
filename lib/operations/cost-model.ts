@@ -22,7 +22,7 @@ export type MonthlyCostEstimate = {
 
 export const DEFAULT_MONTHLY_COST_INPUT: MonthlyCostInput = {
   daysPerMonth: 30,
-  braveAgents: 45,
+  braveAgents: 1,
   braveRunsPerDay: 3,
   braveRequestsPerAgentRun: 4,
   braveUsdPerThousandRequests: 5,

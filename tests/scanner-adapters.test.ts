@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { marktplaatsAdapter } from "@/lib/scanner/adapters/marktplaats";
-import { braveWebAdapter, buildQueries, buildSiteAgentQueries, EUROPE_MARKETPLACE_HOSTS, fetchSiteSearchAgentListings, sourceKeyForUrl } from "@/lib/scanner/adapters/brave-web";
+import { braveWebAdapter, buildQueries, buildSiteAgentQueries, buildUnifiedSiteAgentQueries, EUROPE_MARKETPLACE_HOSTS, fetchSiteSearchAgentListings, sourceKeyForUrl } from "@/lib/scanner/adapters/brave-web";
 import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
 
 beforeEach(() => {
@@ -271,6 +271,43 @@ describe("braveWebAdapter", () => {
     expect(result.plans).toHaveLength(1);
     expect(result.plans[0]).toMatchObject({ watchlist: null });
     expect(result.plans[0].query).toContain("site:mobile.de LKW");
+  });
+
+  it("rotates all marketplace query groups through one unified agent budget", () => {
+    const watchlist = {
+      brand: "Volkswagen", model: "Golf", vehicle_type: "car",
+      country_codes: ["DE"], keywords: [], source_keys: ["brave_web"],
+    } as unknown as ScannerWatchlist;
+    const first = buildUnifiedSiteAgentQueries({ watchlists: [watchlist], cursor: 0, limit: 4 });
+    const second = buildUnifiedSiteAgentQueries({ watchlists: [watchlist], cursor: 4, limit: 4 });
+
+    expect(first.plans).toHaveLength(4);
+    expect(second.plans).toHaveLength(4);
+    expect(first.candidateCount).toBeGreaterThan(8);
+    expect(second.plans[0].query).not.toBe(first.plans[0].query);
+  });
+
+  it("attributes cross-domain results correctly when the unified Europe scout runs", async () => {
+    process.env.BRAVE_SEARCH_API_KEY = "test-key";
+    process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED = "false";
+    const body = {
+      web: { results: [{ title: "MAN TGX truck for sale", url: "https://mobile.de/vehicle/unified-1" }] },
+    };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 })));
+
+    const result = await fetchSiteSearchAgentListings({
+      sourceKey: "brave_web",
+      host: "europe.marketplaces",
+      watchlists: [],
+      queryCursor: 0,
+      maxQueries: 1,
+      maxPages: 1,
+      maxRequests: 1,
+      processingMode: "transient_search",
+    });
+
+    expect(result.listings).toHaveLength(1);
+    expect(result.listings[0]).toMatchObject({ source_key: "mobile_de" });
   });
 
   it("paginates one site agent only while Brave reports more results", async () => {
