@@ -29,6 +29,7 @@
     "acceptance:e2e:maintenance": "tsx scripts/verify-operational-maintenance.ts --apply --e2e",
     "acceptance:e2e:site-agents": "tsx scripts/verify-site-search-agent-fleet.ts --apply --e2e",
     "acceptance:e2e:site-agents:live": "tsx scripts/verify-site-search-agent-fleet.ts --apply --e2e --live",
+    "acceptance:federated-search:live": "tsx scripts/verify-federated-search-providers.ts --live",
     "scan": "tsx scripts/scanner/index.ts",
     "scan:once": "tsx scripts/scanner/index.ts --once",
     "scan:force": "tsx scripts/scanner/index.ts --once --force",

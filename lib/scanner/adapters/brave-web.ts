@@ -2,9 +2,11 @@ import type { MarketListingInput } from "@/lib/domain/listings";
 import type { VehicleCondition } from "@/lib/supabase/types";
 import type { ScanAdapter, ScannerWatchlist } from "./types";
 import { geographySearchTerms, resolveCountryCodes } from "@/lib/search/geography";
+import type { FederatedSearchCache } from "@/lib/scanner/search-providers/cache";
+import { routedVehicleSearch } from "@/lib/scanner/search-providers/router";
+import { FEDERATED_SEARCH_PROVIDERS } from "@/lib/scanner/search-providers/providers";
+import type { FederatedSearchHit } from "@/lib/scanner/search-providers/types";
 
-const ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
-const REQUEST_TIMEOUT_MS = 12_000;
 export const UNIFIED_SITE_AGENT_SOURCE_KEY = "brave_web";
 export const MAX_QUERIES_PER_RUN = 30;
 export const EUROPE_MARKETPLACE_HOSTS = [
@@ -152,23 +154,6 @@ const HOST_QUERY_PROFILE: Record<string, string> = {
   "willhaben.at": "DE",
 };
 
-type BraveResult = {
-  title?: string;
-  url?: string;
-  description?: string;
-  age?: string;
-  profile?: { name?: string };
-};
-
-type BraveResponse = {
-  query?: {
-    more_results_available?: boolean;
-  };
-  web?: {
-    results?: BraveResult[];
-  };
-};
-
 type QueryPlan = {
   query: string;
   watchlist: ScannerWatchlist | null;
@@ -239,6 +224,7 @@ export async function fetchSiteSearchAgentListings(input: {
   maxRequests?: number;
   onRequestAttempt?: () => void;
   processingMode?: "transient_search" | "persistent_search";
+  cache?: FederatedSearchCache;
 }): Promise<SiteAgentSearchResult> {
   const token = requireBraveSearchConfiguration(input.processingMode !== "transient_search");
   const unified = input.sourceKey === UNIFIED_SITE_AGENT_SOURCE_KEY;
@@ -261,6 +247,10 @@ export async function fetchSiteSearchAgentListings(input: {
   const { plans, startCursor, candidateCount } = selection;
   const listings: MarketListingInput[] = [];
   const requestLimit = Math.max(1, Math.min(input.maxRequests ?? input.maxQueries * input.maxPages, 300));
+  // In the unified router the second reserved request is a provider fallback,
+  // not another page from the same provider. Per-site legacy agents keep their
+  // original pagination semantics.
+  const pageLimit = unified ? 1 : Math.max(1, Math.min(input.maxPages, 10));
   let requestCount = 0;
   let queryCount = 0;
   let pageCount = 0;
@@ -268,14 +258,12 @@ export async function fetchSiteSearchAgentListings(input: {
 
   agentQueries: for (const plan of plans) {
     let attemptedQuery = false;
-    for (let offset = 0; offset < Math.max(1, Math.min(input.maxPages, 10)); offset += 1) {
+    for (let offset = 0; offset < pageLimit; offset += 1) {
       if (requestCount >= requestLimit) {
         partial = partial || offset > 0 || queryCount < plans.length;
         break agentQueries;
       }
       try {
-        requestCount += 1;
-        input.onRequestAttempt?.();
         if (!attemptedQuery) {
           queryCount += 1;
           attemptedQuery = true;
@@ -285,6 +273,14 @@ export async function fetchSiteSearchAgentListings(input: {
           token,
           offset,
           unified ? undefined : { sourceKey: input.sourceKey, host },
+          {
+            cache: input.cache,
+            maxProviderRequests: requestLimit - requestCount,
+            onProviderRequest: () => {
+              requestCount += 1;
+              input.onRequestAttempt?.();
+            },
+          },
         );
         listings.push(...page.listings);
         pageCount += 1;
@@ -378,12 +374,17 @@ export function buildSiteAgentQueries(input: {
 }
 
 function requireBraveSearchConfiguration(requiresStorageRights = true) {
-  const token = process.env.BRAVE_SEARCH_API_KEY;
-  if (!token) throw new Error("BRAVE_SEARCH_API_KEY tanımlı değil");
-  if (requiresStorageRights && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
-    throw new Error("Brave Search sonuçlarını saklama hakkı doğrulanmadı; BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true gerekli");
+  const configured = Object.values(FEDERATED_SEARCH_PROVIDERS).some((provider) => provider.configured());
+  if (!configured) throw new Error("Federated Search sağlayıcı anahtarı tanımlı değil");
+  const legacyBraveOnlyPermission = FEDERATED_SEARCH_PROVIDERS.brave.configured()
+    && !FEDERATED_SEARCH_PROVIDERS.exa.configured()
+    && !FEDERATED_SEARCH_PROVIDERS.tavily.configured()
+    && !FEDERATED_SEARCH_PROVIDERS.vertex.configured()
+    && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED === "true";
+  if (requiresStorageRights && process.env.FEDERATED_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true" && !legacyBraveOnlyPermission) {
+    throw new Error("Federated Search sonuçlarını saklama hakkı doğrulanmadı; FEDERATED_SEARCH_STORAGE_RIGHTS_CONFIRMED=true gerekli");
   }
-  return token;
+  return "configured";
 }
 
 async function fetchQuery(plan: QueryPlan, token: string): Promise<MarketListingInput[]> {
@@ -392,32 +393,39 @@ async function fetchQuery(plan: QueryPlan, token: string): Promise<MarketListing
 
 async function fetchQueryPage(
   plan: QueryPlan,
-  token: string,
+  _token: string,
   offset: number,
   expected?: { sourceKey: string; host: string },
+  execution?: {
+    cache?: FederatedSearchCache;
+    maxProviderRequests?: number;
+    onProviderRequest?: () => void;
+  },
 ) {
-  const url = new URL(ENDPOINT);
-  url.searchParams.set("q", plan.query);
-  url.searchParams.set("count", "20");
-  url.searchParams.set("safesearch", "off");
-  url.searchParams.set("extra_snippets", "true");
-  url.searchParams.set("offset", String(Math.max(0, Math.min(offset, 9))));
-
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": token,
-    },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  const routed = await routedVehicleSearch({
+    query: plan.query,
+    watchlist: plan.watchlist,
+    offset,
+    maxResults: 20,
+    cache: execution?.cache,
+    maxProviderRequests: execution?.maxProviderRequests,
+    onProviderRequest: execution?.onProviderRequest,
+    scoreHits: (hits) => mapFederatedHits(hits, plan, expected).length,
   });
+  return {
+    listings: mapFederatedHits(routed.hits, plan, expected, routed.providersAttempted),
+    moreResultsAvailable: routed.moreResultsAvailable,
+  };
+}
 
-  if (!response.ok) {
-    throw new Error(`brave_web: HTTP ${response.status}`);
-  }
-
-  const data = (await response.json()) as BraveResponse;
+function mapFederatedHits(
+  hits: FederatedSearchHit[],
+  plan: QueryPlan,
+  expected?: { sourceKey: string; host: string },
+  providersAttempted: string[] = [],
+) {
   const listings: MarketListingInput[] = [];
-  for (const result of data.web?.results ?? []) {
+  for (const result of hits) {
     const listingUrl = result.url ? validatedListingUrl(result.url, expected?.host) : null;
     if (!listingUrl || !isLikelyVehicleListing(listingUrl, result.title, result.description)) continue;
     const inferredText = `${result.title ?? ""} ${result.description ?? ""} ${listingUrl}`;
@@ -430,7 +438,7 @@ async function fetchQueryPage(
       listing_url: listingUrl,
       title: result.title,
       description: result.description,
-      seller_name: result.profile?.name,
+      seller_name: result.profileName,
       seller_country_code: mappedHostValue(marketplaceHost, HOST_MARKET_COUNTRY),
       brand: plan.watchlist?.brand && textIncludes(inferredText, plan.watchlist.brand) ? plan.watchlist.brand : undefined,
       model: plan.watchlist?.model && textIncludes(inferredText, plan.watchlist.model) ? plan.watchlist.model : undefined,
@@ -448,13 +456,14 @@ async function fetchQueryPage(
         query: plan.query,
         description: result.description,
         age: result.age,
-        source: "brave_web",
-        discovery_channel: "brave_web",
+        source: "federated_search",
+        discovery_channel: "federated_search",
+        providers_attempted: providersAttempted,
         marketplace_host: marketplaceHost,
       },
     });
   }
-  return { listings, moreResultsAvailable: data.query?.more_results_available === true };
+  return listings;
 }
 
 function validatedListingUrl(value: string, expectedHost?: string) {

@@ -328,6 +328,18 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["provider_storage_rights_evidence"]["Row"]>;
         Relationships: [];
       };
+      federated_search_query_receipts: {
+        Row: { id: string; query_hash: string; search_day: string; intent: "specific" | "market"; providers_attempted: string[]; provider_request_count: number; result_count: number; cache_hit_count: number; execution_count: number; created_at: string; updated_at: string };
+        Insert: Partial<Database["public"]["Tables"]["federated_search_query_receipts"]["Row"]> & { query_hash: string; search_day: string; intent: "specific" | "market" };
+        Update: Partial<Database["public"]["Tables"]["federated_search_query_receipts"]["Row"]>;
+        Relationships: [];
+      };
+      federated_search_result_cache: {
+        Row: { id: string; provider: "exa" | "tavily" | "vertex" | "brave"; query_hash: string; result_payload: Json; result_count: number; storage_basis: "operator_confirmed"; expires_at: string; hit_count: number; last_hit_at: string | null; created_at: string; updated_at: string };
+        Insert: Partial<Database["public"]["Tables"]["federated_search_result_cache"]["Row"]> & { provider: "exa" | "tavily" | "vertex" | "brave"; query_hash: string; result_payload: Json; result_count: number; storage_basis: "operator_confirmed"; expires_at: string };
+        Update: Partial<Database["public"]["Tables"]["federated_search_result_cache"]["Row"]>;
+        Relationships: [];
+      };
       site_search_agents: {
         Row: { id: string; source_key: string; host: string; provider_key: "brave_web"; acquisition_mode: "web_index"; egress_policy: "provider_managed"; processing_mode: "transient_search" | "persistent_search"; status: SiteSearchAgentStatus; interval_minutes: number; jitter_percent: number; max_queries_per_run: number; max_pages_per_query: number; daily_query_limit: number; daily_request_count: number; daily_budget_date: string; reserved_request_count: number; query_cursor: number; next_run_at: string; locked_until: string | null; locked_by: string | null; lease_token: string | null; last_started_at: string | null; last_completed_at: string | null; last_success_at: string | null; last_status: Exclude<SiteSearchRunStatus, "running"> | null; last_error_code: string | null; last_error_message: string | null; consecutive_failures: number; created_at: string; updated_at: string };
         Insert: Partial<Database["public"]["Tables"]["site_search_agents"]["Row"]> & { source_key: string; host: string };
@@ -906,6 +918,8 @@ export type Database = {
       claim_due_site_search_agents: { Args: { p_worker_id: string; p_limit?: number; p_lease_seconds?: number; p_source_key?: string | null; p_force?: boolean }; Returns: Database["public"]["Tables"]["site_search_agents"]["Row"][] };
       start_site_search_agent_run: { Args: { p_agent_id: string; p_worker_id: string; p_lease_token: string; p_correlation_id: string }; Returns: string };
       finish_site_search_agent_run: { Args: { p_run_id: string; p_agent_id: string; p_worker_id: string; p_lease_token: string; p_status: Exclude<SiteSearchRunStatus, "running">; p_request_count: number; p_query_count: number; p_page_count: number; p_fetched_count: number; p_inserted_count: number; p_alerts_created: number; p_cursor_after: number; p_next_run_at: string; p_error_code?: string | null; p_error_message?: string | null; p_block_agent?: boolean }; Returns: boolean };
+      record_federated_search_receipt: { Args: { p_query_hash: string; p_search_day: string; p_intent: "specific" | "market"; p_providers_attempted: string[]; p_provider_request_count: number; p_result_count: number; p_cache_hit: boolean }; Returns: undefined };
+      touch_federated_search_cache: { Args: { p_cache_id: string }; Returns: undefined };
       claim_opportunity_digest_alerts: { Args: { p_claim_token: string; p_limit?: number; p_user_id?: string | null; p_lease_seconds?: number }; Returns: Database["public"]["Tables"]["listing_alerts"]["Row"][] };
       finish_opportunity_digest_alerts: { Args: { p_claim_token: string; p_alert_ids: string[]; p_sent: boolean; p_error?: string | null }; Returns: number };
       mark_opportunity_digest_uncertain: { Args: { p_claim_token: string; p_alert_ids: string[]; p_error?: string | null }; Returns: number };

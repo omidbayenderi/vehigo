@@ -135,7 +135,8 @@ export function evaluateListingForWatchlist(
 function matchesSource(listing: SearchListing, watchlist: SearchWatchlist) {
   if (watchlist.source_keys.length === 0) return true;
   if (watchlist.source_keys.includes(listing.source_key)) return true;
-  return watchlist.source_keys.includes("brave_web") && readRawString(listing.raw, "discovery_channel") === "brave_web";
+  return watchlist.source_keys.includes("brave_web")
+    && ["brave_web", "federated_search"].includes(readRawString(listing.raw, "discovery_channel") ?? "");
 }
 
 function knownFilter<T>(state: EvaluationState, field: string, enabled: boolean, actual: T | null | undefined, matches: (value: T) => boolean) {

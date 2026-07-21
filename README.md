@@ -110,7 +110,9 @@ AI deterministik hesabın yerine geçmez. Yalnız yeterli snapshot'ı inceler; m
 
 Kural setleri yalnız kaynak referansıyla aktif hale getirilebilir. Hesap sonucu SHA-256 kanıt özetiyle input, kural, kur ve maliyet kırılımını saklar. Zorunlu belgeler doğrulanmadan senaryo onaylanamaz; onaylanan sonuç teklife bağlanır ve PDF içine aynı kanıt özeti ile hesap/kural sürümü yazılır.
 
-`brave_web` için `.env.local` içinde `BRAVE_SEARCH_API_KEY` gerekir. Google Custom Search JSON API yeni müşterilere kapalı olduğu için yeni kurulumda genel web arama katmanı Brave Search API üzerinden çalışır.
+Europe Web Scout tek bir maliyet-duyarlı router kullanır. Kesin marka/model aramalarında ilk kademe Exa (yoksa Tavily), ikinci kademe Vertex AI Google Search Grounding (yoksa Brave) olur. Geniş pazar araması Vertex ile başlar; sonuç yetersizse Brave'e, Brave yapılandırılmamışsa Tavily/Exa'ya düşer. En az sonuç eşiği sağlanınca zincir durur ve bir sorguda en fazla iki sağlayıcı çağrılır. Sonuç birleştirme URL normalizasyonu ve deterministik ilan ayrıştırmasıyla yapılır; büyük provider metinleri ikinci bir LLM'e gönderilmez.
+
+En az bir arama sağlayıcısının anahtarı gerekir. Vertex açık web araması için kendi veri deposuna bağlı Vertex AI Search değil, Gemini 2.5 Flash-Lite + Google Search Grounding kullanır. Ham sonuçların 24 saatlik Supabase cache'i varsayılan olarak kapalıdır; yalnız ilgili `*_CACHE_STORAGE_RIGHTS_CONFIRMED=true` ayarı sözleşmesel saklama hakkı incelendikten sonra açılır. Cache kapalıyken sorgu metni yerine sadece HMAC sorgu izi ve toplu kullanım metriği tutulur.
 
 Mobile.de ve AutoScout24 Apify connector'ları varsayılan olarak transient çalışır; sonuçlar aynı turda filtrelenip Telegram'a iletilir ve ilan içeriği Supabase'e yazılmaz. Kalıcı piyasa havuzu yalnız `APIFY_PERSIST_RESULTS=true` ile açıkça istenir ve ilgili connector için aktif `provider_storage_rights_evidence` kaydı bütün gerekli veri sınıfları ile bölgeleri kapsarsa açılır. Marktplaats Actor'ı katalogda bulunur ancak yazılı API/yeniden kullanım izni kaydedilene kadar veritabanında devre dışıdır.
 
@@ -133,6 +135,15 @@ Her alarm aynı zamanda ticari alım profilidir: sabit masraf, bekleme maliyeti,
 - `DELIVERY_RECEIPT_CLAIM_MINUTES` (yarım kalan Telegram teslimatını yeniden deneyebilmek için varsayılan `15`)
 - `CRON_SECRET`
 - `BRAVE_SEARCH_API_KEY`
+- `TAVILY_API_KEY` (isteğe bağlı)
+- `EXA_API_KEY` (isteğe bağlı)
+- `GOOGLE_CLOUD_PROJECT_ID` ve `GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON` (Vertex kullanılıyorsa birlikte zorunlu)
+- `GOOGLE_CLOUD_LOCATION` (varsayılan `global`)
+- `GOOGLE_VERTEX_MODEL` (varsayılan `gemini-2.5-flash-lite`)
+- `FEDERATED_SEARCH_MIN_RESULTS` (varsayılan `3`)
+- `SEARCH_CACHE_HMAC_SECRET` (isteğe bağlı; yoksa `SCANNER_INGEST_SECRET` alan ayrımıyla kullanılır)
+- `FEDERATED_SEARCH_CACHE_TTL_HOURS` (varsayılan ve azami `24`)
+- `BRAVE_SEARCH_CACHE_STORAGE_RIGHTS_CONFIRMED`, `TAVILY_CACHE_STORAGE_RIGHTS_CONFIRMED`, `EXA_CACHE_STORAGE_RIGHTS_CONFIRMED`, `GOOGLE_VERTEX_CACHE_STORAGE_RIGHTS_CONFIRMED` (varsayılan `false`)
 - `APIFY_ENABLED`
 - `APIFY_API_TOKEN`
 - `APIFY_MOBILE_DE_ACTOR`

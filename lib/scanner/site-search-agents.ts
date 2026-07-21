@@ -4,6 +4,8 @@ import type { ScannerWatchlist } from "@/lib/scanner/adapters/types";
 import { fetchSiteSearchAgentListings } from "@/lib/scanner/adapters/brave-web";
 import { processIncomingListings, type ProcessListingsResult } from "@/lib/services/market-alerts";
 import { processTransientListings } from "@/lib/services/transient-opportunity";
+import { createFederatedSearchCache } from "@/lib/scanner/search-providers/cache";
+import { FEDERATED_SEARCH_PROVIDERS } from "@/lib/scanner/search-providers/providers";
 
 type Client = SupabaseClient<Database>;
 type Agent = Database["public"]["Tables"]["site_search_agents"]["Row"];
@@ -36,8 +38,8 @@ export async function prepareSiteSearchAgentFleet(
     logger.warn("Site-agent katalog uzlaştırması henüz uygulanmadı; mevcut filo kullanılacak");
   }
 
-  if (!process.env.BRAVE_SEARCH_API_KEY) {
-    logger.warn("Site-agent filosu etkinleştirilmedi: Brave anahtarı gerekli");
+  if (!Object.values(FEDERATED_SEARCH_PROVIDERS).some((provider) => provider.configured())) {
+    logger.warn("Site-agent filosu etkinleştirilmedi: en az bir Federated Search sağlayıcısı gerekli");
     return false;
   }
   const mode = process.env.BRAVE_SEARCH_MODE === "persistent_search" ? "persistent_search" : "transient_search";
@@ -189,6 +191,7 @@ async function runAgent(
       maxRequests: agent.reserved_request_count,
       onRequestAttempt: () => { requestCount += 1; },
       processingMode: agent.processing_mode,
+      cache: createFederatedSearchCache(supabase),
     });
     requestCount = Math.max(requestCount, search.requestCount);
     queryCount = search.queryCount;

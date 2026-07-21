@@ -191,7 +191,7 @@ function transientListing(input: MarketListingInput): Listing {
     seat_count: parsed.seat_count ?? null,
     condition: parsed.condition ?? null,
     normalization_confidence: parsed.normalization_confidence,
-    raw: { ...(parsed.raw ?? {}), discovery_channel: "brave_web" } as Json,
+    raw: { discovery_channel: "federated_search", ...(parsed.raw ?? {}) } as Json,
     status: "active",
     delisted_at: null,
     first_seen_at: now,

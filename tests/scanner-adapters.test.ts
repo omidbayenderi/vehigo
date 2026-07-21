@@ -543,7 +543,7 @@ describe("braveWebAdapter", () => {
     vi.stubGlobal("fetch", fetchSpy);
 
     await expect(braveWebAdapter.fetchListings({ watchlists: [] })).rejects.toThrow(
-      "BRAVE_SEARCH_API_KEY tanımlı değil",
+      "Federated Search sağlayıcı anahtarı tanımlı değil",
     );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -642,7 +642,7 @@ describe("braveWebAdapter", () => {
     expect(listings[0].seller_country).toBeUndefined();
     expect(listings[0].seller_city).toBeUndefined();
     expect(listings[0].vehicle_type).toBeUndefined();
-    expect(listings[0].raw).toMatchObject({ discovery_channel: "brave_web", marketplace_host: "kleinanzeigen.de" });
+    expect(listings[0].raw).toMatchObject({ discovery_channel: "federated_search", marketplace_host: "kleinanzeigen.de" });
   });
 
   it("keeps successful query results when another query in the same batch fails", async () => {

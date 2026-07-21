@@ -50,6 +50,28 @@ if (process.env.BRAVE_SEARCH_MODE && !["transient_search", "persistent_search"].
 if (process.env.BRAVE_SEARCH_MODE === "persistent_search" && process.env.BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED !== "true") {
   problems.push("persistent_search requires BRAVE_SEARCH_STORAGE_RIGHTS_CONFIRMED=true");
 }
+for (const key of [
+  "FEDERATED_SEARCH_STORAGE_RIGHTS_CONFIRMED",
+  "BRAVE_SEARCH_CACHE_STORAGE_RIGHTS_CONFIRMED",
+  "TAVILY_CACHE_STORAGE_RIGHTS_CONFIRMED",
+  "EXA_CACHE_STORAGE_RIGHTS_CONFIRMED",
+  "GOOGLE_VERTEX_CACHE_STORAGE_RIGHTS_CONFIRMED",
+]) {
+  if (process.env[key] && !["true", "false"].includes(process.env[key]!)) problems.push(`${key} must be true or false`);
+}
+if (process.env.GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_CLOUD_PROJECT_ID) {
+  requireValue("GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON");
+  requireValue("GOOGLE_CLOUD_PROJECT_ID");
+  try {
+    const account = JSON.parse(process.env.GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON ?? "{}") as { client_email?: string; private_key?: string };
+    if (!account.client_email || !account.private_key) problems.push("GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON must include client_email and private_key");
+  } catch {
+    problems.push("GOOGLE_VERTEX_SERVICE_ACCOUNT_JSON must be valid JSON");
+  }
+}
+if (process.env.SEARCH_CACHE_HMAC_SECRET) validateMinimumLength("SEARCH_CACHE_HMAC_SECRET", 32);
+validateOptionalIntegerRange("FEDERATED_SEARCH_CACHE_TTL_HOURS", 1, 24);
+validateOptionalIntegerRange("FEDERATED_SEARCH_MIN_RESULTS", 1, 20);
 if (process.env.APIFY_PERSIST_RESULTS && !["true", "false"].includes(process.env.APIFY_PERSIST_RESULTS)) {
   problems.push("APIFY_PERSIST_RESULTS must be true or false");
 }
