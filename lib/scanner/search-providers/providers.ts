@@ -160,8 +160,24 @@ async function timedFetch(input: string | URL, init: RequestInit) {
 
 async function responseJson<T>(response: Response, provider: string) {
   const payload = await response.json().catch(() => null) as T | null;
-  if (!response.ok || !payload) throw new Error(`${provider}_web: HTTP ${response.status}`);
+  if (!response.ok || !payload) {
+    const detail = providerErrorDetail(payload);
+    throw new Error(`${provider}_web: HTTP ${response.status}${detail ? ` (${detail})` : ""}`);
+  }
   return payload;
+}
+
+function providerErrorDetail(payload: unknown) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  const record = payload as Record<string, unknown>;
+  const error = record.error && typeof record.error === "object" && !Array.isArray(record.error)
+    ? record.error as Record<string, unknown>
+    : record;
+  const parts = [error.status, error.code, error.message, record.detail]
+    .filter((value): value is string | number => typeof value === "string" || typeof value === "number")
+    .map((value) => String(value).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(": ").slice(0, 300) : null;
 }
 
 function requiredEnv(name: string) {
