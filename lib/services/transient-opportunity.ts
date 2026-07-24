@@ -10,6 +10,7 @@ import {
   profileFromWatchlist,
   type CommercialOpportunityAssessment,
 } from "@/lib/services/commercial-opportunity";
+import { meetsArbitrageSaleToCostMultiple } from "@/lib/services/arbitrage-agent";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import {
   claimTransientDeliveryReceipts,
@@ -149,7 +150,9 @@ async function dispatchTransientChannelMessages(matches: TransientMatch[], local
   if (opportunities.length > 0 && opportunityChannel) {
     deliveries.push(sendTelegramMessage(opportunityChannel, `<b>FIRSAT EŞLEŞMESİ</b>\n${formatTransientDigest(opportunities, locale)}`));
   }
-  const arbitrage = permitted.filter(({ commercial }) => commercial?.approved);
+  const arbitrage = permitted.filter(({ commercial }) =>
+    commercial?.approved && meetsArbitrageSaleToCostMultiple(commercial),
+  );
   if (arbitrage.length > 0 && arbitrageChannel) {
     deliveries.push(sendTelegramMessage(arbitrageChannel, `<b>KANITLI ARBİTRAJ FIRSATI</b>\n${formatTransientDigest(arbitrage, locale)}`));
   }

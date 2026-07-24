@@ -8,6 +8,8 @@ type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
 
+export const MIN_ARBITRAGE_SALE_TO_COST_MULTIPLE = 1.5;
+
 export type ArbitrageAssessment = {
   approved: boolean;
   confidence: number;
@@ -20,6 +22,15 @@ export type ArbitrageAssessment = {
   reason: string;
   aiUsed: boolean;
 };
+
+export function meetsArbitrageSaleToCostMultiple(input: {
+  expectedSalePrice: number | null;
+  estimatedTotalCost: number;
+}, minimum = MIN_ARBITRAGE_SALE_TO_COST_MULTIPLE) {
+  return input.expectedSalePrice !== null
+    && input.estimatedTotalCost > 0
+    && input.expectedSalePrice / input.estimatedTotalCost >= minimum;
+}
 
 export function calculateConservativeArbitrage(purchasePrice: number, comparablePrices: number[]) {
   if (purchasePrice <= 0 || comparablePrices.length < 3) return null;
@@ -53,9 +64,16 @@ export async function assessEuropeanArbitrage(
       riskLevel: snapshot.risk_level,
       profile: profileFromWatchlist(watchlist),
     });
-    if (!snapshot.claim_eligible || !commercial.approved) {
+    const meetsMultiple = meetsArbitrageSaleToCostMultiple(commercial);
+    if (!snapshot.claim_eligible || !commercial.approved || !meetsMultiple) {
       return {
-        ...rejected(!snapshot.claim_eligible ? "Örneklem kalitesi ticari arbitraj iddiası için yetersiz" : commercial.reason),
+        ...rejected(
+          !snapshot.claim_eligible
+            ? "Örneklem kalitesi ticari arbitraj iddiası için yetersiz"
+            : !commercial.approved
+              ? commercial.reason
+              : `Muhafazakâr satış değeri toplam maliyetin ${MIN_ARBITRAGE_SALE_TO_COST_MULTIPLE.toFixed(2)} katına ulaşmıyor.`,
+        ),
         comparableCount: snapshot.comparable_count,
         medianComparablePrice: median,
         estimatedNetProfitPercent: commercial.estimatedNetMarginPercent,
