@@ -20,6 +20,7 @@
 # claude code local settings
 .claude/settings.local.json
 *.pem
+vehigo-*.json
 npm-debug.log*
 .vercel
 *.tsbuildinfo
