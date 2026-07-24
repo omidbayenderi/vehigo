@@ -135,28 +135,73 @@ async function dispatchTransientChannelMessages(matches: TransientMatch[], local
       .map((value) => value.trim())
       .filter(Boolean),
   );
-  if (allowlist.size === 0) return;
-  const permitted = matches.filter(({ listing }) => allowlist.has(listing.source_key));
-  if (permitted.length === 0) return;
-
   const criteriaChannel = process.env.TELEGRAM_CRITERIA_CHANNEL ?? "@Vehigo_Kriter";
   const opportunityChannel = process.env.TELEGRAM_OPPORTUNITY_CHANNEL ?? "@Vehigo_Firsat";
   const arbitrageChannel = process.env.TELEGRAM_ARBITRAGE_CHANNEL ?? "@Vehigo_Arbitraj";
-  const deliveries: Array<Promise<unknown>> = [];
+  const deliveries: Array<{ destination: string; promise: ReturnType<typeof sendTelegramMessage> }> = [];
   if (criteriaChannel) {
-    deliveries.push(sendTelegramMessage(criteriaChannel, `<b>KRİTER EŞLEŞMESİ</b>\n${formatTransientDigest(permitted, locale)}`));
+    deliveries.push({
+      destination: criteriaChannel,
+      promise: sendTelegramMessage(criteriaChannel, formatPrivateChannelSignal("criteria", matches.length, locale)),
+    });
   }
-  const opportunities = permitted.filter(({ listing, watchlist }) => assessOpportunity(listing, watchlist).score >= 65);
+  const opportunities = matches.filter(({ listing, watchlist }) => assessOpportunity(listing, watchlist).score >= 65);
   if (opportunities.length > 0 && opportunityChannel) {
-    deliveries.push(sendTelegramMessage(opportunityChannel, `<b>FIRSAT EŞLEŞMESİ</b>\n${formatTransientDigest(opportunities, locale)}`));
+    deliveries.push({
+      destination: opportunityChannel,
+      promise: sendTelegramMessage(opportunityChannel, formatPrivateChannelSignal("opportunity", opportunities.length, locale)),
+    });
   }
-  const arbitrage = permitted.filter(({ commercial }) =>
+  const arbitrage = matches.filter(({ commercial }) =>
     commercial?.approved && meetsArbitrageSaleToCostMultiple(commercial),
   );
   if (arbitrage.length > 0 && arbitrageChannel) {
-    deliveries.push(sendTelegramMessage(arbitrageChannel, `<b>KANITLI ARBİTRAJ FIRSATI</b>\n${formatTransientDigest(arbitrage, locale)}`));
+    deliveries.push({
+      destination: arbitrageChannel,
+      promise: sendTelegramMessage(arbitrageChannel, formatPrivateChannelSignal("arbitrage", arbitrage.length, locale)),
+    });
   }
-  await Promise.allSettled(deliveries);
+
+  // Explicitly allowlisted sources may include listing details. Without a
+  // republishing basis, channels receive only an aggregate signal while the
+  // verified user's private chat receives the full transient digest.
+  const permitted = allowlist.size > 0
+    ? matches.filter(({ listing }) => allowlist.has(listing.source_key))
+    : [];
+  if (permitted.length > 0 && criteriaChannel) {
+    deliveries.push({
+      destination: criteriaChannel,
+      promise: sendTelegramMessage(criteriaChannel, `<b>KRİTER AYRINTILARI</b>\n${formatTransientDigest(permitted, locale)}`),
+    });
+  }
+
+  const settled = await Promise.allSettled(deliveries.map(({ promise }) => promise));
+  settled.forEach((outcome, index) => {
+    const failed = outcome.status === "rejected"
+      || (outcome.status === "fulfilled" && !outcome.value.ok);
+    if (failed) console.error(`[transient-channel] delivery_failed destination=${deliveries[index].destination}`);
+  });
+}
+
+function formatPrivateChannelSignal(
+  kind: "criteria" | "opportunity" | "arbitrage",
+  count: number,
+  locale: "tr" | "fa",
+) {
+  if (locale === "fa") {
+    const title = kind === "criteria"
+      ? "تطابق جدید با معیار"
+      : kind === "opportunity"
+        ? "فرصت قوی جدید"
+        : "فرصت آربیتراژ تأییدشده";
+    return [`<b>${title}</b>`, `${count.toLocaleString("fa-IR")} مورد پیدا شد. جزئیات فقط به پیام خصوصی تأییدشده ارسال شد.`].join("\n");
+  }
+  const title = kind === "criteria"
+    ? "YENİ KRİTER EŞLEŞMESİ"
+    : kind === "opportunity"
+      ? "YENİ GÜÇLÜ FIRSAT"
+      : "1,5× ARBİTRAJ ADAYI";
+  return [`<b>${title}</b>`, `${count} sonuç bulundu. Ayrıntılar yalnızca doğrulanmış özel mesajınıza gönderildi.`].join("\n");
 }
 
 function receiptCandidate(listing: Listing, watchlist: Watchlist): TransientReceiptCandidate {

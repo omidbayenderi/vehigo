@@ -51,6 +51,8 @@ const watchlist = {
 describe("transient opportunity processing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.TELEGRAM_TRANSIENT_CHANNELS_ENABLED;
+    delete process.env.TELEGRAM_TRANSIENT_CHANNEL_SOURCE_ALLOWLIST;
     mocks.sendTelegramMessage.mockResolvedValue({ ok: true });
     mocks.claimTransientDeliveryReceipts.mockImplementation(async (_supabase, candidates) => new Map(candidates.map((candidate: {
       organizationId: string; userId: string; sourceKey: string; sourceIdentity: string;
@@ -101,6 +103,39 @@ describe("transient opportunity processing", () => {
     expect(from).toHaveBeenCalledOnce();
     expect(mocks.sendTelegramMessage).toHaveBeenCalledWith("12345", expect.stringContaining("İlan içeriği kaydedilmedi"));
     expect(mocks.completeTransientDeliveryReceipts).toHaveBeenCalledOnce();
+  });
+
+  it("sends only an aggregate channel signal when no source has republishing permission", async () => {
+    process.env.TELEGRAM_TRANSIENT_CHANNELS_ENABLED = "true";
+    const response = Promise.resolve({
+      data: [{ id: "user-1", telegram_chat_id: "12345", telegram_verified_at: "2026-07-16T00:00:00.000Z", locale: "tr" }],
+      error: null,
+    });
+    const query = { select: vi.fn(), in: vi.fn(), not: vi.fn(), then: response.then.bind(response) };
+    query.select.mockReturnValue(query);
+    query.in.mockReturnValue(query);
+    query.not.mockReturnValue(query);
+
+    await processTransientListings({ from: vi.fn(() => query) } as never, [{
+      source_key: "mobile_de",
+      source_listing_id: "mobile-private-signal",
+      listing_url: "https://mobile.de/vehicle/private-signal",
+      title: "Volkswagen Golf 2022",
+      seller_country: "Germany",
+      brand: "Volkswagen",
+      model: "Golf",
+      year: 2022,
+      mileage_km: 42_000,
+      price: 18_500,
+      currency: "EUR",
+      vehicle_type: "car",
+    }], [watchlist]);
+
+    const channelMessage = mocks.sendTelegramMessage.mock.calls.find(([destination]) => destination === "@Vehigo_Kriter")?.[1];
+    expect(channelMessage).toContain("YENİ KRİTER EŞLEŞMESİ");
+    expect(channelMessage).toContain("Ayrıntılar yalnızca doğrulanmış özel mesajınıza gönderildi");
+    expect(channelMessage).not.toContain("Volkswagen Golf");
+    expect(channelMessage).not.toContain("mobile.de");
   });
 
   it("does not deliver a receipt that was already claimed by an earlier run", async () => {
