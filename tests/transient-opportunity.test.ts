@@ -105,7 +105,7 @@ describe("transient opportunity processing", () => {
     expect(mocks.completeTransientDeliveryReceipts).toHaveBeenCalledOnce();
   });
 
-  it("sends only an aggregate channel signal when no source has republishing permission", async () => {
+  it("sends listing details and the original link to criteria and opportunity channels", async () => {
     process.env.TELEGRAM_TRANSIENT_CHANNELS_ENABLED = "true";
     const response = Promise.resolve({
       data: [{ id: "user-1", telegram_chat_id: "12345", telegram_verified_at: "2026-07-16T00:00:00.000Z", locale: "tr" }],
@@ -131,11 +131,14 @@ describe("transient opportunity processing", () => {
       vehicle_type: "car",
     }], [watchlist]);
 
-    const channelMessage = mocks.sendTelegramMessage.mock.calls.find(([destination]) => destination === "@Vehigo_Kriter")?.[1];
-    expect(channelMessage).toContain("YENİ KRİTER EŞLEŞMESİ");
-    expect(channelMessage).toContain("Ayrıntılar yalnızca doğrulanmış özel mesajınıza gönderildi");
-    expect(channelMessage).not.toContain("Volkswagen Golf");
-    expect(channelMessage).not.toContain("mobile.de");
+    const criteriaMessage = mocks.sendTelegramMessage.mock.calls.find(([destination]) => destination === "@Vehigo_Kriter")?.[1];
+    const opportunityMessage = mocks.sendTelegramMessage.mock.calls.find(([destination]) => destination === "@Vehigo_Firsat")?.[1];
+    for (const channelMessage of [criteriaMessage, opportunityMessage]) {
+      expect(channelMessage).toContain("Volkswagen Golf 2022");
+      expect(channelMessage).toContain("18.500 EUR");
+      expect(channelMessage).toContain("https://mobile.de/vehicle/private-signal");
+      expect(channelMessage).toContain("İlanı aç");
+    }
   });
 
   it("does not deliver a receipt that was already claimed by an earlier run", async () => {

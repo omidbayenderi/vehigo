@@ -118,7 +118,7 @@ Mobile.de ve AutoScout24 Apify connector'ları varsayılan olarak transient çal
 
 Transient sonuçlarda tekrar Telegram bildirimi, ilan içeriği yerine yalnız sunucu tarafında HMAC-SHA256 ile üretilmiş geri döndürülemez teslimat iziyle engellenir. Başlık, URL, fiyat, açıklama ve ham provider payload'ı bu tabloda tutulmaz. İzler varsayılan 90 gün sonra silinir; bu operasyonel veri minimizasyonudur ve kaynağın otomatik erişim izninin yerine geçmez.
 
-Transient taramada piyasa karşılaştırması aynı çalışma turunun bellekteki sonuçlarından hesaplanır; yeterli örnek varsa medyan, kaynak sayısı ve muhafazakâr net kâr doğrulanmış kullanıcının özel Telegram mesajına eklenir, tekil karşılaştırmalı ilanlar veritabanına yazılmaz. `TELEGRAM_TRANSIENT_CHANNELS_ENABLED=true` olduğunda genel kanallar varsayılan olarak yalnız sonuç sayısını ve kategori sinyalini alır; ilan başlığı, fiyatı, kaynak metni ve bağlantısı özel mesajda kalır. Yalnız açık yeniden yayınlama hakkı bulunan kaynaklar `TELEGRAM_TRANSIENT_CHANNEL_SOURCE_ALLOWLIST` içine alınarak kanal ayrıntıları etkinleştirilebilir; şifreleme veya HMAC kaynak kullanım izninin yerine geçmez.
+Transient taramada piyasa karşılaştırması aynı çalışma turunun bellekteki sonuçlarından hesaplanır; yeterli örnek varsa medyan, kaynak sayısı ve muhafazakâr net kâr Telegram mesajlarına eklenir, tekil karşılaştırmalı ilanlar veritabanına yazılmaz. `TELEGRAM_TRANSIENT_CHANNELS_ENABLED=true` olduğunda Kriter kanalı bütün eşleşmeleri, Fırsat kanalı en az 65 puanlı sonuçları ve Arbitraj kanalı 1,5× eşiğini geçen sonuçları başlık, fiyat, değerlendirme ve orijinal ilan bağlantısıyla alır. Aynı ayrıntılı özet doğrulanmış kullanıcının özel Telegram hesabına da gönderilir.
 
 Her alarm aynı zamanda ticari alım profilidir: sabit masraf, bekleme maliyeti, rezerv, muhafazakâr satış indirimi, minimum net kâr/marj ve anlık bildirim eşiği saklanır. Vehigo en az 6 karşılaştırmalı ilan ve 2 bağımsız kaynak olmadan ticari fırsat iddiası üretmez. Bütün eşikler geçerse ilan, tahmini toplam maliyet ve net kâr kanıtıyla anında Telegram'a gönderilir; diğer eşleşmeler normal digest akışında kalır.
 
@@ -153,8 +153,7 @@ Her alarm aynı zamanda ticari alım profilidir: sabit masraf, bekleme maliyeti,
 - `APIFY_PERSIST_RESULTS` (varsayılan `false`; aktif saklama hakkı kanıtı da zorunludur)
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
-- `TELEGRAM_TRANSIENT_CHANNELS_ENABLED` (varsayılan `false`; yalnız yeniden yayınlama hakkı doğrulanmış kaynaklarda açılır)
-- `TELEGRAM_TRANSIENT_CHANNEL_SOURCE_ALLOWLIST` (virgülle ayrılmış kaynak anahtarları)
+- `TELEGRAM_TRANSIENT_CHANNELS_ENABLED` (varsayılan `false`; kişisel Telegram kanal dağıtımını açar)
 
 Aylık teknik işletme maliyetini mevcut tarama hacmiyle görmek için `npm run costs:estimate` çalıştırılır. Brave istek hacmi, Apify kullanımı, hosting, Supabase ve AI bütçesi `VEHIGO_COST_*` ortam değişkenleriyle senaryolaştırılabilir.
 
