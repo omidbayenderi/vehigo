@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Database } from "@/lib/supabase/types";
 import { listingMatchesWatchlist } from "@/lib/services/market-alerts";
+import { isListingEligibleForNotification } from "@/lib/search/matcher";
 
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
 type Watchlist = Database["public"]["Tables"]["watchlists"]["Row"];
@@ -42,12 +43,22 @@ describe("listingMatchesWatchlist", () => {
     expect(listingMatchesWatchlist(baseListing, baseWatchlist)).toBe(true);
   });
 
-  it("keeps listings with unknown price and mileage eligible for manual verification", () => {
-    expect(listingMatchesWatchlist({ ...baseListing, price: null, mileage_km: null }, baseWatchlist)).toBe(true);
+  it("rejects listings when explicitly configured price or mileage is unknown", () => {
+    expect(listingMatchesWatchlist({ ...baseListing, price: null, mileage_km: null }, baseWatchlist)).toBe(false);
   });
 
   it("rejects a known price above the trader's maximum", () => {
     expect(listingMatchesWatchlist({ ...baseListing, price: 24000 }, baseWatchlist)).toBe(false);
+  });
+
+  it("rejects numeric price comparisons across different currencies", () => {
+    expect(listingMatchesWatchlist({ ...baseListing, price: 18_500, currency: "GBP" }, baseWatchlist)).toBe(false);
+  });
+
+  it("does not notify when a target-price alarm has no verified price", () => {
+    const targetOnly = { ...baseWatchlist, min_price: null, max_price: null, target_price: 21_000 };
+    expect(listingMatchesWatchlist({ ...baseListing, price: null }, targetOnly)).toBe(true);
+    expect(isListingEligibleForNotification({ ...baseListing, price: null }, targetOnly)).toBe(false);
   });
 
   it("matches a combined brand phrase when the structured brand is narrower but the title is exact", () => {
@@ -57,10 +68,10 @@ describe("listingMatchesWatchlist", () => {
     expect(listingMatchesWatchlist({ ...listing, year: 2007 }, watchlist)).toBe(true);
   });
 
-  it("infers a van type from an unstructured web result", () => {
+  it("does not trust an unstructured result when the configured vehicle type is missing", () => {
     const vanListing = { ...baseListing, title: "Ford Transit transporter for sale", brand: "Ford", model: "Transit", vehicle_type: null };
     const vanWatchlist = { ...baseWatchlist, brand: "Ford", model: "Transit", vehicle_type: "van" as const };
-    expect(listingMatchesWatchlist(vanListing, vanWatchlist)).toBe(true);
+    expect(listingMatchesWatchlist(vanListing, vanWatchlist)).toBe(false);
   });
 
   it("applies passenger-car seat count and condition filters when listing details are known", () => {
@@ -76,9 +87,10 @@ describe("listingMatchesWatchlist", () => {
     )).toBe(true);
   });
 
-  it("uses visible must-have keywords as an OR inclusion rule", () => {
+  it("uses visible must-have keywords as an AND inclusion rule", () => {
     const watchlist = { ...baseWatchlist, must_have_keywords: ["panoramic", "automatic"] };
-    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf automatic" }, watchlist)).toBe(true);
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf panoramic automatic" }, watchlist)).toBe(true);
+    expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf automatic" }, watchlist)).toBe(false);
     expect(listingMatchesWatchlist({ ...baseListing, title: "Volkswagen Golf manual" }, watchlist)).toBe(false);
   });
 

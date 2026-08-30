@@ -55,7 +55,10 @@ export function assessOpportunity(listing: Listing, watchlist: Watchlist): Oppor
 
   const targetPrice = watchlist.target_price ?? watchlist.max_price;
   if (targetPrice !== null && listing.price !== null) {
-    if (listing.price <= targetPrice * 0.9) {
+    if (listing.currency !== watchlist.currency) {
+      score -= 25;
+      reasons.push(`Para birimi uyuşmuyor: ${listing.currency}/${watchlist.currency}`);
+    } else if (listing.price <= targetPrice * 0.9) {
       score += 18;
       reasons.push(`Fiyat hedefin %10+ altında: ${listing.price.toLocaleString("tr-TR")} ${listing.currency}`);
     } else if (listing.price <= targetPrice) {
@@ -68,6 +71,9 @@ export function assessOpportunity(listing: Listing, watchlist: Watchlist): Oppor
       score -= 12;
       reasons.push("Fiyat hedefin üzerinde");
     }
+  } else if (targetPrice !== null) {
+    score -= 20;
+    reasons.push("Fiyat doğrulanamadı");
   }
 
   const matchedKeywords = watchlist.keywords.filter((keyword) => titleText.includes(keyword.toLowerCase()));

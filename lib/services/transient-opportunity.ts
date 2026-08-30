@@ -3,7 +3,7 @@ import type { MarketListingInput } from "@/lib/domain/listings";
 import type { Database, Json } from "@/lib/supabase/types";
 import { normalizeMarketListing } from "@/lib/normalization/normalize-listing";
 import { marketListingInputSchema, canonicalMarketListingInputSchema } from "@/lib/validation/schemas";
-import { listingMatchesWatchlist } from "@/lib/services/market-alerts";
+import { evaluateListingForWatchlist, isListingEligibleForNotification } from "@/lib/search/matcher";
 import { assessOpportunity } from "@/lib/services/opportunity-agents";
 import {
   calculateCommercialOpportunity,
@@ -28,6 +28,7 @@ type TransientMatch = {
   listing: Listing;
   watchlist: Watchlist;
   commercial: CommercialOpportunityAssessment | null;
+  relevanceScore: number;
 };
 
 export type TransientProcessingResult = {
@@ -80,24 +81,32 @@ export async function processTransientListings(
 
   for (const listing of listings) {
     for (const watchlist of watchlists) {
-      if (!chatByUser.has(watchlist.user_id) || !listingMatchesWatchlist(listing, watchlist)) continue;
+      if (!chatByUser.has(watchlist.user_id)) continue;
+      const evaluation = evaluateListingForWatchlist(listing, watchlist);
+      if (!isListingEligibleForNotification(listing, watchlist, evaluation)) continue;
       const seen = seenByUser.get(watchlist.user_id) ?? new Set<string>();
       if (seen.has(listing.listing_url)) continue;
       seen.add(listing.listing_url);
       seenByUser.set(watchlist.user_id, seen);
       const matches = matchesByUser.get(watchlist.user_id) ?? [];
-      if (matches.length < 5) {
-        matches.push({
-          listing,
-          watchlist,
-          commercial: assessTransientCommercialOpportunity(listing, watchlist, listings),
-        });
-      }
+      matches.push({
+        listing,
+        watchlist,
+        commercial: assessTransientCommercialOpportunity(listing, watchlist, listings),
+        relevanceScore: evaluation.score,
+      });
       matchesByUser.set(watchlist.user_id, matches);
     }
   }
 
-  for (const [userId, matches] of matchesByUser) {
+  for (const [userId, unsortedMatches] of matchesByUser) {
+    const matches = unsortedMatches
+      .sort((left, right) =>
+        right.relevanceScore - left.relevanceScore
+        || assessOpportunity(right.listing, right.watchlist).score - assessOpportunity(left.listing, left.watchlist).score
+        || Number(Boolean(right.listing.price)) - Number(Boolean(left.listing.price)),
+      )
+      .slice(0, 5);
     const recipient = chatByUser.get(userId);
     if (!recipient || matches.length === 0) continue;
     const candidates = matches.map(({ listing, watchlist }) => receiptCandidate(listing, watchlist));

@@ -55,7 +55,7 @@ const alertRow = {
   opportunity_label: "hot",
   opportunity_reasons: [],
   market_listings: listing,
-  watchlists: { name: "Çekici Almanya" },
+  watchlists: { name: "Çekici Almanya", search_mode: "discovery", source_keys: [] },
   users_profile: { telegram_chat_id: "12345", locale: "tr" },
 };
 

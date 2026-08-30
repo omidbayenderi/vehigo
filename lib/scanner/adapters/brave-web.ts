@@ -430,7 +430,7 @@ function mapFederatedHits(
     if (!listingUrl || !isLikelyVehicleListing(listingUrl, result.title, result.description)) continue;
     const inferredText = `${result.title ?? ""} ${result.description ?? ""} ${listingUrl}`;
     const sourceKey = expected?.sourceKey ?? sourceKeyForUrl(listingUrl);
-    const inferred = inferIndexedListingFields(inferredText, plan.watchlist);
+    const inferred = inferIndexedListingFields(inferredText);
     const marketplaceHost = new URL(listingUrl).hostname.replace(/^www\./, "");
     listings.push({
       source_key: sourceKey,
@@ -445,7 +445,7 @@ function mapFederatedHits(
       year: inferred.year,
       mileage_km: inferred.mileageKm,
       price: inferred.price,
-      currency: inferred.price === undefined ? undefined : "EUR",
+      currency: inferred.currency,
       power_hp: inferred.powerHp,
       engine_cc: inferred.engineCc,
       door_count: inferred.doorCount,
@@ -601,6 +601,9 @@ function watchlistQueryCriteria(watchlist: ScannerWatchlist, profile: LocalSearc
 
   if (watchlist.emission_class) criteria.push(queryToken(watchlist.emission_class));
   if (watchlist.exterior_color) criteria.push(queryToken(watchlist.exterior_color));
+  if (watchlist.min_price != null) criteria.push(`"from ${watchlist.min_price} ${watchlist.currency}"`);
+  if (watchlist.max_price != null) criteria.push(`"up to ${watchlist.max_price} ${watchlist.currency}"`);
+  if (watchlist.max_mileage_km != null) criteria.push(`"up to ${watchlist.max_mileage_km} km"`);
 
   const startYear = watchlist.min_year ?? watchlist.max_year;
   const endYear = watchlist.max_year ?? (watchlist.min_year ? new Date().getUTCFullYear() + 1 : null);
@@ -611,7 +614,7 @@ function watchlistQueryCriteria(watchlist: ScannerWatchlist, profile: LocalSearc
   const required = (watchlist.must_have_keywords ?? [])
     .filter((keyword) => !keyword.startsWith("__vehigo_"))
     .slice(0, 5);
-  if (required.length > 0) criteria.push(`(${required.map(queryToken).join(" OR ")})`);
+  if (required.length > 0) criteria.push(...required.map(queryToken));
   for (const excluded of (watchlist.excluded_keywords ?? []).slice(0, 5)) criteria.push(`-${queryToken(excluded)}`);
   return criteria;
 }
@@ -621,15 +624,15 @@ function queryToken(value: string) {
   return /\s/.test(clean) ? `"${clean}"` : clean;
 }
 
-function inferIndexedListingFields(text: string, watchlist: ScannerWatchlist | null) {
+function inferIndexedListingFields(text: string) {
   const years = [...text.matchAll(/\b(19[5-9]\d|20[0-3]\d)\b/g)].map((match) => Number(match[1]));
-  const year = years.find((value) =>
-    (watchlist?.min_year == null || value >= watchlist.min_year)
-    && (watchlist?.max_year == null || value <= watchlist.max_year),
-  ) ?? years[0];
+  // Never choose a year merely because it fits the watchlist. Search snippets
+  // often contain copyright or registration years; biasing toward the desired
+  // range turns unrelated pages into false positives. Preserve the first
+  // observed year and let the matcher reject it when it is out of range.
+  const year = years[0];
   const mileageMatch = text.match(/(\d{1,3}(?:[.\s,'’]\d{3})+|\d{3,7})\s*(?:km|kilomet(?:er|re|ri|ro|rów|rov)?)/i);
-  const priceMatch = text.match(/(?:€|EUR)\s*(\d[\d.\s,'’]*(?:[.,]\d{2})?)/i)
-    ?? text.match(/(\d[\d.\s,'’]*(?:[.,]\d{2})?)\s*(?:€|EUR)/i);
+  const price = matchIndexedPrice(text);
   const powerMatch = text.match(/(\d{2,4})\s*(?:hp|ps|bhp|cv|pk|ch)\b/i);
   const engineCcMatch = text.match(/(\d{3,5})\s*(?:cc|cm3|cm³)\b/i);
   const engineLiterMatch = text.match(/\b(\d(?:[.,]\d))\s*(?:l|liter|litre|litri)\b/i);
@@ -637,7 +640,8 @@ function inferIndexedListingFields(text: string, watchlist: ScannerWatchlist | n
   return {
     year,
     mileageKm: mileageMatch ? parseIndexedNumber(mileageMatch[1]) : undefined,
-    price: priceMatch ? parseIndexedPrice(priceMatch[1]) : undefined,
+    price: price?.amount,
+    currency: price?.currency,
     powerHp: powerMatch ? Number.parseInt(powerMatch[1], 10) : undefined,
     engineCc: engineCcMatch
       ? Number.parseInt(engineCcMatch[1], 10)
@@ -646,6 +650,25 @@ function inferIndexedListingFields(text: string, watchlist: ScannerWatchlist | n
         : undefined,
     doorCount: doorMatch ? Number.parseInt(doorMatch[1], 10) : undefined,
   };
+}
+
+function matchIndexedPrice(text: string) {
+  const formats: Array<{ currency: string; symbols: string }> = [
+    { currency: "EUR", symbols: "€|EUR" },
+    { currency: "GBP", symbols: "£|GBP" },
+    { currency: "CHF", symbols: "CHF" },
+    { currency: "PLN", symbols: "PLN|zł|zl" },
+    { currency: "SEK", symbols: "SEK|kr" },
+  ];
+  for (const format of formats) {
+    const before = text.match(new RegExp(`(?:${format.symbols})\\s*(\\d[\\d.\\s,'’]*(?:[.,]\\d{2})?)`, "i"));
+    const after = text.match(new RegExp(`(\\d[\\d.\\s,'’]*(?:[.,]\\d{2})?)\\s*(?:${format.symbols})`, "i"));
+    const raw = before?.[1] ?? after?.[1];
+    if (!raw) continue;
+    const amount = parseIndexedPrice(raw);
+    if (amount !== undefined) return { amount, currency: format.currency };
+  }
+  return null;
 }
 
 function parseIndexedNumber(value: string) {

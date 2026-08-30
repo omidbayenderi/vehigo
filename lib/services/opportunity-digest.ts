@@ -4,6 +4,7 @@ import { sendTelegramMessage } from "@/lib/services/notifications";
 import { checkScannerHealth, type ScannerHealthIssue } from "@/lib/services/scanner-health";
 import { readListingCondition, readListingSeatCount } from "@/lib/services/market-alerts";
 import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
+import { isListingEligibleForNotification } from "@/lib/search/matcher";
 
 type Client = SupabaseClient<Database>;
 type Listing = Database["public"]["Tables"]["market_listings"]["Row"];
@@ -88,8 +89,12 @@ export async function sendOpportunityDigest(
     if (alerts.length === 0 && healthIssues.length === 0) continue;
     users++;
     pendingAlerts += alerts.length;
+    const deliverableAlerts = alerts.filter((alert) =>
+      Boolean(alert.market_listings && alert.watchlists
+        && isListingEligibleForNotification(alert.market_listings, alert.watchlists)),
+    );
     const arbitrageByAlertId = new Map<string, ArbitrageAssessment>();
-    for (const alert of alerts) {
+    for (const alert of deliverableAlerts) {
       if (!alert.market_listings || !alert.watchlists) continue;
       try {
         const assessment = await assessEuropeanArbitrage(supabase, alert.market_listings, alert.watchlists);
@@ -100,11 +105,24 @@ export async function sendOpportunityDigest(
     }
     const healthWarning = healthIssues.length > 0 ? formatHealthWarning(healthIssues, locale) : null;
     const messageParts = [
-      alerts.length > 0 ? formatDigest(alerts, hours, locale, arbitrageByAlertId) : null,
+      deliverableAlerts.length > 0 ? formatDigest(deliverableAlerts, hours, locale, arbitrageByAlertId) : null,
       healthWarning,
     ].filter((part): part is string => Boolean(part));
 
     if (messageParts.length === 0) {
+      if (alerts.length > 0) {
+        const filteredIds = alerts.map((alert) => alert.id);
+        const { data: finished, error: finishError } = await supabase.rpc("finish_opportunity_digest_alerts", {
+          p_claim_token: claimToken,
+          p_alert_ids: filteredIds,
+          p_sent: true,
+          p_error: "filtered_by_notification_quality_gate",
+        });
+        if (finishError || finished !== filteredIds.length) {
+          failed++;
+          continue;
+        }
+      }
       skipped++;
       continue;
     }

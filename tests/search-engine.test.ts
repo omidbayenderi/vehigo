@@ -118,14 +118,14 @@ describe("strict/discovery matching", () => {
     expect(result.reasons).toContain("country");
   });
 
-  it("keeps unknown data in discovery mode but rejects it in strict mode", () => {
-    const unknownPrice = { ...listing, price: null };
-    const discovery = evaluateListingForWatchlist(unknownPrice, watchlist, new Date("2026-07-13T00:00:00.000Z"));
-    const strict = evaluateListingForWatchlist(unknownPrice, { ...watchlist, search_mode: "strict" }, new Date("2026-07-13T00:00:00.000Z"));
+  it("keeps unknown secondary data in discovery mode but rejects it in strict mode", () => {
+    const unknownFuel = { ...listing, fuel_type: null, title: "Volkswagen Golf 2022" };
+    const discovery = evaluateListingForWatchlist(unknownFuel, { ...watchlist, fuel_type: "diesel" }, new Date("2026-07-13T00:00:00.000Z"));
+    const strict = evaluateListingForWatchlist(unknownFuel, { ...watchlist, fuel_type: "diesel", search_mode: "strict" }, new Date("2026-07-13T00:00:00.000Z"));
     expect(discovery.matches).toBe(true);
-    expect(discovery.unknownFields).toContain("price");
+    expect(discovery.unknownFields).toContain("fuel_type");
     expect(strict.matches).toBe(false);
-    expect(strict.rejectedBy).toBe("unknown:price");
+    expect(strict.rejectedBy).toBe("unknown:fuel_type");
   });
 
   it("applies radius filters and reports the computed distance", () => {

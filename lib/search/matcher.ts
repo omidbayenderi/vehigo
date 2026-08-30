@@ -40,14 +40,18 @@ export function evaluateListingForWatchlist(
 
   const countryCodes = resolveCountryCodes(watchlist);
   const listingCountryCode = listing.seller_country_code ?? canonicalCountryCode(listing.seller_country) ?? null;
-  knownFilter(state, "country", countryCodes.length > 0, listingCountryCode, (value) => countryCodes.includes(value));
+  knownFilter(state, "country", countryCodes.length > 0, listingCountryCode, (value) => countryCodes.includes(value), true);
   textFilter(state, "city", watchlist.city, listing.seller_city, listing);
-  textFilter(state, "brand", watchlist.brand, listing.brand, listing, true);
-  textFilter(state, "model", watchlist.model, listing.model, listing, true);
-  knownFilter(state, "vehicle_type", Boolean(watchlist.vehicle_type), listing.vehicle_type, (value) => value === watchlist.vehicle_type);
+  textFilter(state, "brand", watchlist.brand, listing.brand, listing, true, true);
+  textFilter(state, "model", watchlist.model, listing.model, listing, true, true);
+  knownFilter(state, "vehicle_type", Boolean(watchlist.vehicle_type), listing.vehicle_type, (value) => value === watchlist.vehicle_type, true);
 
   numberRange(state, "year", listing.year, watchlist.min_year, watchlist.max_year);
   numberRange(state, "mileage_km", listing.mileage_km, null, watchlist.max_mileage_km);
+  const hasPriceFilter = watchlist.min_price != null || watchlist.max_price != null || watchlist.target_price != null;
+  if (hasPriceFilter && listing.price != null && watchlist.currency && listing.currency !== watchlist.currency) {
+    reject(state, "currency");
+  }
   numberRange(state, "price", listing.price, watchlist.min_price, watchlist.max_price);
   numberRange(state, "power_hp", listing.power_hp ?? inferNumber(listing, /(\d{2,4})\s*(?:hp|ps|bhp|cv|pk)\b/i), numericWatchlistValue(watchlist, "min_power_hp"), numericWatchlistValue(watchlist, "max_power_hp"));
   numberRange(state, "engine_cc", listing.engine_cc ?? inferEngineCc(listing), numericWatchlistValue(watchlist, "min_engine_cc"), numericWatchlistValue(watchlist, "max_engine_cc"));
@@ -111,7 +115,7 @@ export function evaluateListingForWatchlist(
   if ((watchlist.must_have_keywords ?? []).length > 0) {
     const visible = watchlist.must_have_keywords.filter((keyword) => !keyword.startsWith("__vehigo_"));
     if (visible.length > 0 && !searchText) unknown(state, "must_have_keywords");
-    else if (visible.length > 0 && !visible.some((keyword) => searchText.includes(normalize(keyword)))) reject(state, "must_have_keywords");
+    else if (visible.length > 0 && !visible.every((keyword) => searchText.includes(normalize(keyword)))) reject(state, "must_have_keywords");
     else if (visible.length > 0) state.reasons.push("must_have_keywords");
   }
   const excludedHit = (watchlist.excluded_keywords ?? []).find((keyword) => searchText.includes(normalize(keyword)));
@@ -132,31 +136,69 @@ export function evaluateListingForWatchlist(
   };
 }
 
+/**
+ * Discovery search may retain records with missing secondary attributes for
+ * manual review. Notifications are intentionally stricter: every configured
+ * commercial field must be present so an incomplete web snippet cannot become
+ * a Telegram opportunity merely because it was returned first.
+ */
+export function isListingEligibleForNotification(
+  listing: SearchListing,
+  watchlist: SearchWatchlist,
+  evaluation = evaluateListingForWatchlist(listing, watchlist),
+) {
+  if (!evaluation.matches) return false;
+  if ((watchlist.min_price != null || watchlist.max_price != null || watchlist.target_price != null)
+    && (listing.price == null || listing.currency !== watchlist.currency)) return false;
+  if ((watchlist.min_year != null || watchlist.max_year != null) && listing.year == null) return false;
+  if (watchlist.max_mileage_km != null && listing.mileage_km == null) return false;
+  if (watchlist.vehicle_type && !listing.vehicle_type) return false;
+  if (resolveCountryCodes(watchlist).length > 0
+    && !(listing.seller_country_code ?? canonicalCountryCode(listing.seller_country))) return false;
+  return true;
+}
+
 function matchesSource(listing: SearchListing, watchlist: SearchWatchlist) {
-  if (watchlist.source_keys.length === 0) return true;
-  if (watchlist.source_keys.includes(listing.source_key)) return true;
-  return watchlist.source_keys.includes("brave_web")
+  const sourceKeys = watchlist.source_keys ?? [];
+  if (sourceKeys.length === 0) return true;
+  if (sourceKeys.includes(listing.source_key)) return true;
+  return sourceKeys.includes("brave_web")
     && ["brave_web", "federated_search"].includes(readRawString(listing.raw, "discovery_channel") ?? "");
 }
 
-function knownFilter<T>(state: EvaluationState, field: string, enabled: boolean, actual: T | null | undefined, matches: (value: T) => boolean) {
+function knownFilter<T>(
+  state: EvaluationState,
+  field: string,
+  enabled: boolean,
+  actual: T | null | undefined,
+  matches: (value: T) => boolean,
+  requiredWhenConfigured = false,
+) {
   if (!enabled || state.rejectedBy) return;
-  if (actual === null || actual === undefined || actual === "") return unknown(state, field);
+  if (actual === null || actual === undefined || actual === "") return unknown(state, field, requiredWhenConfigured);
   if (!matches(actual)) reject(state, field);
   else state.reasons.push(field);
 }
 
 function numberRange(state: EvaluationState, field: string, actual: number | null | undefined, min: number | null | undefined, max: number | null | undefined) {
   if (min == null && max == null) return;
-  knownFilter(state, field, true, actual, (value) => (min == null || value >= min) && (max == null || value <= max));
+  knownFilter(state, field, true, actual, (value) => (min == null || value >= min) && (max == null || value <= max), true);
 }
 
-function textFilter(state: EvaluationState, field: string, expected: string | null | undefined, actual: string | null | undefined, listing: SearchListing, allowTitleFallback = false) {
+function textFilter(
+  state: EvaluationState,
+  field: string,
+  expected: string | null | undefined,
+  actual: string | null | undefined,
+  listing: SearchListing,
+  allowTitleFallback = false,
+  requiredWhenConfigured = false,
+) {
   if (!expected || state.rejectedBy) return;
   const expectedText = normalize(expected);
   const actualText = normalize(actual ?? "");
   const fallback = allowTitleFallback ? normalize(listing.title ?? "") : listingSearchText(listing);
-  if (!actualText && !fallback) return unknown(state, field);
+  if (!actualText && !fallback) return unknown(state, field, requiredWhenConfigured);
   if (!actualText.includes(expectedText) && !fallback.includes(expectedText)) reject(state, field);
   else state.reasons.push(field);
 }
@@ -182,8 +224,8 @@ function categoricalFilter(
   else state.reasons.push(field);
 }
 
-function unknown(state: EvaluationState, field: string) {
-  if (state.mode === "strict") reject(state, `unknown:${field}`);
+function unknown(state: EvaluationState, field: string, requiredWhenConfigured = false) {
+  if (state.mode === "strict" || requiredWhenConfigured) reject(state, `unknown:${field}`);
   else state.unknownFields.push(field);
 }
 
@@ -228,7 +270,7 @@ function stringWatchlistValue(watchlist: SearchWatchlist, key: string) {
   const dedicated = (watchlist as unknown as Record<string, unknown>)[key];
   if (typeof dedicated === "string" && dedicated) return dedicated;
   const directPrefix = key === "condition" ? "__vehigo_condition:" : `__vehigo_filter:${key}:`;
-  const token = watchlist.must_have_keywords.find((keyword) => keyword.startsWith(directPrefix));
+  const token = (watchlist.must_have_keywords ?? []).find((keyword) => keyword.startsWith(directPrefix));
   return token?.slice(directPrefix.length) || null;
 }
 
@@ -236,7 +278,7 @@ function numericWatchlistValue(watchlist: SearchWatchlist, key: string) {
   const dedicated = (watchlist as unknown as Record<string, unknown>)[key];
   if (typeof dedicated === "number") return dedicated;
   const directPrefix = key === "seat_count" ? "__vehigo_seat:" : `__vehigo_filter:${key}:`;
-  const token = watchlist.must_have_keywords.find((keyword) => keyword.startsWith(directPrefix));
+  const token = (watchlist.must_have_keywords ?? []).find((keyword) => keyword.startsWith(directPrefix));
   if (!token) return null;
   const value = Number(token.slice(directPrefix.length));
   return Number.isFinite(value) ? value : null;

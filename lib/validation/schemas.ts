@@ -196,7 +196,7 @@ export const watchlistSchema = z.object({
   center_latitude: z.coerce.number().min(-90).max(90).optional(),
   center_longitude: z.coerce.number().min(-180).max(180).optional(),
   radius_km: z.coerce.number().int().min(1).max(2000).optional(),
-  search_mode: z.enum(["strict", "discovery"]).default("discovery"),
+  search_mode: z.enum(["strict", "discovery"]).default("strict"),
   freshness_hours: z.coerce.number().int().min(1).max(8760).default(168),
   sort_by: z.enum(["relevance", "newest", "price", "mileage", "year"]).default("relevance"),
   sort_direction: z.enum(["asc", "desc"]).default("desc"),

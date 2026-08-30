@@ -8,7 +8,7 @@ import { ZodError } from "zod";
 import { sendTelegramMessage } from "@/lib/services/notifications";
 import { assessOpportunity, opportunityReasonsToJson } from "@/lib/services/opportunity-agents";
 import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
-import { evaluateListingForWatchlist } from "@/lib/search/matcher";
+import { evaluateListingForWatchlist, isListingEligibleForNotification } from "@/lib/search/matcher";
 import { isSearchPlanV1, SEARCH_PLAN_VERSION } from "@/lib/search/search-plan";
 import { evaluateAndNotifyCommercialAlert } from "@/lib/services/commercial-opportunity";
 
@@ -200,6 +200,7 @@ function prepareWatchlistFields(input: Record<string, unknown>, requirePlanConfi
     throw new Error("Doğal dil arama planını önizleyip onaylamalısınız.");
   }
   if (confirmedSearchPlan) {
+    const explicitFields = { ...clean };
     let plan: unknown;
     try {
       plan = JSON.parse(confirmedSearchPlan);
@@ -210,7 +211,10 @@ function prepareWatchlistFields(input: Record<string, unknown>, requirePlanConfi
     if (clean.natural_language_query !== plan.originalQuery) {
       throw new Error("Arama tarifi değişti. Planı yeniden önizleyip onaylayın.");
     }
-    Object.assign(clean, plan.filters, {
+    // The planner fills fields the user did not enter. Explicit form controls
+    // always win so confirming a natural-language plan cannot silently undo a
+    // later price, mileage or geography adjustment on the same form.
+    Object.assign(clean, plan.filters, explicitFields, {
       natural_language_query: plan.originalQuery,
       search_plan: JSON.parse(JSON.stringify(plan)) as Json,
       search_plan_version: SEARCH_PLAN_VERSION,
@@ -321,7 +325,7 @@ export async function matchStoredListingsForWatchlist(supabase: Client, watchlis
 
   let created = 0;
   for (const listing of listings ?? []) {
-    if (!listingMatchesWatchlist(listing, watchlist)) continue;
+    if (!isListingEligibleForNotification(listing, watchlist)) continue;
     const alert = await createAlertIfNeeded(supabase, listing, watchlist);
     if (alert.created) created++;
   }
@@ -382,7 +386,7 @@ export async function processIncomingListings(
       if (listing.isNew) result.inserted++;
 
       const matchingWatchlists = (watchlists ?? []).filter((watchlist) =>
-        listingMatchesWatchlist(listing.row, watchlist),
+        isListingEligibleForNotification(listing.row, watchlist),
       );
 
       for (const watchlist of matchingWatchlists) {
@@ -698,6 +702,10 @@ export async function dispatchPendingTelegramAlerts(supabase: Client, limit = 50
     const watchlist = alert.watchlists;
 
     if (!listing || !watchlist) continue;
+    if (!isListingEligibleForNotification(listing, watchlist)) {
+      await markAlert(supabase, alert, "sent", "filtered_by_notification_quality_gate");
+      continue;
+    }
 
     const previousPrice = alert.alert_type === "price_drop" ? await fetchPreviousPrice(supabase, listing.id) : null;
     const baseMessage = formatListingAlert(listing, watchlist, alert, previousPrice);

@@ -93,7 +93,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
       <details className="mt-4 rounded-lg border border-line-soft bg-surface-sunken/40 p-4">
         <summary className="cursor-pointer text-sm font-semibold text-brand">Arama davranışı ve sıralama</summary>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <label className="text-sm"><span className="mb-1 block text-ink-soft">Eşleşme modu</span><select name="search_mode" defaultValue="discovery" className={inputClass}><option value="discovery">Discovery · eksikleri doğrula</option><option value="strict">Strict · eksik alanı ele</option></select></label>
+          <label className="text-sm"><span className="mb-1 block text-ink-soft">Eşleşme modu</span><select name="search_mode" defaultValue="strict" className={inputClass}><option value="strict">Strict · filtreleri kesin uygula</option><option value="discovery">Discovery · ikincil eksikleri doğrula</option></select></label>
           <Field label="Tazelik (saat)" name="freshness_hours" type="number" defaultValue="168" />
           <label className="text-sm"><span className="mb-1 block text-ink-soft">Sıralama</span><select name="sort_by" defaultValue="relevance" className={inputClass}><option value="relevance">Uygunluk</option><option value="newest">En yeni</option><option value="price">Fiyat</option><option value="mileage">Kilometre</option><option value="year">Model yılı</option></select></label>
           <label className="text-sm"><span className="mb-1 block text-ink-soft">Yön</span><select name="sort_direction" defaultValue="desc" className={inputClass}><option value="desc">Azalan</option><option value="asc">Artan</option></select></label>
