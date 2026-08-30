@@ -28,16 +28,26 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
   const linked = await linkTelegramChatByUsername(supabase, username, String(chatId));
 
+  let reply;
   if (linked.linked) {
-    await sendTelegramMessage(
+    reply = await sendTelegramMessage(
       String(chatId),
       "Vehigo ilan alarmları bu Telegram hesabına bağlandı. Eşleşen yeni ilanlar burada görünecek.",
     );
   } else if (text.startsWith("/start")) {
-    await sendTelegramMessage(
+    reply = await sendTelegramMessage(
       String(chatId),
       "Vehigo'da Telegram kullanıcı adınızı kaydedin, sonra bu botu tekrar başlatın. Kullanıcı adınız eşleşince bağlantı doğrulanır.",
     );
+  }
+
+  if (reply && !reply.ok) {
+    console.error(JSON.stringify({
+      event: "telegram.webhook.reply_failed",
+      error: reply.error ?? "unknown_telegram_error",
+      linked: linked.linked,
+    }));
+    return Response.json({ ok: false, linked: linked.linked, error: "telegram_reply_failed" }, { status: 502 });
   }
 
   return Response.json({ ok: true, linked: linked.linked });
