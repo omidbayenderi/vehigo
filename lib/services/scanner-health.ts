@@ -8,7 +8,8 @@ type Client = SupabaseClient<Database>;
 export type ScannerHealthIssue = {
   sourceKey: string;
   sourceName: string;
-  kind: "never_ran" | "stale" | "failing" | "empty_results" | "missing_connector" | "contract_mismatch" | "dead_letter_backlog";
+  kind: "never_ran" | "stale" | "failing" | "recovering" | "empty_results" | "missing_connector" | "contract_mismatch" | "dead_letter_backlog";
+  severity: "warning" | "critical";
   detail: string;
 };
 
@@ -28,6 +29,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: source.key,
         sourceName: source.name,
         kind: "missing_connector",
+        severity: "critical",
         detail: "Aktif runtime kaynağı için connector bulunamadı",
       });
     } else {
@@ -37,6 +39,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
           sourceKey: source.key,
           sourceName: source.name,
           kind: "contract_mismatch",
+          severity: "critical",
           detail: `Connector manifest uyuşmazlığı: ${contractIssues.join(", ")}`,
         });
       }
@@ -56,6 +59,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: source.key,
         sourceName: source.name,
         kind: "never_ran",
+        severity: "critical",
         detail: "Hiç çalışmadı",
       });
       continue;
@@ -70,6 +74,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: source.key,
         sourceName: source.name,
         kind: "stale",
+        severity: "critical",
         detail: `Son çalışma ${ageHours} saat önce (beklenen aralık aşıldı)`,
       });
     } else if (lastRun.status === "failed") {
@@ -77,6 +82,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: source.key,
         sourceName: source.name,
         kind: "failing",
+        severity: "critical",
         detail: lastRun.error ? `Son çalışma başarısız: ${lastRun.error}` : "Son çalışma başarısız",
       });
     } else if (recentRuns.length >= 3 && recentRuns.every((run) => run.status === "ok" && run.fetched_count === 0)) {
@@ -84,6 +90,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: source.key,
         sourceName: source.name,
         kind: "empty_results",
+        severity: "warning",
         detail: "Son 3 başarılı tarama sıfır sonuç döndürdü; actor/sorgu sözleşmesi kontrol edilmeli",
       });
     }
@@ -100,13 +107,14 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
       sourceKey: "ingest",
       sourceName: "Ingest dead-letter kuyruğu",
       kind: "dead_letter_backlog",
+      severity: "critical",
       detail: `${failedIngestCount} yeniden oynatılabilir başarısız event bekliyor`,
     });
   }
 
   const { data: siteAgents, error: agentsError } = await supabase
     .from("site_search_agents")
-    .select("status,last_started_at,last_status,last_error_message,interval_minutes");
+    .select("status,last_started_at,last_status,last_error_code,last_error_message,consecutive_failures,next_run_at,interval_minutes");
   if (agentsError && !/schema cache|does not exist/i.test(agentsError.message)) {
     throw new Error(agentsError.message);
   }
@@ -118,13 +126,16 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
       !agent.last_started_at
       || now - new Date(agent.last_started_at).getTime() > (agent.interval_minutes * 2 + 60) * 60_000
     )).length;
-    const failing = siteAgents.filter((agent) => agent.status === "active" && agent.last_status === "failed").length;
+    const failedAgents = siteAgents.filter((agent) => agent.status === "active" && agent.last_status === "failed");
+    const recovering = failedAgents.filter((agent) => agent.consecutive_failures < 2);
+    const failing = failedAgents.filter((agent) => agent.consecutive_failures >= 2);
 
     if (pending > 0) {
       issues.push({
         sourceKey: "site_agent_fleet",
         sourceName: "Europe Web Scout",
         kind: "never_ran",
+        severity: "critical",
         detail: `${pending} birleşik agent aktivasyon bekliyor`,
       });
     }
@@ -133,6 +144,7 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: "site_agent_fleet",
         sourceName: "Europe Web Scout",
         kind: "failing",
+        severity: "critical",
         detail: `${blocked} birleşik agent engellendi`,
       });
     }
@@ -141,20 +153,57 @@ export async function checkScannerHealth(supabase: Client): Promise<ScannerHealt
         sourceKey: "site_agent_fleet",
         sourceName: "Europe Web Scout",
         kind: "stale",
+        severity: "critical",
         detail: `${stale} birleşik agent beklenen çalışma aralığını aştı`,
       });
     }
-    if (failing > 0) {
+    if (recovering.length > 0) {
+      issues.push({
+        sourceKey: "site_agent_fleet",
+        sourceName: "Europe Web Scout",
+        kind: "recovering",
+        severity: "warning",
+        detail: describeAgentFailure(recovering[0], "Geçici tarama hatası; otomatik tekrar denenecek"),
+      });
+    }
+    if (failing.length > 0) {
       issues.push({
         sourceKey: "site_agent_fleet",
         sourceName: "Europe Web Scout",
         kind: "failing",
-        detail: `${failing} birleşik agent çalışması başarısız`,
+        severity: "critical",
+        detail: describeAgentFailure(failing[0], `${failing.length} ardışık birleşik agent çalışması başarısız`),
       });
     }
   }
 
   return issues;
+}
+
+export function criticalScannerHealthIssues(issues: ScannerHealthIssue[]) {
+  return issues.filter((issue) => issue.severity === "critical");
+}
+
+function describeAgentFailure(
+  agent: { last_error_code: string | null; last_error_message: string | null; next_run_at: string | null },
+  prefix: string,
+) {
+  const code = agent.last_error_code ? errorCodeLabel(agent.last_error_code) : null;
+  const safeMessage = agent.last_error_message?.replace(/[A-Za-z0-9_-]{32,}/g, "<redacted>").slice(0, 180);
+  const retry = agent.next_run_at ? `Tekrar: ${new Date(agent.next_run_at).toLocaleString("tr-TR")}` : null;
+  return [prefix, code, safeMessage, retry].filter(Boolean).join(" · ");
+}
+
+function errorCodeLabel(code: string) {
+  const labels: Record<string, string> = {
+    provider_rate_limited: "Sağlayıcı hız limiti",
+    provider_timeout: "Sağlayıcı zaman aşımı",
+    provider_authorization_failed: "Sağlayıcı yetkilendirme hatası",
+    storage_rights_unverified: "Veri saklama hakkı doğrulanmadı",
+    invalid_agent_host: "Geçersiz agent hostu",
+    site_search_failed: "Arama sağlayıcısı hatası",
+  };
+  return labels[code] ?? code;
 }
 
 export function formatScannerHealthWarning(issues: ScannerHealthIssue[]): string {

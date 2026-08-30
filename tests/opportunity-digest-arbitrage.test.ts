@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/services/scanner-health", () => ({
   checkScannerHealth: mocks.checkScannerHealth,
+  criticalScannerHealthIssues: (issues: Array<{ severity?: string }>) => issues.filter((issue) => issue.severity === "critical"),
 }));
 vi.mock("@/lib/services/notifications", () => ({
   sendTelegramMessage: mocks.sendTelegramMessage,

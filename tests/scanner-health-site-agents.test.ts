@@ -37,7 +37,52 @@ describe("site-agent fleet health", () => {
     expect(issues).toEqual([expect.objectContaining({
       sourceKey: "site_agent_fleet",
       kind: "never_ran",
+      severity: "critical",
       detail: "1 birleşik agent aktivasyon bekliyor",
+    })]);
+  });
+
+  it("treats the first transient failure as recovering and includes the safe cause", async () => {
+    const from = vi.fn((table: string) => {
+      if (table === "market_sources") return resolvedQuery({ data: [], error: null });
+      if (table === "scanner_ingest_events") return resolvedQuery({ count: 0, error: null });
+      if (table === "site_search_agents") return resolvedQuery({
+        data: [{
+          status: "active", last_started_at: new Date().toISOString(), last_status: "failed",
+          last_error_code: "provider_timeout", last_error_message: "request timed out",
+          consecutive_failures: 1, next_run_at: "2026-08-30T15:00:00.000Z", interval_minutes: 160,
+        }],
+        error: null,
+      });
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const issues = await checkScannerHealth({ from } as never);
+
+    expect(issues).toEqual([expect.objectContaining({
+      kind: "recovering", severity: "warning", detail: expect.stringContaining("Sağlayıcı zaman aşımı"),
+    })]);
+  });
+
+  it("escalates repeated failures and exposes the actionable error category", async () => {
+    const from = vi.fn((table: string) => {
+      if (table === "market_sources") return resolvedQuery({ data: [], error: null });
+      if (table === "scanner_ingest_events") return resolvedQuery({ count: 0, error: null });
+      if (table === "site_search_agents") return resolvedQuery({
+        data: [{
+          status: "active", last_started_at: new Date().toISOString(), last_status: "failed",
+          last_error_code: "provider_rate_limited", last_error_message: "HTTP 429",
+          consecutive_failures: 2, next_run_at: null, interval_minutes: 160,
+        }],
+        error: null,
+      });
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const issues = await checkScannerHealth({ from } as never);
+
+    expect(issues).toEqual([expect.objectContaining({
+      kind: "failing", severity: "critical", detail: expect.stringContaining("Sağlayıcı hız limiti"),
     })]);
   });
 });

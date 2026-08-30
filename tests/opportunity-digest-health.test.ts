@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/services/scanner-health", () => ({
   checkScannerHealth: mocks.checkScannerHealth,
+  criticalScannerHealthIssues: (issues: Array<{ severity?: string }>) => issues.filter((issue) => issue.severity === "critical"),
 }));
 vi.mock("@/lib/services/notifications", () => ({
   sendTelegramMessage: mocks.sendTelegramMessage,
@@ -30,6 +31,7 @@ describe("Telegram scanner health delivery", () => {
       sourceKey: "brave_web",
       sourceName: "Brave Web Search",
       kind: "failing",
+      severity: "critical",
       detail: "Saklama hakkı doğrulanmadı",
     }]);
     mocks.sendTelegramMessage.mockResolvedValue({ ok: true });

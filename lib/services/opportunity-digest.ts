@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, VehicleCondition } from "@/lib/supabase/types";
 import { sendTelegramMessage } from "@/lib/services/notifications";
-import { checkScannerHealth, type ScannerHealthIssue } from "@/lib/services/scanner-health";
+import { checkScannerHealth, criticalScannerHealthIssues, type ScannerHealthIssue } from "@/lib/services/scanner-health";
 import { readListingCondition, readListingSeatCount } from "@/lib/services/market-alerts";
 import { assessEuropeanArbitrage, type ArbitrageAssessment } from "@/lib/services/arbitrage-agent";
 import { isListingEligibleForNotification } from "@/lib/search/matcher";
@@ -48,7 +48,7 @@ export async function sendOpportunityDigest(
     });
   }
 
-  const healthIssues = await checkScannerHealth(supabase);
+  const healthIssues = criticalScannerHealthIssues(await checkScannerHealth(supabase));
   if (healthIssues.length > 0) {
     const { data: linkedProfiles, error: profilesError } = await supabase
       .from("users_profile")

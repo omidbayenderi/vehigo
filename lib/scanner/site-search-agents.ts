@@ -319,8 +319,10 @@ function nextRunAt(agent: Agent, from: Date) {
 }
 
 function failureRetryAt(agent: Agent, from: Date, failures: number) {
-  const base = Math.max(15, Math.min(agent.interval_minutes, 120));
-  const minutes = Math.min(24 * 60, base * (2 ** Math.min(failures - 1, 6)));
+  // A transient provider incident must not leave the Europe-wide scout dormant
+  // for its full normal interval. Retry quickly, then back off exponentially.
+  const base = 15;
+  const minutes = Math.min(Math.max(agent.interval_minutes, 120), base * (2 ** Math.min(failures - 1, 6)));
   return new Date(from.getTime() + minutes * 60_000).toISOString();
 }
 
