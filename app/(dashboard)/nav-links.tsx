@@ -36,7 +36,7 @@ export default function NavLinks({ mobile = false, isOwner = false }: { mobile?:
   const items = isOwner ? [...navItems, ...ownerItems] : navItems;
 
   return (
-    <nav className={mobile ? "grid gap-1 p-3" : "flex flex-1 flex-col gap-1 p-3"} aria-label="Ana navigasyon">
+    <nav className={mobile ? "grid gap-1 p-3" : "flex flex-1 flex-col gap-1 overflow-y-auto p-3"} aria-label="Ana navigasyon">
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
@@ -47,8 +47,12 @@ export default function NavLinks({ mobile = false, isOwner = false }: { mobile?:
             prefetch={false}
             className={
               active
-                ? "flex min-h-11 items-center gap-3 rounded-xl bg-brand-wash px-3 text-sm font-semibold text-brand-ink"
-                : "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
+                ? mobile
+                  ? "flex min-h-11 items-center gap-3 rounded-xl bg-brand-wash px-3 text-sm font-semibold text-brand-ink"
+                  : "relative flex min-h-11 items-center gap-3 rounded-xl bg-white/[0.09] px-3 text-sm font-semibold text-white shadow-inner shadow-white/5 before:absolute before:-left-3 before:h-6 before:w-0.5 before:rounded-full before:bg-[#7892ff]"
+                : mobile
+                  ? "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-ink-soft transition-colors hover:bg-surface-sunken hover:text-ink"
+                  : "flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-400 transition-colors hover:bg-white/[0.055] hover:text-white"
             }
           >
             <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />

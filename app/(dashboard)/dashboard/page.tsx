@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, AlertTriangle, BellRing, CheckCircle2, Coins, FileText, ListChecks, Radio, Send, Truck, Users } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUpRight, BellRing, CheckCircle2, Coins, FileText, ListChecks, Radio, Send, Sparkles, Truck, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getDashboardMetrics } from "@/lib/services/dashboard";
 import { PageHeader } from "@/components/ui/page-header";
@@ -39,14 +39,14 @@ export default async function DashboardPage() {
     <div>
       <PageHeader
         eyebrow="Canlı operasyon merkezi"
-        title="Bugün ne yapmalısınız?"
-        description="Satış hunisini, Avrupa ilan akışını ve bildirim teslimatını tek ekrandan yönetin."
+        title="Avrupa araç pazarınız, tek bakışta."
+        description="Fırsatları keşfedin, ticari potansiyeli ölçün ve müşteriye dönüşen akışı tek bir operasyon merkezinden yönetin."
         actions={(
           <div className="flex items-center gap-3">
             <div className="text-right text-xs text-ink-faint">
               <span className="flex items-center justify-end gap-1.5 font-medium text-success">
-                <span className="h-2 w-2 rounded-full bg-success" aria-hidden="true" />
-                Canlı Supabase verisi
+                <span className="live-dot h-2 w-2 rounded-full bg-success" aria-hidden="true" />
+                Sistemler çevrimiçi
               </span>
               <time dateTime={metrics.measuredAt}>Son kontrol {formatTime(metrics.measuredAt)}</time>
             </div>
@@ -54,6 +54,22 @@ export default async function DashboardPage() {
           </div>
         )}
       />
+
+      <section className="relative mb-6 overflow-hidden rounded-[1.5rem] bg-[#10192b] p-5 text-white shadow-[0_24px_70px_rgba(16,25,43,0.18)] sm:p-7">
+        <div className="absolute -right-16 -top-28 h-80 w-80 rounded-full bg-brand/35 blur-3xl" aria-hidden="true" />
+        <div className="absolute bottom-0 right-0 h-36 w-2/5 bg-[linear-gradient(135deg,transparent,rgba(99,130,255,0.13))]" aria-hidden="true" />
+        <div className="relative grid gap-6 lg:grid-cols-[1.35fr_1fr] lg:items-end">
+          <div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-200"><Sparkles className="h-3.5 w-3.5" /> Fırsat radarı</span>
+            <p className="mt-5 max-w-xl font-serif text-2xl font-semibold tracking-[-0.025em] sm:text-3xl">{metrics.newOpportunityCount > 0 ? `${metrics.newOpportunityCount} yeni ticari fırsat kararınızı bekliyor.` : "Pazar taraması aktif; yeni fırsatlar izleniyor."}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Vehigo, Avrupa genelindeki ilan akışını filtrelerinizle karşılaştırıyor ve yüksek potansiyelli araçları önceliklendiriyor.</p>
+          </div>
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <Link href="/shortlist" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-[#10192b] transition-transform hover:-translate-y-0.5">Fırsatları incele <ArrowUpRight className="h-4 w-4" /></Link>
+            <Link href="/alerts" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/[0.06] px-4 text-sm font-semibold text-white hover:bg-white/10">Yeni alarm kur</Link>
+          </div>
+        </div>
+      </section>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <ActionCard
@@ -223,8 +239,8 @@ function HealthNotice({ ok, title, description }: { ok: boolean; title: string; 
     <Link
       href="/alerts"
       className={ok
-        ? "flex items-start gap-3 rounded-lg border border-success/20 bg-success-wash p-4"
-        : "flex items-start gap-3 rounded-lg border border-warning/30 bg-warning-wash p-4"}
+        ? "premium-card flex items-start gap-3 rounded-xl border-success/20 p-4 transition-transform hover:-translate-y-0.5"
+        : "premium-card flex items-start gap-3 rounded-xl border-warning/30 p-4 transition-transform hover:-translate-y-0.5"}
     >
       <Icon className={ok ? "mt-0.5 h-5 w-5 text-success" : "mt-0.5 h-5 w-5 text-warning"} strokeWidth={1.8} />
       <span>
@@ -259,7 +275,7 @@ function MetricCard({
 
   return (
     <div
-      className={`${cardClass} border-l-[3px] p-4 transition-shadow hover:shadow-md`}
+      className={`${cardClass} border-l-[3px] p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg`}
       style={{ borderLeftColor: accentColor }}
     >
       <div className="flex items-center justify-between">
