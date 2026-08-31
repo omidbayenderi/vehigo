@@ -328,6 +328,7 @@ function failureRetryAt(agent: Agent, from: Date, failures: number) {
 
 export function classifySiteAgentError(message: string) {
   if (/storage.*right|saklama hakkı/i.test(message)) return "storage_rights_unverified";
+  if (/HTTP 402|payment required|insufficient credit/i.test(message)) return "provider_payment_required";
   if (/HTTP 429|rate.?limit/i.test(message)) return "provider_rate_limited";
   if (/HTTP 401|HTTP 403|API_KEY/i.test(message)) return "provider_authorization_failed";
   if (/timeout|timed out|abort/i.test(message)) return "provider_timeout";

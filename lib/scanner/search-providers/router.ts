@@ -39,6 +39,7 @@ export async function routedVehicleSearch(input: {
   let cacheHit = false;
   let moreResultsAvailable = false;
   let firstFailure: unknown;
+  let providerCompleted = false;
 
   const maxProviderRequests = Math.max(1, Math.min(2, input.maxProviderRequests ?? 2));
   for (const provider of route) {
@@ -56,6 +57,7 @@ export async function routedVehicleSearch(input: {
       providerRequestCount += 1;
       input.onProviderRequest?.(provider.key);
       const response = await provider.search({ query: input.query, offset: input.offset, maxResults: input.maxResults });
+      providerCompleted = true;
       collected.push(...response.hits);
       moreResultsAvailable ||= response.moreResultsAvailable;
       await input.cache?.write(provider.key, input.query, response.hits);
@@ -74,7 +76,11 @@ export async function routedVehicleSearch(input: {
     resultCount: hits.length,
     cacheHit,
   });
-  if (hits.length === 0 && firstFailure) throw firstFailure;
+  // A fallback provider that completed successfully owns the outcome even when
+  // the current query genuinely has no hits. Re-throw only when every attempted
+  // live provider failed; otherwise a paid-provider outage incorrectly marks the
+  // whole Europe Web Scout run as failed.
+  if (hits.length === 0 && firstFailure && !providerCompleted) throw firstFailure;
   return { hits, providersAttempted, providerRequestCount, cacheHit, moreResultsAvailable };
 }
 

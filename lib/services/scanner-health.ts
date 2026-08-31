@@ -197,6 +197,7 @@ function describeAgentFailure(
 function errorCodeLabel(code: string) {
   const labels: Record<string, string> = {
     provider_rate_limited: "Sağlayıcı hız limiti",
+    provider_payment_required: "Sağlayıcı kredisi/ödemesi gerekli",
     provider_timeout: "Sağlayıcı zaman aşımı",
     provider_authorization_failed: "Sağlayıcı yetkilendirme hatası",
     storage_rights_unverified: "Veri saklama hakkı doğrulanmadı",

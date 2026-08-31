@@ -272,6 +272,7 @@ describe("site search agent fleet", () => {
   });
 
   it.each([
+    ["exa_web: HTTP 402", "provider_payment_required"],
     ["brave_web: HTTP 429", "provider_rate_limited"],
     ["brave_web: HTTP 401", "provider_authorization_failed"],
     ["request timed out", "provider_timeout"],

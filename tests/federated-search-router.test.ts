@@ -97,6 +97,41 @@ describe("cost-aware federated search router", () => {
     expect(result.providerRequestCount).toBe(2);
   });
 
+  it("returns an empty successful fallback instead of rethrowing an Exa 402", async () => {
+    const exa = provider("exa", []);
+    vi.mocked(exa.search).mockRejectedValue(new Error("exa_web: HTTP 402"));
+    const brave = provider("brave", []);
+
+    const result = await routedVehicleSearch({
+      query: "red 2021 Renault Clio private seller",
+      watchlist: exactWatchlist,
+      offset: 0,
+      maxResults: 20,
+      scoreHits: (items) => items.length,
+      providers: { exa, brave, tavily: provider("tavily", [], false), vertex: provider("vertex", [], false) },
+    });
+
+    expect(result.providersAttempted).toEqual(["exa", "brave"]);
+    expect(result.hits).toEqual([]);
+    expect(brave.search).toHaveBeenCalledOnce();
+  });
+
+  it("still throws when every live provider fails", async () => {
+    const exa = provider("exa", []);
+    const brave = provider("brave", []);
+    vi.mocked(exa.search).mockRejectedValue(new Error("exa_web: HTTP 402"));
+    vi.mocked(brave.search).mockRejectedValue(new Error("brave_web: HTTP 503"));
+
+    await expect(routedVehicleSearch({
+      query: "red 2021 Renault Clio private seller",
+      watchlist: exactWatchlist,
+      offset: 0,
+      maxResults: 20,
+      scoreHits: (items) => items.length,
+      providers: { exa, brave, tavily: provider("tavily", [], false), vertex: provider("vertex", [], false) },
+    })).rejects.toThrow("exa_web: HTTP 402");
+  });
+
   it("counts a cache hit without making a provider request", async () => {
     const brave = provider("brave", hits("brave", 3));
     const result = await routedVehicleSearch({

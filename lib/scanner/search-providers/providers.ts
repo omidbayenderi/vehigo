@@ -8,6 +8,8 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
 const TAVILY_ENDPOINT = "https://api.tavily.com/search";
 const EXA_ENDPOINT = "https://api.exa.ai/search";
+const PROVIDER_PAYMENT_COOLDOWN_MS = 30 * 60_000;
+let exaUnavailableUntil = 0;
 
 export const braveSearchProvider: FederatedSearchProvider = {
   key: "brave",
@@ -74,34 +76,41 @@ export const tavilySearchProvider: FederatedSearchProvider = {
 
 export const exaSearchProvider: FederatedSearchProvider = {
   key: "exa",
-  configured: () => Boolean(process.env.EXA_API_KEY),
+  configured: () => Boolean(process.env.EXA_API_KEY) && Date.now() >= exaUnavailableUntil,
   async search(request) {
-    const response = await timedFetch(EXA_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "x-api-key": requiredEnv("EXA_API_KEY"),
-      },
-      body: JSON.stringify({
-        query: removeSiteOperators(request.query),
-        type: "fast",
-        numResults: Math.min(20, request.maxResults),
-        moderation: true,
-        ...(siteDomains(request.query).length > 0 ? { includeDomains: siteDomains(request.query) } : {}),
-      }),
-    });
-    const payload = await responseJson<ExaPayload>(response, "exa");
-    return {
-      hits: (payload.results ?? []).flatMap((item) => item.url ? [{
-        url: item.url,
-        title: item.title,
-        description: item.text ?? item.highlights?.join(" "),
-      }] : []),
-      moreResultsAvailable: false,
-      requestId: payload.requestId,
-      reportedCostUsd: payload.costDollars?.total,
-    };
+    try {
+      const response = await timedFetch(EXA_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "x-api-key": requiredEnv("EXA_API_KEY"),
+        },
+        body: JSON.stringify({
+          query: removeSiteOperators(request.query),
+          type: "fast",
+          numResults: Math.min(20, request.maxResults),
+          moderation: true,
+          ...(siteDomains(request.query).length > 0 ? { includeDomains: siteDomains(request.query) } : {}),
+        }),
+      });
+      const payload = await responseJson<ExaPayload>(response, "exa");
+      return {
+        hits: (payload.results ?? []).flatMap((item) => item.url ? [{
+          url: item.url,
+          title: item.title,
+          description: item.text ?? item.highlights?.join(" "),
+        }] : []),
+        moreResultsAvailable: false,
+        requestId: payload.requestId,
+        reportedCostUsd: payload.costDollars?.total,
+      };
+    } catch (error) {
+      if (/HTTP 402/.test(error instanceof Error ? error.message : "")) {
+        exaUnavailableUntil = Date.now() + PROVIDER_PAYMENT_COOLDOWN_MS;
+      }
+      throw error;
+    }
   },
 };
 
