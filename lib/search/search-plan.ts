@@ -2,7 +2,7 @@ import type { BodyType, DriveType, FuelType, SellerType, TransmissionType, Vehic
 import type { RegionPreset } from "./geography";
 
 export const SEARCH_PLAN_VERSION = 1 as const;
-export const SEARCH_PLANNER_VERSION = "deterministic-multilingual-v1";
+export const SEARCH_PLANNER_VERSION = "deterministic-multilingual-v2";
 
 export type SearchPlanV1 = {
   version: typeof SEARCH_PLAN_VERSION;
@@ -49,7 +49,8 @@ const COUNTRY_TERMS: Record<string, string[]> = {
 };
 
 const VEHICLE_TERMS: Array<[VehicleType, string[]]> = [
-  ["truck", ["kamyon", "çekici", "cekici", "truck", "lorry", "lkw"]],
+  ["tractor_unit", ["çekici", "cekici", "tractor unit", "sattelzugmaschine", "tracteur routier", "trekker"]],
+  ["truck", ["kamyon", "truck", "lorry", "lkw"]],
   ["van", ["van", "hafif ticari", "transporter", "bestelwagen"]],
   ["trailer", ["dorse", "trailer", "auflieger"]],
   ["construction", ["iş makinesi", "is makinesi", "excavator", "baumaschine"]],
@@ -67,12 +68,12 @@ export function parseNaturalLanguageSearch(query: string): SearchPlanV1 {
   const warnings: string[] = [];
   const matched = new Set<string>();
 
-  const brand = BRANDS.find((candidate) => normalized.includes(normalize(candidate)));
+  const brand = BRANDS.find((candidate) => includesPhrase(normalized, normalize(candidate)));
   if (brand) {
     filters.brand = brand;
     matched.add("brand");
     const afterBrand = normalized.split(normalize(brand))[1]?.trim().split(/\s+/).slice(0, 5) ?? [];
-    const stopWords = new Set(["model", "otomobil", "araba", "car", "auto", "kamyon", "truck", "van", "dizel", "diesel", "benzin", "gasoline", "petrol", "hybrid", "hibrit", "electric", "elektrik", "otomatik", "automatic", "manuel", "manual", "strict", "discovery", "kesif", "almanya", "hollanda", "germany", "netherlands"]);
+    const stopWords = new Set(["model", "otomobil", "araba", "car", "auto", "kamyon", "truck", "van", "cekici", "tractor", "sattelzugmaschine", "dizel", "diesel", "benzin", "gasoline", "petrol", "hybrid", "hibrit", "electric", "elektrik", "otomatik", "automatic", "manuel", "manual", "strict", "discovery", "kesif", "almanya", "hollanda", "germany", "netherlands", "manufactured", "manufacture", "made", "built", "uretim", "uretilmis", "in", "da", "de"]);
     const modelParts: string[] = [];
     for (const part of afterBrand) {
       if (stopWords.has(part) || /^\d{4}$/.test(part) || /^[0-9]+(?:k|bin)?$/.test(part)) break;
@@ -83,7 +84,7 @@ export function parseNaturalLanguageSearch(query: string): SearchPlanV1 {
   }
 
   for (const [vehicleType, terms] of VEHICLE_TERMS) {
-    if (terms.some((term) => normalized.includes(normalize(term)))) {
+    if (terms.some((term) => includesPhrase(normalized, normalize(term)))) {
       filters.vehicle_type = vehicleType;
       matched.add("vehicle_type");
       break;
@@ -193,7 +194,14 @@ export function isSearchPlanV1(value: unknown): value is SearchPlanV1 {
 }
 
 function normalize(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("en-US").replace(/[()'’`,;:]/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("en-US")
+    .replace(/ı/g, "i")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function includesPhrase(text: string, phrase: string) {
@@ -223,12 +231,13 @@ function assignTerm<K extends keyof SearchPlanV1["filters"]>(
   key: K,
   terms: Record<string, string[]>,
 ) {
-  for (const [value, candidates] of Object.entries(terms)) {
-    if (candidates.some((candidate) => includesPhrase(text, normalize(candidate)))) {
-      (filters as Record<string, unknown>)[key] = value;
-      return;
-    }
-  }
+  const matches = Object.entries(terms).flatMap(([value, candidates]) =>
+    candidates.flatMap((candidate) => includesPhrase(text, normalize(candidate))
+      ? [{ value, length: normalize(candidate).length }]
+      : []),
+  );
+  const best = matches.sort((left, right) => right.length - left.length)[0];
+  if (best) (filters as Record<string, unknown>)[key] = best.value;
 }
 
 function escapeRegExp(value: string) {

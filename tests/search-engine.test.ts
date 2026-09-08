@@ -95,7 +95,7 @@ describe("Phase 3 geography and planning", () => {
     const plan = parseNaturalLanguageSearch("Almanya ve Hollanda'da 2021 sonrası 80 bin km altında otomatik Volkswagen Golf dizel discovery");
     expect(plan).toMatchObject({
       version: 1,
-      parserVersion: "deterministic-multilingual-v1",
+      parserVersion: "deterministic-multilingual-v2",
       filters: {
         brand: "Volkswagen",
         model: "golf",
@@ -106,6 +106,29 @@ describe("Phase 3 geography and planning", () => {
         fuel_type: "diesel",
         search_mode: "discovery",
       },
+    });
+  });
+
+  it("does not detect MAN inside ordinary words before a real BMW brand", () => {
+    const plan = parseNaturalLanguageSearch("BMW manufactured in 2021, automatic car in Germany");
+    expect(plan.filters).toMatchObject({
+      brand: "BMW",
+      vehicle_type: "car",
+      min_year: 2021,
+      max_year: 2021,
+      transmission: "automatic",
+    });
+    expect(plan.filters.model).toBeUndefined();
+  });
+
+  it("distinguishes tractor units and prefers multi-word transmission terms", () => {
+    const plan = parseNaturalLanguageSearch("Almanya'da yarı otomatik Mercedes Benz Actros çekici");
+    expect(plan.filters).toMatchObject({
+      brand: "Mercedes-Benz",
+      model: "actros",
+      vehicle_type: "tractor_unit",
+      transmission: "semi_automatic",
+      country_codes: ["DE"],
     });
   });
 });

@@ -1,4 +1,4 @@
-import { BellRing, ChevronRight, ExternalLink, FileText, TrendingUp } from "lucide-react";
+import { Activity, BellRing, ChevronRight, ExternalLink, FileText, TrendingUp } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { listMarketSources, listRecentAlerts, listWatchlists, readConditionFilter, readSeatFilter } from "@/lib/services/market-alerts";
 import { describeOpportunity, recommendLeadsForListing } from "@/lib/services/opportunity-flow";
@@ -16,6 +16,8 @@ import MarketIntelligenceCard from "./market-intelligence-card";
 import { listLatestIntelligenceByListingIds } from "@/lib/services/market-intelligence";
 import { AlertCheckbox, SelectionProvider, SelectionToolbar } from "./opportunity-flow-selection";
 import type { MarketSourceVehicleCategory } from "@/lib/supabase/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getScannerActivitySummary } from "@/lib/services/scanner-health";
 
 const sourceCategoryOrder: MarketSourceVehicleCategory[] = [
   "car_light_commercial",
@@ -41,12 +43,13 @@ export default async function AlertsPage() {
 
   if (!user) return null;
 
-  const [{ data: profile }, { data: leads }, sources, watchlists, alerts] = await Promise.all([
+  const [{ data: profile }, { data: leads }, sources, watchlists, alerts, scannerActivity] = await Promise.all([
     supabase.from("users_profile").select("*").eq("id", user.id).single(),
     supabase.from("leads").select("*").eq("created_by", user.id).order("seriousness_score", { ascending: false }),
     listMarketSources(supabase),
     listWatchlists(supabase, user.id),
     listRecentAlerts(supabase, user.id),
+    getScannerActivitySummary(createAdminClient()),
   ]);
   const activeLeads = (leads ?? []).filter((lead) => lead.status !== "closed_won" && lead.status !== "closed_lost");
   const intelligenceByListingId = await listLatestIntelligenceByListingIds(
@@ -78,6 +81,26 @@ export default async function AlertsPage() {
           verified={Boolean(profile?.telegram_chat_id && profile.telegram_verified_at)}
         />
       </div>
+
+      <section className={`mb-6 ${cardClass}`} aria-label="Tarama durumu">
+        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-md bg-brand/10 text-brand"><Activity size={18} aria-hidden="true" /></span>
+            <div>
+              <h2 className="text-sm font-semibold text-ink">Otomatik tarama durumu</h2>
+              <p className="mt-1 text-sm text-ink-faint">
+                {scannerActivity.lastCompletedAt
+                  ? `Son tur ${new Date(scannerActivity.lastCompletedAt).toLocaleString("tr-TR")}: ${scannerActivity.fetched} sonuç incelendi, ${scannerActivity.alertsCreated} yeni eşleşme bulundu.`
+                  : "Henüz tamamlanmış bir otomatik tarama kaydı yok."}
+              </p>
+              {scannerActivity.nextRunAt ? <p className="mt-1 text-xs text-ink-faint">Planlanan sonraki tur: {new Date(scannerActivity.nextRunAt).toLocaleString("tr-TR")}</p> : null}
+            </div>
+          </div>
+          <span className={pillClasses(scannerActivity.status === "active" ? "success" : scannerActivity.status === "failing" ? "danger" : "warning")}>
+            {scannerActivity.status === "active" ? "Tarama aktif" : scannerActivity.status === "failing" ? `Sorun · ${scannerActivity.errorCode ?? "bilinmiyor"}` : "Tarama bekliyor"}
+          </span>
+        </div>
+      </section>
 
       <details className={`group mb-6 ${cardClass}`}>
         <summary className="cursor-pointer list-none px-5 py-4 text-sm font-medium text-ink marker:content-none">

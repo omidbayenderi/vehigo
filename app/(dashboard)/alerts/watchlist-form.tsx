@@ -158,7 +158,7 @@ export default function WatchlistForm({ sources }: { sources: Source[] }) {
             placeholder="retarder, euro 6"
             className="w-full rounded-md border border-line bg-surface px-3 py-2 text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
           />
-          <span className="mt-1 block text-xs text-ink-faint">Virgülle ayırın. Kelimelerden en az biri ilanda geçerse aday listeye alınır.</span>
+          <span className="mt-1 block text-xs text-ink-faint">Virgülle ayırın. Yazdığınız kelimelerin tümü ilanda geçmelidir.</span>
         </label>
         <label className="text-sm">
           <span className="mb-1 block text-ink-soft">Hariç tutulacak kelimeler</span>

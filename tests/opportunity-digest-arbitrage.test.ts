@@ -60,6 +60,14 @@ const alertRow = {
   users_profile: { telegram_chat_id: "12345", locale: "tr" },
 };
 
+const activeWatchlistRows = [{ user_id: "00000000-0000-4000-8000-000000000001" }];
+const linkedProfileRows = [{
+  id: "00000000-0000-4000-8000-000000000001",
+  telegram_chat_id: "12345",
+  telegram_verified_at: "2026-07-16T00:00:00.000Z",
+  locale: "tr",
+}];
+
 describe("opportunity digest arbitrage highlight", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,8 +82,12 @@ describe("opportunity digest arbitrage highlight", () => {
     });
     const pendingAlerts = query({ data: [alertRow], error: null });
     const claimedAlerts = query({ data: [alertRow], error: null });
+    const activeWatchlists = query({ data: activeWatchlistRows, error: null });
+    const linkedProfiles = query({ data: linkedProfileRows, error: null });
     const from = vi.fn((table: string) => {
       if (table === "listing_alerts") return pendingAlerts.select.mock.calls.length === 0 ? pendingAlerts : claimedAlerts;
+      if (table === "watchlists") return activeWatchlists;
+      if (table === "users_profile") return linkedProfiles;
       throw new Error(`Unexpected table: ${table}`);
     });
     const rpc = vi.fn(async (name: string) => {
@@ -94,8 +106,12 @@ describe("opportunity digest arbitrage highlight", () => {
     mocks.assessEuropeanArbitrage.mockRejectedValue(new Error("piyasa istihbaratı başarısız"));
     const pendingAlerts = query({ data: [alertRow], error: null });
     const claimedAlerts = query({ data: [alertRow], error: null });
+    const activeWatchlists = query({ data: activeWatchlistRows, error: null });
+    const linkedProfiles = query({ data: linkedProfileRows, error: null });
     const from = vi.fn((table: string) => {
       if (table === "listing_alerts") return pendingAlerts.select.mock.calls.length === 0 ? pendingAlerts : claimedAlerts;
+      if (table === "watchlists") return activeWatchlists;
+      if (table === "users_profile") return linkedProfiles;
       throw new Error(`Unexpected table: ${table}`);
     });
     const rpc = vi.fn(async (name: string) => {

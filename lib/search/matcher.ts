@@ -285,5 +285,5 @@ function numericWatchlistValue(watchlist: SearchWatchlist, key: string) {
 }
 
 function normalize(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("en-US").replace(/[_/|,;:()\[\]-]+/g, " ").replace(/\s+/g, " ").trim();
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("en-US").replace(/ı/g, "i").replace(/[_/|,;:()\[\]-]+/g, " ").replace(/\s+/g, " ").trim();
 }

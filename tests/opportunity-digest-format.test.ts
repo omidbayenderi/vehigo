@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { formatDigest, isUnsentDigestAlert } from "@/lib/services/opportunity-digest";
+import { formatDigest, formatEmptyDigest, isUnsentDigestAlert } from "@/lib/services/opportunity-digest";
 
 describe("Telegram opportunity digest localization", () => {
   it("only treats pending alerts that have never been sent as digest candidates", () => {
     expect(isUnsentDigestAlert({ status: "pending", sent_at: null })).toBe(true);
     expect(isUnsentDigestAlert({ status: "sent", sent_at: "2026-07-14T08:00:00.000Z" })).toBe(false);
     expect(isUnsentDigestAlert({ status: "pending", sent_at: "2026-07-14T08:00:00.000Z" })).toBe(false);
+  });
+
+  it("explains a successful scan with no new matches instead of staying silent", () => {
+    expect(formatEmptyDigest(12, "tr")).toContain("Tarama çalıştı");
+    expect(formatEmptyDigest(12, "fa")).toContain("جست‌وجو انجام شد");
   });
 
   it("formats the complete opportunity message in fluent Persian", () => {

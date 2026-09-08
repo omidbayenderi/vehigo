@@ -760,7 +760,20 @@ function dedupeByUrl(listings: MarketListingInput[]) {
 }
 
 function textIncludes(text: string, expected: string) {
-  return text.toLocaleLowerCase("tr-TR").includes(expected.toLocaleLowerCase("tr-TR"));
+  const normalizedText = normalizeSearchText(text);
+  const normalizedExpected = normalizeSearchText(expected);
+  return normalizedExpected.length > 0 && normalizedText.includes(normalizedExpected);
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("en-US")
+    .replace(/ı/g, "i")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function inferVehicleType(text: string): MarketListingInput["vehicle_type"] | undefined {

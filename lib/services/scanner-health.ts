@@ -13,6 +13,49 @@ export type ScannerHealthIssue = {
   detail: string;
 };
 
+export type ScannerActivitySummary = {
+  status: "active" | "idle" | "failing";
+  lastStartedAt: string | null;
+  lastCompletedAt: string | null;
+  lastSuccessAt: string | null;
+  nextRunAt: string | null;
+  fetched: number;
+  alertsCreated: number;
+  errorCode: string | null;
+};
+
+export async function getScannerActivitySummary(supabase: Client): Promise<ScannerActivitySummary> {
+  const { data: agent, error: agentError } = await supabase
+    .from("site_search_agents")
+    .select("source_key,status,last_status,last_error_code,last_started_at,last_completed_at,last_success_at,next_run_at")
+    .eq("status", "active")
+    .order("last_started_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  if (agentError) throw new Error(agentError.message);
+  if (!agent) {
+    return { status: "idle", lastStartedAt: null, lastCompletedAt: null, lastSuccessAt: null, nextRunAt: null, fetched: 0, alertsCreated: 0, errorCode: null };
+  }
+  const { data: run, error: runError } = await supabase
+    .from("site_search_agent_runs")
+    .select("fetched_count,alerts_created")
+    .eq("source_key", agent.source_key)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (runError) throw new Error(runError.message);
+  return {
+    status: agent.last_status === "failed" || agent.last_status === "blocked" ? "failing" : "active",
+    lastStartedAt: agent.last_started_at,
+    lastCompletedAt: agent.last_completed_at,
+    lastSuccessAt: agent.last_success_at,
+    nextRunAt: agent.next_run_at,
+    fetched: run?.fetched_count ?? 0,
+    alertsCreated: run?.alerts_created ?? 0,
+    errorCode: agent.last_error_code,
+  };
+}
+
 export async function checkScannerHealth(supabase: Client): Promise<ScannerHealthIssue[]> {
   const { data: sources, error: sourcesError } = await supabase
     .from("market_sources")

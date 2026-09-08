@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { CheckCircle2, Search, Sparkles } from "lucide-react";
-import type { SearchPlanV1 } from "@/lib/search/search-plan";
+import { isSearchPlanV1, type SearchPlanV1 } from "@/lib/search/search-plan";
 
 export default function NaturalLanguagePlanner({ defaultQuery, defaultPlan }: { defaultQuery?: string | null; defaultPlan?: unknown }) {
   const [query, setQuery] = useState(defaultQuery ?? "");
-  const [plan, setPlan] = useState<SearchPlanV1 | null>(isPlan(defaultPlan) ? defaultPlan : null);
+  const [plan, setPlan] = useState<SearchPlanV1 | null>(isSearchPlanV1(defaultPlan) ? defaultPlan : null);
   const [previewed, setPreviewed] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +79,6 @@ export default function NaturalLanguagePlanner({ defaultQuery, defaultPlan }: { 
       {defaultQuery ? <input type="hidden" name="original_natural_language_query" value={defaultQuery} /> : null}
     </section>
   );
-}
-
-function isPlan(value: unknown): value is SearchPlanV1 {
-  return Boolean(value && typeof value === "object" && (value as { version?: unknown }).version === 1);
 }
 
 function planLabel(key: string) {

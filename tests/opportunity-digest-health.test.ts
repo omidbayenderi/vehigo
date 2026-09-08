@@ -47,12 +47,17 @@ describe("Telegram scanner health delivery", () => {
       }],
       error: null,
     });
+    const activeWatchlists = query({
+      data: [{ user_id: "00000000-0000-4000-8000-000000000001" }],
+      error: null,
+    });
     const rpc = vi.fn(async (name: string) => {
       if (name === "claim_opportunity_digest_alerts") return { data: [], error: null };
       throw new Error(`Unexpected RPC: ${name}`);
     });
     const from = vi.fn((table: string) => {
       if (table === "listing_alerts") return pendingAlerts;
+      if (table === "watchlists") return activeWatchlists;
       if (table === "users_profile") return linkedProfiles;
       throw new Error(`Unexpected table: ${table}`);
     });
@@ -64,5 +69,38 @@ describe("Telegram scanner health delivery", () => {
       expect.stringContaining("هشدار سلامت جست‌وجوگر"),
     );
     expect(result).toMatchObject({ users: 1, sent: 1, failed: 0, pendingAlerts: 0, healthIssues: 1 });
+  });
+
+  it("sends a no-match status to linked users with active filters", async () => {
+    mocks.checkScannerHealth.mockResolvedValue([]);
+    const pendingAlerts = query({ data: [], error: null });
+    const activeWatchlists = query({
+      data: [{ user_id: "00000000-0000-4000-8000-000000000001" }],
+      error: null,
+    });
+    const linkedProfiles = query({
+      data: [{
+        id: "00000000-0000-4000-8000-000000000001",
+        telegram_chat_id: "12345",
+        telegram_verified_at: "2026-07-16T00:00:00.000Z",
+        locale: "tr",
+      }],
+      error: null,
+    });
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "claim_opportunity_digest_alerts") return { data: [], error: null };
+      throw new Error(`Unexpected RPC: ${name}`);
+    });
+    const from = vi.fn((table: string) => {
+      if (table === "listing_alerts") return pendingAlerts;
+      if (table === "watchlists") return activeWatchlists;
+      if (table === "users_profile") return linkedProfiles;
+      throw new Error(`Unexpected table: ${table}`);
+    });
+
+    const result = await sendOpportunityDigest({ from, rpc } as never);
+
+    expect(mocks.sendTelegramMessage).toHaveBeenCalledWith("12345", expect.stringContaining("Tarama çalıştı"));
+    expect(result).toMatchObject({ users: 1, sent: 1, failed: 0, pendingAlerts: 0, healthIssues: 0 });
   });
 });

@@ -49,10 +49,18 @@ export async function sendOpportunityDigest(
   }
 
   const healthIssues = criticalScannerHealthIssues(await checkScannerHealth(supabase));
-  if (healthIssues.length > 0) {
+  const { data: activeWatchlists, error: watchlistsError } = await supabase
+    .from("watchlists")
+    .select("user_id")
+    .eq("active", true);
+  if (watchlistsError) throw new Error(watchlistsError.message);
+  const activeUserIds = [...new Set((activeWatchlists ?? []).map((watchlist) => watchlist.user_id))]
+    .filter((userId) => !options.userId || userId === options.userId);
+  if (activeUserIds.length > 0) {
     const { data: linkedProfiles, error: profilesError } = await supabase
       .from("users_profile")
       .select("id,telegram_chat_id,telegram_verified_at,locale")
+      .in("id", activeUserIds)
       .not("telegram_chat_id", "is", null)
       .not("telegram_verified_at", "is", null);
     if (profilesError) throw new Error(profilesError.message);
@@ -86,7 +94,6 @@ export async function sendOpportunityDigest(
       if (claimedError) throw new Error(claimedError.message);
       alerts = (claimedAlerts ?? []) as unknown as DigestAlert[];
     }
-    if (alerts.length === 0 && healthIssues.length === 0) continue;
     users++;
     pendingAlerts += alerts.length;
     const deliverableAlerts = alerts.filter((alert) =>
@@ -107,6 +114,7 @@ export async function sendOpportunityDigest(
     const messageParts = [
       deliverableAlerts.length > 0 ? formatDigest(deliverableAlerts, hours, locale, arbitrageByAlertId) : null,
       healthWarning,
+      deliverableAlerts.length === 0 && !healthWarning ? formatEmptyDigest(hours, locale) : null,
     ].filter((part): part is string => Boolean(part));
 
     if (messageParts.length === 0) {
@@ -170,6 +178,21 @@ export async function sendOpportunityDigest(
     healthIssues: healthIssues.length,
     pendingAlerts,
   };
+}
+
+export function formatEmptyDigest(hours: number, locale: "tr" | "fa" = "tr") {
+  if (locale === "fa") {
+    return [
+      `گزارش جست‌وجوی وهیگو — ${hours.toLocaleString("fa-IR")} ساعت گذشته`,
+      "جست‌وجو انجام شد، اما آگهی تازه‌ای که تمام فیلترهای فعال شما را داشته باشد پیدا نشد.",
+      "اسکن خودکار ادامه دارد؛ به‌محض پیدا شدن تطابق جدید، اعلان ارسال می‌شود.",
+    ].join("\n");
+  }
+  return [
+    `Vehigo tarama durumu — son ${hours} saat`,
+    "Tarama çalıştı; aktif filtrelerinizin tamamına uyan yeni bir ilan bulunmadı.",
+    "Otomatik tarama devam ediyor. Yeni eşleşme bulunduğunda ayrıca bildirim gönderilecek.",
+  ].join("\n");
 }
 
 async function markDigestDeliveryUncertain(
